@@ -5,6 +5,14 @@
  * and keep the same export names.
  */
 
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 export type WorkspaceRole = "owner" | "editor" | "commenter" | "viewer";
 export type OrganisationRole = "admin" | "member";
 export type OrganisationType = "nhs_trust" | "deanery" | "other";
@@ -89,6 +97,18 @@ export type AuditEventRow = {
   created_at: string;
 };
 
+export type DbBlockRow = {
+  id: string;
+  page_id: string;
+  parent_block_id: string | null;
+  type: string;
+  position: string;
+  content: { props?: Record<string, unknown>; content?: unknown };
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -156,9 +176,21 @@ export type Database = {
         Update: Partial<AuditEventRow>;
         Relationships: [];
       };
+      blocks: {
+        Row: DbBlockRow;
+        Insert: Partial<DbBlockRow> &
+          Pick<DbBlockRow, "id" | "page_id" | "type" | "position">;
+        Update: Partial<DbBlockRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      replace_page_blocks: {
+        Args: { p_page_id: string; p_blocks: Json };
+        Returns: undefined;
+      };
+    };
     Enums: {
       workspace_role: WorkspaceRole;
       organisation_role: OrganisationRole;
