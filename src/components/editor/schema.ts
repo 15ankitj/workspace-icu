@@ -1,11 +1,19 @@
 "use client";
 
-import { BlockNoteSchema, defaultBlockSpecs } from "@blocknote/core";
+import {
+  BlockNoteSchema,
+  defaultBlockSpecs,
+  defaultInlineContentSpecs,
+} from "@blocknote/core";
 import { createCalloutSpec } from "@/components/editor/blocks/callout";
 import { createEmbedSpec } from "@/components/editor/blocks/embed";
 import { createBookmarkSpec } from "@/components/editor/blocks/bookmark";
 import { createPageLinkSpec } from "@/components/editor/blocks/page-link";
 import { createTocSpec } from "@/components/editor/blocks/toc";
+import {
+  pageMentionSpec,
+  userMentionSpec,
+} from "@/components/editor/inline/mentions";
 
 // The v1 block list (brief §6): defaults minus audio/video, plus the
 // custom blocks. Columns are deferred pending the licensing decision on
@@ -21,6 +29,11 @@ export const editorSchema = BlockNoteSchema.create({
     bookmark: createBookmarkSpec(),
     pageLink: createPageLinkSpec(),
     tableOfContents: createTocSpec(),
+  },
+  inlineContentSpecs: {
+    ...defaultInlineContentSpecs,
+    userMention: userMentionSpec,
+    pageMention: pageMentionSpec,
   },
 });
 

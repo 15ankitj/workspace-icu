@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { positionAfter, positionBetween, firstPosition } from "@/lib/position";
 import { canMove, descendantIds, siblingsOf, type TreePage } from "@/lib/tree";
+import { isValidCover } from "@/lib/cover";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -77,6 +78,21 @@ export async function setPageIcon(pageId: string, icon: string | null) {
     .select("workspace_id")
     .single();
   if (error) throw new Error(`Could not set icon: ${error.message}`);
+  revalidatePath(`/w/${data.workspace_id}`, "layout");
+}
+
+export async function setPageCover(pageId: string, cover: string | null) {
+  const { supabase } = await requireUser();
+  if (cover !== null && !isValidCover(cover)) {
+    throw new Error("Covers must be a preset gradient or an https image URL");
+  }
+  const { data, error } = await supabase
+    .from("pages")
+    .update({ cover_url: cover })
+    .eq("id", pageId)
+    .select("workspace_id")
+    .single();
+  if (error) throw new Error(`Could not change cover: ${error.message}`);
   revalidatePath(`/w/${data.workspace_id}`, "layout");
 }
 

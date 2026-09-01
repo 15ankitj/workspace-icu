@@ -15,9 +15,11 @@ import { savePageContent } from "@/app/actions/blocks";
 import type { EditorBlock } from "@/lib/blocks";
 import { editorSchema } from "@/components/editor/schema";
 import { customSlashMenuItems } from "@/components/editor/slash-items";
+import { mentionMenuItems } from "@/components/editor/mention-items";
 import {
   PageLinkContext,
   type LinkablePage,
+  type MentionableUser,
 } from "@/components/editor/page-link-context";
 
 const SAVE_DEBOUNCE_MS = 1500;
@@ -31,6 +33,7 @@ export function PageEditor({
   pageId,
   workspaceId,
   linkablePages,
+  members,
   initialContent,
   editable,
   smallText,
@@ -38,6 +41,7 @@ export function PageEditor({
   pageId: string;
   workspaceId: string;
   linkablePages: LinkablePage[];
+  members: MentionableUser[];
   initialContent: EditorBlock[];
   editable: boolean;
   smallText: boolean;
@@ -85,8 +89,8 @@ export function PageEditor({
   }, [editor, pageId]);
 
   const pageLinkValue = useMemo(
-    () => ({ workspaceId, pages: linkablePages }),
-    [workspaceId, linkablePages],
+    () => ({ workspaceId, pages: linkablePages, members }),
+    [workspaceId, linkablePages, members],
   );
 
   return (
@@ -101,6 +105,15 @@ export function PageEditor({
                   ...getDefaultReactSlashMenuItems(editor),
                   ...customSlashMenuItems(editor),
                 ],
+                query,
+              )
+            }
+          />
+          <SuggestionMenuController
+            triggerCharacter="@"
+            getItems={async (query) =>
+              filterSuggestionItems(
+                mentionMenuItems(editor, members, linkablePages),
                 query,
               )
             }
