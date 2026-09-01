@@ -34,6 +34,7 @@ export default async function PageView({
     { data: blockRows },
     { data: workspacePages },
     { data: memberRows },
+    { count: uploadCount },
   ] = await Promise.all([
     supabase
       .from("workspace_members")
@@ -56,6 +57,12 @@ export default async function PageView({
       .from("workspace_members")
       .select("user_id, users (display_name)")
       .eq("workspace_id", workspaceId),
+    // Drives the first-five-uploads confirmation gate.
+    supabase
+      .from("files")
+      .select("id", { count: "exact", head: true })
+      .eq("uploader_id", user.id)
+      .is("deleted_at", null),
     // Recently-viewed tracking; failure is harmless so no error handling.
     supabase.from("recent_pages").upsert({
       user_id: user.id,
@@ -108,13 +115,12 @@ export default async function PageView({
           ))}
           <span className="text-foreground">{page.title || "Untitled"}</span>
         </nav>
-        {canEditThisPage && (
-          <PageMenu
-            pageId={page.id}
-            fullWidth={page.full_width}
-            smallText={page.small_text}
-          />
-        )}
+        <PageMenu
+          pageId={page.id}
+          fullWidth={page.full_width}
+          smallText={page.small_text}
+          canEdit={canEditThisPage}
+        />
       </div>
 
       <PageCover
@@ -140,6 +146,7 @@ export default async function PageView({
           initialContent={initialContent}
           editable={canEditThisPage}
           smallText={page.small_text}
+          initialUploadCount={uploadCount ?? 0}
         />
       </div>
     </main>
