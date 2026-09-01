@@ -3,12 +3,22 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 
-import { useEffect, useRef } from "react";
-import { useCreateBlockNote } from "@blocknote/react";
+import { useEffect, useMemo, useRef } from "react";
+import { filterSuggestionItems } from "@blocknote/core";
+import {
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
+  useCreateBlockNote,
+} from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import type { PartialBlock } from "@blocknote/core";
 import { savePageContent } from "@/app/actions/blocks";
 import type { EditorBlock } from "@/lib/blocks";
+import { editorSchema } from "@/components/editor/schema";
+import { customSlashMenuItems } from "@/components/editor/slash-items";
+import {
+  PageLinkContext,
+  type LinkablePage,
+} from "@/components/editor/page-link-context";
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -19,17 +29,24 @@ const SAVE_DEBOUNCE_MS = 1500;
  */
 export function PageEditor({
   pageId,
+  workspaceId,
+  linkablePages,
   initialContent,
   editable,
+  smallText,
 }: {
   pageId: string;
+  workspaceId: string;
+  linkablePages: LinkablePage[];
   initialContent: EditorBlock[];
   editable: boolean;
+  smallText: boolean;
 }) {
   const editor = useCreateBlockNote(
     {
+      schema: editorSchema,
       initialContent: initialContent.length
-        ? (initialContent as PartialBlock[])
+        ? (initialContent as unknown as (typeof editorSchema)["PartialBlock"][])
         : undefined,
     },
     [pageId],
@@ -42,9 +59,10 @@ export function PageEditor({
     const flush = () => {
       if (!dirty.current) return;
       dirty.current = false;
-      void savePageContent(pageId, editor.document as EditorBlock[]).catch(
-        (error) => console.error("Failed to save page:", error),
-      );
+      void savePageContent(
+        pageId,
+        editor.document as unknown as EditorBlock[],
+      ).catch((error) => console.error("Failed to save page:", error));
     };
 
     const unsubscribe = editor.onChange(() => {
@@ -66,9 +84,29 @@ export function PageEditor({
     };
   }, [editor, pageId]);
 
+  const pageLinkValue = useMemo(
+    () => ({ workspaceId, pages: linkablePages }),
+    [workspaceId, linkablePages],
+  );
+
   return (
-    <div className="-mx-[54px]">
-      <BlockNoteView editor={editor} editable={editable} />
-    </div>
+    <PageLinkContext.Provider value={pageLinkValue}>
+      <div className={smallText ? "-mx-[54px] text-sm" : "-mx-[54px]"}>
+        <BlockNoteView editor={editor} editable={editable} slashMenu={false}>
+          <SuggestionMenuController
+            triggerCharacter="/"
+            getItems={async (query) =>
+              filterSuggestionItems(
+                [
+                  ...getDefaultReactSlashMenuItems(editor),
+                  ...customSlashMenuItems(editor),
+                ],
+                query,
+              )
+            }
+          />
+        </BlockNoteView>
+      </div>
+    </PageLinkContext.Provider>
   );
 }
