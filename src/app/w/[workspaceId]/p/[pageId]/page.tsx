@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildDocument } from "@/lib/blocks";
 import { PageHeader } from "@/components/page/page-header";
 import { PageMenu } from "@/components/page/page-menu";
+import { PageCover } from "@/components/page/page-cover";
 import { PageEditorLoader } from "@/components/page/page-editor-loader";
 
 export const dynamic = "force-dynamic";
@@ -21,43 +22,56 @@ export default async function PageView({
   const { data: page } = await supabase
     .from("pages")
     .select(
-      "id, workspace_id, parent_page_id, title, icon, is_private, full_width, small_text, created_by, updated_at, deleted_at",
+      "id, workspace_id, parent_page_id, title, icon, cover_url, is_private, full_width, small_text, created_by, updated_at, deleted_at",
     )
     .eq("id", pageId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!page || page.deleted_at) notFound();
 
-  const [{ data: membership }, { data: blockRows }, { data: workspacePages }] =
-    await Promise.all([
-      supabase
-        .from("workspace_members")
-        .select("role")
-        .eq("workspace_id", workspaceId)
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("blocks")
-        .select("id, parent_block_id, type, position, content")
-        .eq("page_id", pageId),
-      // For the page-link block's picker.
-      supabase
-        .from("pages")
-        .select("id, title, icon")
-        .eq("workspace_id", workspaceId)
-        .is("deleted_at", null),
-      // Recently-viewed tracking; failure is harmless so no error handling.
-      supabase.from("recent_pages").upsert({
-        user_id: user.id,
-        page_id: pageId,
-        viewed_at: new Date().toISOString(),
-      }),
-    ]);
+  const [
+    { data: membership },
+    { data: blockRows },
+    { data: workspacePages },
+    { data: memberRows },
+  ] = await Promise.all([
+    supabase
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("blocks")
+      .select("id, parent_block_id, type, position, content")
+      .eq("page_id", pageId),
+    // For the page-link block's picker.
+    supabase
+      .from("pages")
+      .select("id, title, icon")
+      .eq("workspace_id", workspaceId)
+      .is("deleted_at", null),
+    // For the "@" mention menu.
+    supabase
+      .from("workspace_members")
+      .select("user_id, users (display_name)")
+      .eq("workspace_id", workspaceId),
+    // Recently-viewed tracking; failure is harmless so no error handling.
+    supabase.from("recent_pages").upsert({
+      user_id: user.id,
+      page_id: pageId,
+      viewed_at: new Date().toISOString(),
+    }),
+  ]);
   const canEdit = membership?.role === "owner" || membership?.role === "editor";
   const canEditThisPage =
     canEdit && (!page.is_private || page.created_by === user.id);
   const initialContent = buildDocument(blockRows ?? []);
   const linkablePages = (workspacePages ?? []).filter((p) => p.id !== pageId);
+  const members = (memberRows ?? []).map((m) => ({
+    id: m.user_id,
+    displayName: m.users?.display_name ?? "Unknown",
+  }));
 
   // Breadcrumb trail from the page's ancestors.
   const crumbs: { id: string; title: string }[] = [];
@@ -103,6 +117,12 @@ export default async function PageView({
         )}
       </div>
 
+      <PageCover
+        pageId={page.id}
+        cover={page.cover_url}
+        canEdit={canEditThisPage}
+      />
+
       <PageHeader
         pageId={page.id}
         initialTitle={page.title}
@@ -116,6 +136,7 @@ export default async function PageView({
           pageId={page.id}
           workspaceId={workspaceId}
           linkablePages={linkablePages}
+          members={members}
           initialContent={initialContent}
           editable={canEditThisPage}
           smallText={page.small_text}

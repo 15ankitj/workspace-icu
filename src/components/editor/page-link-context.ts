@@ -8,15 +8,25 @@ export interface LinkablePage {
   icon: string | null;
 }
 
-export interface PageLinkContextValue {
-  workspaceId: string;
-  pages: LinkablePage[];
+export interface MentionableUser {
+  id: string;
+  displayName: string;
 }
 
-/** Supplies the page-link block with the workspace's pages. */
-export const PageLinkContext = createContext<PageLinkContextValue>({
+export interface EditorContextValue {
+  workspaceId: string;
+  pages: LinkablePage[];
+  members: MentionableUser[];
+}
+
+/**
+ * Supplies the page-link block and the mention inline content with the
+ * workspace's pages and members.
+ */
+export const PageLinkContext = createContext<EditorContextValue>({
   workspaceId: "",
   pages: [],
+  members: [],
 });
 
 export function usePageLinkContext() {
