@@ -80,6 +80,26 @@ export async function setPageIcon(pageId: string, icon: string | null) {
   revalidatePath(`/w/${data.workspace_id}`, "layout");
 }
 
+export async function setPageLayout(
+  pageId: string,
+  layout: { fullWidth?: boolean; smallText?: boolean },
+) {
+  const { supabase } = await requireUser();
+  const update: { full_width?: boolean; small_text?: boolean } = {};
+  if (layout.fullWidth !== undefined) update.full_width = layout.fullWidth;
+  if (layout.smallText !== undefined) update.small_text = layout.smallText;
+  if (Object.keys(update).length === 0) return;
+
+  const { data, error } = await supabase
+    .from("pages")
+    .update(update)
+    .eq("id", pageId)
+    .select("workspace_id")
+    .single();
+  if (error) throw new Error(`Could not change layout: ${error.message}`);
+  revalidatePath(`/w/${data.workspace_id}`, "layout");
+}
+
 export async function setPagePrivacy(pageId: string, isPrivate: boolean) {
   const { supabase } = await requireUser();
   const { data, error } = await supabase
