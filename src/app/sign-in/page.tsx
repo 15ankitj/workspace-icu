@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 function SignInForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/";
+  const authError = searchParams.get("error");
   const [email, setEmail] = useState("");
   const [aupAccepted, setAupAccepted] = useState(false);
   const [status, setStatus] = useState<
@@ -18,7 +19,7 @@ function SignInForm() {
     | { kind: "sending" }
     | { kind: "sent" }
     | { kind: "error"; message: string }
-  >({ kind: "idle" });
+  >(authError ? { kind: "error", message: authError } : { kind: "idle" });
 
   const supabase = createClient();
   const redirectBase =

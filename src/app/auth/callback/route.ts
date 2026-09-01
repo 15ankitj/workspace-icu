@@ -14,7 +14,8 @@ export async function GET(request: NextRequest) {
     if (!error) {
       redirect(next.startsWith("/") ? next : "/");
     }
+    redirect(`/sign-in?error=${encodeURIComponent(error.message)}`);
   }
 
-  redirect("/sign-in?error=oauth-failed");
+  redirect("/sign-in?error=Sign-in%20failed");
 }
