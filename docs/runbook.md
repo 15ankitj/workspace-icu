@@ -59,3 +59,19 @@ as a processor in the DPIA.
   editor runs in the Phase 2 local-only mode. No other flag is needed.
 - Use separate Liveblocks projects (keys) for Preview and Production if you
   want staging rooms isolated from real ones.
+
+## Email (Phase 5)
+
+Invitations are sent through Resend's REST API from server actions.
+
+- Set `RESEND_API_KEY` in Vercel (Production and Preview). Create the key in
+  the Resend dashboard — never paste it into a Claude Code session.
+- Optionally set `RESEND_FROM` (e.g. `WorkspaceICU <invites@workspace.icu>`)
+  once a sending domain is verified in Resend. Until then the default
+  sandbox sender `onboarding@resend.dev` is used, which **only delivers to
+  the Resend account owner's own address** — fine for testing, not for
+  inviting colleagues.
+- Optionally set `NEXT_PUBLIC_APP_URL` (e.g. `https://workspace-icu.vercel.app`)
+  so invitation links use a fixed origin; otherwise the request host is used.
+- Without `RESEND_API_KEY`, invitations are still created and their accept
+  link can be copied from workspace settings and shared by hand.

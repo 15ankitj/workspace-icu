@@ -8,13 +8,14 @@ import {
   MAX_DOCUMENT_BYTES,
   type EditorBlock,
 } from "@/lib/blocks";
+import { extractPageLinks } from "@/lib/links";
 import type { Json } from "@/lib/database.types";
 
 /**
- * Persist the editor's whole document for a page. The database function
- * swaps the page's rows in one transaction under the caller's RLS, so
- * permissions are enforced server-side regardless of what the client
- * sends. Last write wins until Yjs collaboration lands in Phase 3.
+ * Persist the editor's whole document for a page (local-only mode). The
+ * database function swaps the page's rows in one transaction under the
+ * caller's RLS, so permissions are enforced server-side regardless of
+ * what the client sends. Backlinks are refreshed from the same document.
  */
 export async function savePageContent(pageId: string, document: EditorBlock[]) {
   if (!Array.isArray(document)) {
@@ -41,4 +42,10 @@ export async function savePageContent(pageId: string, document: EditorBlock[]) {
     p_blocks: payload,
   });
   if (error) throw new Error(`Could not save page: ${error.message}`);
+
+  // Best-effort; the page save itself has already succeeded.
+  await supabase.rpc("set_page_links", {
+    p_source_page_id: pageId,
+    p_target_page_ids: extractPageLinks(document),
+  });
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Flag, MoreHorizontal } from "lucide-react";
+import { Check, Flag, Link2, MoreHorizontal } from "lucide-react";
 import { setPageLayout } from "@/app/actions/pages";
 import { reportPage } from "@/app/actions/reports";
+import { setPublicLink } from "@/app/actions/shares";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,28 +20,46 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 function Tick({ on }: { on: boolean }) {
   return <Check className={cn("size-4", !on && "invisible")} />;
 }
 
-/** Page ⋯ menu: layout toggles (editors) and report content (everyone). */
+export interface ShareState {
+  enabled: boolean;
+  token: string | null;
+}
+
+/** Page ⋯ menu: sharing and layout (editors), report content (everyone). */
 export function PageMenu({
   pageId,
   fullWidth,
   smallText,
   canEdit,
+  share,
 }: {
   pageId: string;
   fullWidth: boolean;
   smallText: boolean;
   canEdit: boolean;
+  share: ShareState | null;
 }) {
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const [reporting, setReporting] = useState(false);
   const [reason, setReason] = useState("");
   const [reported, setReported] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareState, setShareState] = useState<ShareState>(
+    share ?? { enabled: false, token: null },
+  );
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl =
+    shareState.enabled && shareState.token && typeof window !== "undefined"
+      ? `${window.location.origin}/share/${shareState.token}`
+      : null;
 
   return (
     <>
@@ -53,6 +72,10 @@ export function PageMenu({
         <DropdownMenuContent align="end">
           {canEdit && (
             <>
+              <DropdownMenuItem onSelect={() => setSharing(true)}>
+                <Link2 /> Share…
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuLabel>Layout</DropdownMenuLabel>
               <DropdownMenuItem
                 onSelect={() =>
@@ -86,6 +109,59 @@ export function PageMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={sharing} onOpenChange={setSharing}>
+        <DialogContent>
+          <DialogTitle>Share this page</DialogTitle>
+          <DialogDescription>
+            A public link lets anyone with it read this page — no sign-in
+            needed. Attachments still require sign-in. You can revoke the link
+            at any time; the old link stops working immediately.
+          </DialogDescription>
+          {shareState.enabled && shareUrl ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input readOnly value={shareUrl} className="text-xs" />
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                >
+                  {copied ? "Copied" : "Copy"}
+                </Button>
+              </div>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isPending}
+                onClick={() =>
+                  startTransition(async () => {
+                    await setPublicLink(pageId, false);
+                    setShareState({ enabled: false, token: null });
+                  })
+                }
+              >
+                Revoke public link
+              </Button>
+            </div>
+          ) : (
+            <Button
+              disabled={isPending}
+              onClick={() =>
+                startTransition(async () => {
+                  const { token } = await setPublicLink(pageId, true);
+                  setShareState({ enabled: true, token });
+                })
+              }
+            >
+              Create public read-only link
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={reporting} onOpenChange={setReporting}>
         <DialogContent>

@@ -8,6 +8,7 @@ import {
   MAX_DOCUMENT_BYTES,
   type EditorBlock,
 } from "@/lib/blocks";
+import { extractPageLinks } from "@/lib/links";
 import type { Json } from "@/lib/database.types";
 
 const MAX_YDOC_BASE64_CHARS = 12 * 1024 * 1024; // ~9 MB of Yjs state
@@ -17,6 +18,7 @@ const MAX_YDOC_BASE64_CHARS = 12 * 1024 * 1024; // ~9 MB of Yjs state
  * the source of truth in `page_documents`, a version row is captured
  * (coalesced, 90-day retention), and `blocks` is refreshed as the
  * queryable projection — all in one RLS-checked database function.
+ * Backlinks are refreshed from the same document.
  */
 export async function savePageDocument(
   pageId: string,
@@ -51,4 +53,9 @@ export async function savePageDocument(
     p_blocks: payload,
   });
   if (error) throw new Error(`Could not save page: ${error.message}`);
+
+  await supabase.rpc("set_page_links", {
+    p_source_page_id: pageId,
+    p_target_page_ids: extractPageLinks(document),
+  });
 }
