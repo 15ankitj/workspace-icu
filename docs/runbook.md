@@ -75,3 +75,17 @@ Invitations are sent through Resend's REST API from server actions.
   so invitation links use a fixed origin; otherwise the request host is used.
 - Without `RESEND_API_KEY`, invitations are still created and their accept
   link can be copied from workspace settings and shared by hand.
+
+## Templates and the gallery (Phase 6)
+
+- Any editor can save a page (or page + sub-pages) as a **workspace**
+  template from the page ⋯ menu; it appears in that workspace's gallery.
+- The **platform owner** (rows in `platform_owners`, seeded by email in
+  migration 0010; add owners with an insert) can save **platform**
+  templates and publish/deprecate them in the gallery for everyone.
+- Republishing from the source page creates a new version with a changelog;
+  existing copies are never modified. Pages carrying an older version show
+  a banner offering "Add the new pages" (matched by `template_page_key`).
+- Assets referenced by template pages are copied to the private
+  `template-assets` bucket under `{template}/{version}/{file}` and copied
+  again into the target workspace on instantiation.

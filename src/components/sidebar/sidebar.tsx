@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Clock, Plus, Settings, Star } from "lucide-react";
+import { Clock, LayoutTemplate, Plus, Settings, Star } from "lucide-react";
 import type { WorkspaceRole } from "@/lib/database.types";
 import type { TreePage } from "@/lib/tree";
 import { createPage } from "@/app/actions/pages";
@@ -47,6 +47,14 @@ export function Sidebar({
           workspaces={workspaces}
           currentWorkspace={currentWorkspace}
         />
+        <Button variant="ghost" size="icon-sm" asChild>
+          <Link
+            href={`/w/${currentWorkspace.id}/gallery`}
+            aria-label="Template gallery"
+          >
+            <LayoutTemplate />
+          </Link>
+        </Button>
         <Button variant="ghost" size="icon-sm" asChild>
           <Link
             href={`/w/${currentWorkspace.id}/settings`}
