@@ -8,7 +8,23 @@ export type ResolvedEmbed = {
   kind: "youtube" | "drive" | "pdf";
 };
 
-export function resolveEmbedUrl(raw: string): ResolvedEmbed | null {
+/**
+ * PDFs may only be framed from our own origin (files served through
+ * /api/files) or the Supabase storage host they redirect to — the same
+ * set the Content-Security-Policy `frame-src` allows, so nothing renders
+ * blank. Other PDFs become plain links.
+ */
+export function isAllowedPdfHost(host: string, appHost?: string): boolean {
+  const own =
+    appHost ??
+    (typeof window !== "undefined" ? window.location.hostname : undefined);
+  return host === own || host.endsWith(".supabase.co");
+}
+
+export function resolveEmbedUrl(
+  raw: string,
+  appHost?: string,
+): ResolvedEmbed | null {
   let url: URL;
   try {
     url = new URL(raw.trim());
@@ -71,8 +87,11 @@ export function resolveEmbedUrl(raw: string): ResolvedEmbed | null {
     return null;
   }
 
-  // Any https PDF renders in the browser's viewer.
-  if (url.pathname.toLowerCase().endsWith(".pdf")) {
+  // PDFs from our own storage render in the browser's viewer.
+  if (
+    url.pathname.toLowerCase().endsWith(".pdf") &&
+    isAllowedPdfHost(host, appHost)
+  ) {
     return { src: url.toString(), kind: "pdf" };
   }
 

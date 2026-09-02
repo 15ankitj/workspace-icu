@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Clock, LayoutTemplate, Plus, Settings, Star } from "lucide-react";
+import {
+  Clock,
+  LayoutTemplate,
+  Plus,
+  Settings,
+  Star,
+  Trash2,
+} from "lucide-react";
 import type { WorkspaceRole } from "@/lib/database.types";
 import type { TreePage } from "@/lib/tree";
 import { createPage } from "@/app/actions/pages";
@@ -54,6 +61,11 @@ export function Sidebar({
             aria-label="Template gallery"
           >
             <LayoutTemplate />
+          </Link>
+        </Button>
+        <Button variant="ghost" size="icon-sm" asChild>
+          <Link href={`/w/${currentWorkspace.id}/trash`} aria-label="Trash">
+            <Trash2 />
           </Link>
         </Button>
         <Button variant="ghost" size="icon-sm" asChild>

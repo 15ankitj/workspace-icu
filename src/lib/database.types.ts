@@ -433,6 +433,14 @@ export type Database = {
         Args: { p_pages: Json };
         Returns: undefined;
       };
+      consume_rate_limit: {
+        Args: { p_action: string; p_limit: number; p_window_seconds: number };
+        Returns: boolean;
+      };
+      delete_my_account: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
       search_pages: {
         Args: { p_query: string };
         Returns: {

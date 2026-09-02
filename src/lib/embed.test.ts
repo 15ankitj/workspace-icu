@@ -38,11 +38,25 @@ describe("resolveEmbedUrl", () => {
     });
   });
 
-  it("accepts https PDFs", () => {
-    expect(resolveEmbedUrl("https://example.org/paper.PDF")).toEqual({
-      src: "https://example.org/paper.PDF",
+  it("accepts PDFs only from our own origin or storage host", () => {
+    expect(
+      resolveEmbedUrl(
+        "https://workspace.icu/api/files/abc.pdf",
+        "workspace.icu",
+      ),
+    ).toEqual({
+      src: "https://workspace.icu/api/files/abc.pdf",
       kind: "pdf",
     });
+    expect(
+      resolveEmbedUrl(
+        "https://cipeznsdjzkltardxveb.supabase.co/storage/v1/object/sign/files/x.PDF?token=t",
+        "workspace.icu",
+      ),
+    ).toMatchObject({ kind: "pdf" });
+    expect(
+      resolveEmbedUrl("https://example.org/paper.PDF", "workspace.icu"),
+    ).toBeNull();
   });
 
   it("rejects everything else", () => {

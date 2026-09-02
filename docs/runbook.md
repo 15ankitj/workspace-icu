@@ -104,3 +104,38 @@ Invitations are sent through Resend's REST API from server actions.
   the browser (BlockNote's parsers; `mammoth` for Word). Embedded images go
   through the normal upload gate and advisory PHI scan; a leading H1 becomes
   the page title.
+
+## Hardening (Phase 9)
+
+- **Trash and purge**: deleted pages sit in the workspace Trash (sidebar)
+  for 30 days with Restore / Delete permanently. The nightly job
+  `/api/cron/purge` (scheduled in `vercel.json`, 03:00 UTC) removes pages,
+  files and workspaces trashed more than 30 days ago, and page history
+  older than 90 days. It is the **only** code path that uses the service
+  role, because it works across all workspaces and serves no user. Set in
+  Vercel (Production only): `SUPABASE_SERVICE_ROLE_KEY` (Supabase →
+  Project settings → API keys) and `CRON_SECRET` (any long random string;
+  Vercel sends it as the bearer token). Without them the job answers 503
+  and nothing is purged.
+- **Account deletion**: workspace settings → "Your account". Personal
+  workspaces and workspaces with no other member are erased (files
+  included); content in shared workspaces is reassigned to a workspace
+  owner. Platform owners must hand over ownership before deleting.
+- **Rate limits**: 20 invitations and 60 uploads per user per hour
+  (`consume_rate_limit`, migration 0011).
+- **Security headers**: `next.config.ts` sets a Content Security Policy
+  whose `frame-src` is the embed whitelist (YouTube, Google Drive/Docs)
+  plus our own file storage; `frame-ancestors 'none'`, `nosniff`, HSTS,
+  referrer and permissions policies. Add a host there before adding a new
+  embed kind.
+- **Error monitoring**: set `NEXT_PUBLIC_SENTRY_DSN` (Sentry project in the
+  EU data region) in Vercel to enable Sentry; PII is off and request
+  bodies, cookies, headers and console breadcrumbs are stripped, so no page
+  content leaves the app. Without a DSN Sentry is inert.
+- **Regions**: `vercel.json` pins serverless functions to London (`lhr1`).
+- **Smoke tests**: `npm run e2e` runs Playwright against a production
+  build with placeholder Supabase values (health, sign-in, headers, skip
+  link, auth redirect). CI runs them after the build. Editor and
+  collaboration flows are tested by hand on the preview deployment.
+- **Compliance drafts**: `docs/compliance/` (DPIA, privacy notice, breach
+  procedure, processor DPA checklist) and the in-app `/privacy` page.
