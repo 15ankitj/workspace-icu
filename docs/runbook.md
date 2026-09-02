@@ -139,3 +139,24 @@ Invitations are sent through Resend's REST API from server actions.
   collaboration flows are tested by hand on the preview deployment.
 - **Compliance drafts**: `docs/compliance/` (DPIA, privacy notice, breach
   procedure, processor DPA checklist) and the in-app `/privacy` page.
+
+## Sign-in (magic link + one-time code)
+
+`signInWithOtp` sends one email that carries both a link and a 6-digit
+code, provided the Supabase email templates include both placeholders.
+In **each** project (Authentication → Email Templates) add this line to
+the **Magic Link** template and to **Confirm signup** (used for a
+first-time address), keeping `{{ .ConfirmationURL }}`:
+
+```
+<p>Or enter this code in the app: <strong>{{ .Token }}</strong></p>
+```
+
+- The link completes at `/auth/confirm`; the code is verified on the
+  sign-in page itself (`verifyOtp`, type `email`), which is what works
+  when the email is opened on a different device or the link has been
+  rewritten by a mail filter. Default code length 6, expiry 1 hour.
+- Supabase allows one resend per address every 60 seconds; the page
+  surfaces its message. With the built-in SMTP the project can send only
+  a few auth emails per hour in total — route auth email through Resend
+  (Authentication → SMTP settings) once a sending domain is verified.
