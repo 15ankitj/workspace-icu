@@ -241,6 +241,18 @@ export type Database = {
         Args: { p_page_id: string; p_blocks: Json };
         Returns: undefined;
       };
+      save_page_document: {
+        Args: { p_page_id: string; p_ydoc_base64: string; p_blocks: Json };
+        Returns: undefined;
+      };
+      load_page_document: {
+        Args: { p_page_id: string };
+        Returns: string | null;
+      };
+      can_edit_page: {
+        Args: { p_page_id: string };
+        Returns: boolean;
+      };
     };
     Enums: {
       phi_scan_status: PhiScanStatus;

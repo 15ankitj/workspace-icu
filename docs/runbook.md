@@ -42,3 +42,20 @@ boundary.
 After a migration lands, regenerate `src/lib/database.types.ts` from the
 staging project (MCP `generate_typescript_types`) so the hand-maintained
 types stay honest.
+
+## Real-time collaboration (Phase 3)
+
+Liveblocks is the Yjs transport; Supabase (`page_documents`) is the durable
+store, so the provider stays disposable. The account uses Liveblocks'
+**global** region (content never includes PHI by policy) — list Liveblocks
+as a processor in the DPIA.
+
+- Set `LIVEBLOCKS_SECRET_KEY` (from the Liveblocks dashboard, the project's
+  secret key `sk_…`) in Vercel → Settings → Environment Variables for
+  Production and Preview. It is server-only: the app only ever mints room
+  tokens through `/api/liveblocks-auth`, which checks membership and page
+  privacy via RLS and scopes each token to read or read-write.
+- Collaboration switches itself on when the key is present; without it the
+  editor runs in the Phase 2 local-only mode. No other flag is needed.
+- Use separate Liveblocks projects (keys) for Preview and Production if you
+  want staging rooms isolated from real ones.
