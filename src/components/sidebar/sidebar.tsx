@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { PageTree } from "@/components/sidebar/page-tree";
 import { SearchDialog } from "@/components/sidebar/search-dialog";
+import { ImportDialog } from "@/components/sidebar/import-dialog";
 import { WorkspaceSwitcher } from "@/components/sidebar/workspace-switcher";
 
 export interface SidebarWorkspace {
@@ -67,6 +68,7 @@ export function Sidebar({
       <Separator />
       <div className="p-2">
         <SearchDialog />
+        {canEdit && <ImportDialog workspaceId={currentWorkspace.id} />}
       </div>
       <Separator />
 

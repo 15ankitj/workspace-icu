@@ -97,6 +97,22 @@ export default async function WorkspaceSettings({
       <Separator />
 
       <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">Export</h2>
+        <p className="text-sm text-muted-foreground">
+          Everything you can see in this workspace as Markdown files with
+          attachments, in a zip. Accounts belong to individuals: take your
+          content with you at any time.
+        </p>
+        <Button variant="secondary" asChild>
+          <a href={`/api/export/workspace/${workspace.id}`}>
+            Download workspace export
+          </a>
+        </Button>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Members</h2>
         <ul className="space-y-2">
           {(members ?? []).map((member) => {

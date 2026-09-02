@@ -89,3 +89,13 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+@media print {
+  .break-before-page {
+    break-before: page;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

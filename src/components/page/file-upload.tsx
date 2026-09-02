@@ -57,43 +57,46 @@ export function useFileUpload({
   const [flaggedResolved, setFlaggedResolved] = useState<string | null>(null);
   const countRef = useRef(initialUploadCount);
 
+  const uploadTo = useCallback(async (targetPageId: string, file: File) => {
+    const rejection = isAllowedUpload(file.type, file.size);
+    if (rejection) throw new Error(rejection);
+
+    if (countRef.current < CHECKBOX_CONFIRMATION_UPLOADS) {
+      await new Promise<void>((resolve, reject) =>
+        setGate({ resolve, reject }),
+      );
+    } else {
+      setReminder(true);
+      setTimeout(() => setReminder(false), 6000);
+    }
+
+    const { fileId, storagePath } = await registerUpload(targetPageId, {
+      filename: file.name,
+      mime: file.type,
+      sizeBytes: file.size,
+    });
+
+    const supabase = createClient();
+    const { error } = await supabase.storage
+      .from("files")
+      .upload(storagePath, file, { contentType: file.type });
+    if (error) {
+      await deleteFile(fileId).catch(() => {});
+      throw new Error(`Upload failed: ${error.message}`);
+    }
+
+    countRef.current += 1;
+    const result = await finalizeUpload(fileId);
+    if (result.status === "flagged") {
+      setFlagged({ fileId, filename: file.name, findings: result.findings });
+    }
+    return `/api/files/${fileId}`;
+  }, []);
+
+  // BlockNote calls uploadFile(file, blockId); the page is fixed per editor.
   const uploadFile = useCallback(
-    async (file: File) => {
-      const rejection = isAllowedUpload(file.type, file.size);
-      if (rejection) throw new Error(rejection);
-
-      if (countRef.current < CHECKBOX_CONFIRMATION_UPLOADS) {
-        await new Promise<void>((resolve, reject) =>
-          setGate({ resolve, reject }),
-        );
-      } else {
-        setReminder(true);
-        setTimeout(() => setReminder(false), 6000);
-      }
-
-      const { fileId, storagePath } = await registerUpload(pageId, {
-        filename: file.name,
-        mime: file.type,
-        sizeBytes: file.size,
-      });
-
-      const supabase = createClient();
-      const { error } = await supabase.storage
-        .from("files")
-        .upload(storagePath, file, { contentType: file.type });
-      if (error) {
-        await deleteFile(fileId).catch(() => {});
-        throw new Error(`Upload failed: ${error.message}`);
-      }
-
-      countRef.current += 1;
-      const result = await finalizeUpload(fileId);
-      if (result.status === "flagged") {
-        setFlagged({ fileId, filename: file.name, findings: result.findings });
-      }
-      return `/api/files/${fileId}`;
-    },
-    [pageId],
+    (file: File) => uploadTo(pageId, file),
+    [uploadTo, pageId],
   );
 
   const dialogs = (
@@ -233,5 +236,5 @@ export function useFileUpload({
     </>
   );
 
-  return { uploadFile, dialogs };
+  return { uploadFile, uploadTo, dialogs };
 }
