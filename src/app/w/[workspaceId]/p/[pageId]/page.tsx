@@ -9,6 +9,7 @@ import { PageCover } from "@/components/page/page-cover";
 import { PageEditorLoader } from "@/components/page/page-editor-loader";
 import { CommentsPanel } from "@/components/page/comments-panel";
 import { BacklinksPanel } from "@/components/page/backlinks-panel";
+import { TemplateUpdateBanner } from "@/components/page/template-update-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function PageView({
   const { data: page } = await supabase
     .from("pages")
     .select(
-      "id, workspace_id, parent_page_id, title, icon, cover_url, is_private, full_width, small_text, created_by, updated_at, deleted_at",
+      "id, workspace_id, parent_page_id, title, icon, cover_url, is_private, full_width, small_text, created_by, updated_at, deleted_at, template_id, template_version",
     )
     .eq("id", pageId)
     .eq("workspace_id", workspaceId)
@@ -42,6 +43,7 @@ export default async function PageView({
     { data: share },
     { data: commentRows },
     { data: linkRows },
+    { data: platformOwner },
   ] = await Promise.all([
     supabase
       .from("workspace_members")
@@ -89,6 +91,12 @@ export default async function PageView({
       .from("page_links")
       .select("source_page_id")
       .eq("target_page_id", pageId),
+    // Platform owner may curate templates into the gallery.
+    supabase
+      .from("platform_owners")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle(),
     // Recently-viewed tracking; failure is harmless so no error handling.
     supabase.from("recent_pages").upsert({
       user_id: user.id,
@@ -124,6 +132,38 @@ export default async function PageView({
     resolved: c.resolved,
     createdAt: c.created_at,
   }));
+
+  // Template provenance: is there a newer version than this page came from?
+  let templateUpdate: {
+    templateId: string;
+    templateName: string;
+    latestVersion: number;
+    changes: { version: number; changelog: string }[];
+  } | null = null;
+  if (page.template_id && page.template_version !== null) {
+    const { data: template } = await supabase
+      .from("templates")
+      .select(
+        "id, name, template_versions!templates_current_version_fkey(version)",
+      )
+      .eq("id", page.template_id)
+      .maybeSingle();
+    const latest = template?.template_versions?.version ?? null;
+    if (template && latest !== null && latest > page.template_version) {
+      const { data: newer } = await supabase
+        .from("template_versions")
+        .select("version, changelog")
+        .eq("template_id", template.id)
+        .gt("version", page.template_version)
+        .order("version", { ascending: true });
+      templateUpdate = {
+        templateId: template.id,
+        templateName: template.name,
+        latestVersion: latest,
+        changes: newer ?? [],
+      };
+    }
+  }
 
   const sourceIds = (linkRows ?? []).map((l) => l.source_page_id);
   const { data: backlinkPages } = sourceIds.length
@@ -171,9 +211,11 @@ export default async function PageView({
         </nav>
         <PageMenu
           pageId={page.id}
+          workspaceId={workspaceId}
           fullWidth={page.full_width}
           smallText={page.small_text}
           canEdit={canEditThisPage}
+          isPlatformOwner={Boolean(platformOwner)}
           share={
             canEditThisPage
               ? {
@@ -184,6 +226,19 @@ export default async function PageView({
           }
         />
       </div>
+
+      {templateUpdate && canEditThisPage && (
+        <TemplateUpdateBanner
+          workspaceId={workspaceId}
+          pageId={page.id}
+          parentPageId={page.parent_page_id}
+          templateId={templateUpdate.templateId}
+          templateName={templateUpdate.templateName}
+          currentVersion={page.template_version ?? 0}
+          latestVersion={templateUpdate.latestVersion}
+          changes={templateUpdate.changes}
+        />
+      )}
 
       <PageCover
         pageId={page.id}

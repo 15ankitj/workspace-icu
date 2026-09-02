@@ -73,6 +73,7 @@ export type PageRow = {
   template_id: string | null;
   template_version: number | null;
   search_text: string | null;
+  template_page_key: string | null;
 };
 
 export type FavouriteRow = {
@@ -160,6 +161,50 @@ export type CommentRow = {
 export type PageLinkRow = {
   source_page_id: string;
   target_page_id: string;
+};
+
+export type TemplateScope = "platform" | "workspace";
+export type TemplateKind = "page" | "tree" | "workspace";
+
+export type TemplateRow = {
+  id: string;
+  owner_scope: TemplateScope;
+  workspace_id: string | null;
+  source_page_id: string | null;
+  name: string;
+  description: string;
+  purpose: string;
+  category: string;
+  audience: string;
+  kind: TemplateKind;
+  current_version_id: string | null;
+  is_published: boolean;
+  created_by: string;
+  created_at: string;
+};
+
+export type TemplateVersionRow = {
+  id: string;
+  template_id: string;
+  version: number;
+  snapshot: Json;
+  changelog: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type GalleryEntryRow = {
+  template_id: string;
+  category: string;
+  sort_order: number;
+  hero_image_url: string | null;
+  organisation_id: string | null;
+  published_at: string;
+};
+
+export type PlatformOwnerRow = {
+  user_id: string;
+  created_at: string;
 };
 
 export type DbBlockRow = {
@@ -300,6 +345,41 @@ export type Database = {
           },
         ];
       };
+      templates: {
+        Row: TemplateRow;
+        Insert: Partial<TemplateRow> &
+          Pick<TemplateRow, "owner_scope" | "name" | "kind" | "created_by">;
+        Update: Partial<TemplateRow>;
+        Relationships: [
+          {
+            foreignKeyName: "templates_current_version_fkey";
+            columns: ["current_version_id"];
+            isOneToOne: false;
+            referencedRelation: "template_versions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      template_versions: {
+        Row: TemplateVersionRow;
+        Insert: Partial<TemplateVersionRow> &
+          Pick<TemplateVersionRow, "template_id" | "version" | "snapshot">;
+        Update: Partial<TemplateVersionRow>;
+        Relationships: [];
+      };
+      gallery_entries: {
+        Row: GalleryEntryRow;
+        Insert: Partial<GalleryEntryRow> &
+          Pick<GalleryEntryRow, "template_id" | "category">;
+        Update: Partial<GalleryEntryRow>;
+        Relationships: [];
+      };
+      platform_owners: {
+        Row: PlatformOwnerRow;
+        Insert: Pick<PlatformOwnerRow, "user_id">;
+        Update: Partial<PlatformOwnerRow>;
+        Relationships: [];
+      };
       page_links: {
         Row: PageLinkRow;
         Insert: PageLinkRow;
@@ -345,6 +425,14 @@ export type Database = {
         Args: { p_source_page_id: string; p_target_page_ids: string[] };
         Returns: undefined;
       };
+      is_platform_owner: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      insert_template_pages: {
+        Args: { p_pages: Json };
+        Returns: undefined;
+      };
       search_pages: {
         Args: { p_query: string };
         Returns: {
@@ -358,6 +446,8 @@ export type Database = {
       };
     };
     Enums: {
+      template_scope: TemplateScope;
+      template_kind: TemplateKind;
       phi_scan_status: PhiScanStatus;
       workspace_role: WorkspaceRole;
       organisation_role: OrganisationRole;

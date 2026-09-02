@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Flag, Link2, MoreHorizontal } from "lucide-react";
+import {
+  Check,
+  Flag,
+  LayoutTemplate,
+  Link2,
+  MoreHorizontal,
+} from "lucide-react";
 import { setPageLayout } from "@/app/actions/pages";
 import { reportPage } from "@/app/actions/reports";
 import { setPublicLink } from "@/app/actions/shares";
+import { SaveTemplateDialog } from "@/components/page/save-template-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,21 +39,26 @@ export interface ShareState {
   token: string | null;
 }
 
-/** Page ⋯ menu: sharing and layout (editors), report content (everyone). */
+/** Page ⋯ menu: sharing, templates and layout (editors), report (everyone). */
 export function PageMenu({
   pageId,
+  workspaceId,
   fullWidth,
   smallText,
   canEdit,
   share,
+  isPlatformOwner,
 }: {
   pageId: string;
+  workspaceId: string;
   fullWidth: boolean;
   smallText: boolean;
   canEdit: boolean;
   share: ShareState | null;
+  isPlatformOwner: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [reason, setReason] = useState("");
   const [reported, setReported] = useState(false);
@@ -74,6 +86,9 @@ export function PageMenu({
             <>
               <DropdownMenuItem onSelect={() => setSharing(true)}>
                 <Link2 /> Share…
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSavingTemplate(true)}>
+                <LayoutTemplate /> Save as template…
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Layout</DropdownMenuLabel>
@@ -109,6 +124,14 @@ export function PageMenu({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <SaveTemplateDialog
+        open={savingTemplate}
+        onOpenChange={setSavingTemplate}
+        workspaceId={workspaceId}
+        pageId={pageId}
+        isPlatformOwner={isPlatformOwner}
+      />
 
       <Dialog open={sharing} onOpenChange={setSharing}>
         <DialogContent>
