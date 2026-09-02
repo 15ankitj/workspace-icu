@@ -97,6 +97,34 @@ export type AuditEventRow = {
   created_at: string;
 };
 
+export type PhiScanStatus = "not_scanned" | "clear" | "flagged" | "overridden";
+
+export type FileRow = {
+  id: string;
+  workspace_id: string;
+  page_id: string;
+  uploader_id: string;
+  storage_path: string;
+  filename: string;
+  mime: string;
+  size_bytes: number;
+  phi_scan_status: PhiScanStatus;
+  phi_scan_findings: unknown[];
+  aup_acknowledged: boolean;
+  created_at: string;
+  deleted_at: string | null;
+};
+
+export type ContentReportRow = {
+  id: string;
+  reporter_id: string;
+  page_id: string | null;
+  file_id: string | null;
+  reason: string;
+  status: string;
+  created_at: string;
+};
+
 export type DbBlockRow = {
   id: string;
   page_id: string;
@@ -183,6 +211,29 @@ export type Database = {
         Update: Partial<DbBlockRow>;
         Relationships: [];
       };
+      files: {
+        Row: FileRow;
+        Insert: Partial<FileRow> &
+          Pick<
+            FileRow,
+            | "workspace_id"
+            | "page_id"
+            | "uploader_id"
+            | "storage_path"
+            | "filename"
+            | "mime"
+            | "size_bytes"
+          >;
+        Update: Partial<FileRow>;
+        Relationships: [];
+      };
+      content_reports: {
+        Row: ContentReportRow;
+        Insert: Partial<ContentReportRow> &
+          Pick<ContentReportRow, "reporter_id" | "reason">;
+        Update: Partial<ContentReportRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -192,6 +243,7 @@ export type Database = {
       };
     };
     Enums: {
+      phi_scan_status: PhiScanStatus;
       workspace_role: WorkspaceRole;
       organisation_role: OrganisationRole;
       organisation_type: OrganisationType;

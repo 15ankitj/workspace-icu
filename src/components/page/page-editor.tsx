@@ -12,6 +12,7 @@ import {
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { savePageContent } from "@/app/actions/blocks";
+import { useFileUpload } from "@/components/page/file-upload";
 import type { EditorBlock } from "@/lib/blocks";
 import { editorSchema } from "@/components/editor/schema";
 import { customSlashMenuItems } from "@/components/editor/slash-items";
@@ -37,6 +38,7 @@ export function PageEditor({
   initialContent,
   editable,
   smallText,
+  initialUploadCount,
 }: {
   pageId: string;
   workspaceId: string;
@@ -45,13 +47,20 @@ export function PageEditor({
   initialContent: EditorBlock[];
   editable: boolean;
   smallText: boolean;
+  initialUploadCount: number;
 }) {
+  const { uploadFile, dialogs } = useFileUpload({
+    pageId,
+    initialUploadCount,
+  });
+
   const editor = useCreateBlockNote(
     {
       schema: editorSchema,
       initialContent: initialContent.length
         ? (initialContent as unknown as (typeof editorSchema)["PartialBlock"][])
         : undefined,
+      uploadFile,
     },
     [pageId],
   );
@@ -95,6 +104,7 @@ export function PageEditor({
 
   return (
     <PageLinkContext.Provider value={pageLinkValue}>
+      {dialogs}
       <div className={smallText ? "-mx-[54px] text-sm" : "-mx-[54px]"}>
         <BlockNoteView editor={editor} editable={editable} slashMenu={false}>
           <SuggestionMenuController
