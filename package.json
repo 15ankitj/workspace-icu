@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "e2e": "playwright test",
     "format": "prettier --write src supabase docs",
     "format:check": "prettier --check src"
   },
@@ -19,6 +20,7 @@
     "@liveblocks/client": "^3.24.1",
     "@liveblocks/node": "^3.24.1",
     "@liveblocks/yjs": "^3.24.1",
+    "@sentry/nextjs": "^10.73.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
     "class-variance-authority": "^0.7.1",
@@ -37,6 +39,7 @@
     "yjs": "^13.6.32"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

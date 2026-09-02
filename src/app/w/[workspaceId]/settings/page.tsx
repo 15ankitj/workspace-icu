@@ -8,6 +8,7 @@ import {
   revokeInvite,
   updateMemberRole,
 } from "@/app/actions/invites";
+import { deleteMyAccount } from "@/app/actions/account";
 import { isEmailConfigured } from "@/lib/email";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -258,6 +259,34 @@ export default async function WorkspaceSettings({
           </section>
         </>
       )}
+
+      <Separator />
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">
+          Your account
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Deleting your account removes your personal workspace and every
+          workspace where you are the only member, including their files.
+          Anything you wrote in workspaces you share with others stays with that
+          workspace and is reassigned to its owner. Export first if you want a
+          copy. This cannot be undone.
+        </p>
+        <form action={deleteMyAccount} className="flex flex-wrap gap-2">
+          <Input
+            name="confirm"
+            required
+            placeholder="Type: delete my account"
+            aria-label="Type “delete my account” to confirm"
+            autoComplete="off"
+            className="max-w-xs"
+          />
+          <Button type="submit" variant="ghost" className="text-destructive">
+            Delete my account
+          </Button>
+        </form>
+      </section>
     </main>
   );
 }
