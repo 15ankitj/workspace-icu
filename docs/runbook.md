@@ -89,3 +89,18 @@ Invitations are sent through Resend's REST API from server actions.
 - Assets referenced by template pages are copied to the private
   `template-assets` bucket under `{template}/{version}/{file}` and copied
   again into the target workspace on instantiation.
+
+## Export and import (Phase 7)
+
+- **Markdown export**: page ⋯ menu → Export → Markdown (this page / with
+  sub-pages); workspace settings → Download workspace export. Zips contain
+  one `.md` per page in folders mirroring the tree, with attachments under
+  `files/` and links rewritten relatively. Only pages the caller can see are
+  included (RLS). Exports are audited.
+- **PDF**: page ⋯ menu → Print / PDF opens a print-styled view that
+  triggers the browser's print dialog — save as PDF from there. No
+  server-side browser is involved.
+- **Import**: sidebar → Import accepts `.md` and `.docx`; parsing happens in
+  the browser (BlockNote's parsers; `mammoth` for Word). Embedded images go
+  through the normal upload gate and advisory PHI scan; a leading H1 becomes
+  the page title.

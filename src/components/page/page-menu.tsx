@@ -3,10 +3,12 @@
 import { useState, useTransition } from "react";
 import {
   Check,
+  Download,
   Flag,
   LayoutTemplate,
   Link2,
   MoreHorizontal,
+  Printer,
 } from "lucide-react";
 import { setPageLayout } from "@/app/actions/pages";
 import { reportPage } from "@/app/actions/reports";
@@ -91,6 +93,36 @@ export function PageMenu({
                 <LayoutTemplate /> Save as template…
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+            </>
+          )}
+          <DropdownMenuLabel>Export</DropdownMenuLabel>
+          <DropdownMenuItem asChild>
+            <a href={`/api/export/${pageId}`}>
+              <Download /> Markdown (this page)
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href={`/api/export/${pageId}?tree=1`}>
+              <Download /> Markdown (with sub-pages)
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a href={`/print/${pageId}`} target="_blank" rel="noreferrer">
+              <Printer /> Print / PDF (this page)
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <a
+              href={`/print/${pageId}?tree=1`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Printer /> Print / PDF (with sub-pages)
+            </a>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {canEdit && (
+            <>
               <DropdownMenuLabel>Layout</DropdownMenuLabel>
               <DropdownMenuItem
                 onSelect={() =>
