@@ -72,6 +72,7 @@ export type PageRow = {
   deleted_at: string | null;
   template_id: string | null;
   template_version: number | null;
+  search_text: string | null;
 };
 
 export type FavouriteRow = {
@@ -123,6 +124,42 @@ export type ContentReportRow = {
   reason: string;
   status: string;
   created_at: string;
+};
+
+export type WorkspaceInviteRow = {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: WorkspaceRole;
+  token: string;
+  invited_by: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accepted_by: string | null;
+};
+
+export type PageShareRow = {
+  page_id: string;
+  public_token: string;
+  public_enabled: boolean;
+  created_by: string;
+  created_at: string;
+};
+
+export type CommentRow = {
+  id: string;
+  page_id: string;
+  block_id: string | null;
+  author_id: string;
+  body: { text: string };
+  resolved: boolean;
+  created_at: string;
+};
+
+export type PageLinkRow = {
+  source_page_id: string;
+  target_page_id: string;
 };
 
 export type DbBlockRow = {
@@ -234,6 +271,49 @@ export type Database = {
         Update: Partial<ContentReportRow>;
         Relationships: [];
       };
+      workspace_invites: {
+        Row: WorkspaceInviteRow;
+        Insert: Partial<WorkspaceInviteRow> &
+          Pick<WorkspaceInviteRow, "workspace_id" | "email" | "invited_by">;
+        Update: Partial<WorkspaceInviteRow>;
+        Relationships: [];
+      };
+      page_shares: {
+        Row: PageShareRow;
+        Insert: Partial<PageShareRow> &
+          Pick<PageShareRow, "page_id" | "created_by">;
+        Update: Partial<PageShareRow>;
+        Relationships: [];
+      };
+      comments: {
+        Row: CommentRow;
+        Insert: Partial<CommentRow> &
+          Pick<CommentRow, "page_id" | "author_id" | "body">;
+        Update: Partial<CommentRow>;
+        Relationships: [
+          {
+            foreignKeyName: "comments_author_id_fkey";
+            columns: ["author_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      page_links: {
+        Row: PageLinkRow;
+        Insert: PageLinkRow;
+        Update: Partial<PageLinkRow>;
+        Relationships: [
+          {
+            foreignKeyName: "page_links_source_page_id_fkey";
+            columns: ["source_page_id"];
+            isOneToOne: false;
+            referencedRelation: "pages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -252,6 +332,29 @@ export type Database = {
       can_edit_page: {
         Args: { p_page_id: string };
         Returns: boolean;
+      };
+      accept_invite: {
+        Args: { p_token: string };
+        Returns: string;
+      };
+      get_public_page: {
+        Args: { p_token: string };
+        Returns: Json;
+      };
+      set_page_links: {
+        Args: { p_source_page_id: string; p_target_page_ids: string[] };
+        Returns: undefined;
+      };
+      search_pages: {
+        Args: { p_query: string };
+        Returns: {
+          id: string;
+          workspace_id: string;
+          title: string;
+          icon: string | null;
+          snippet: string;
+          rank: number;
+        }[];
       };
     };
     Enums: {

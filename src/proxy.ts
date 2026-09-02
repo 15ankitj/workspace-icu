@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/sign-in", "/auth", "/aup"];
+const PUBLIC_PATHS = ["/sign-in", "/auth", "/aup", "/share"];
 
 /**
  * Next 16 proxy (formerly middleware): keeps the Supabase session cookie

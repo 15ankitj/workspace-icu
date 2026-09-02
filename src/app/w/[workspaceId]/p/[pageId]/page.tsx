@@ -7,6 +7,8 @@ import { PageHeader } from "@/components/page/page-header";
 import { PageMenu } from "@/components/page/page-menu";
 import { PageCover } from "@/components/page/page-cover";
 import { PageEditorLoader } from "@/components/page/page-editor-loader";
+import { CommentsPanel } from "@/components/page/comments-panel";
+import { BacklinksPanel } from "@/components/page/backlinks-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,9 @@ export default async function PageView({
     { data: memberRows },
     { count: uploadCount },
     { data: storedStateBase64 },
+    { data: share },
+    { data: commentRows },
+    { data: linkRows },
   ] = await Promise.all([
     supabase
       .from("workspace_members")
@@ -67,6 +72,23 @@ export default async function PageView({
       .is("deleted_at", null),
     // Durable Yjs state for seeding the collaboration room.
     supabase.rpc("load_page_document", { p_page_id: pageId }),
+    // Public link state (editors only can read it via RLS).
+    supabase
+      .from("page_shares")
+      .select("public_token, public_enabled")
+      .eq("page_id", pageId)
+      .maybeSingle(),
+    // Page-level discussion thread.
+    supabase
+      .from("comments")
+      .select("id, author_id, body, resolved, created_at, users (display_name)")
+      .eq("page_id", pageId)
+      .order("created_at", { ascending: true }),
+    // Backlinks: pages that link to or mention this one.
+    supabase
+      .from("page_links")
+      .select("source_page_id")
+      .eq("target_page_id", pageId),
     // Recently-viewed tracking; failure is harmless so no error handling.
     supabase.from("recent_pages").upsert({
       user_id: user.id,
@@ -74,7 +96,8 @@ export default async function PageView({
       viewed_at: new Date().toISOString(),
     }),
   ]);
-  const canEdit = membership?.role === "owner" || membership?.role === "editor";
+  const isOwner = membership?.role === "owner";
+  const canEdit = isOwner || membership?.role === "editor";
   const canEditThisPage =
     canEdit && (!page.is_private || page.created_by === user.id);
   const initialContent = buildDocument(blockRows ?? []);
@@ -92,6 +115,24 @@ export default async function PageView({
         storedStateBase64: storedStateBase64 ?? null,
       }
     : null;
+
+  const comments = (commentRows ?? []).map((c) => ({
+    id: c.id,
+    authorId: c.author_id,
+    authorName: c.users?.display_name ?? "Unknown",
+    text: (c.body as { text?: string })?.text ?? "",
+    resolved: c.resolved,
+    createdAt: c.created_at,
+  }));
+
+  const sourceIds = (linkRows ?? []).map((l) => l.source_page_id);
+  const { data: backlinkPages } = sourceIds.length
+    ? await supabase
+        .from("pages")
+        .select("id, title, icon")
+        .in("id", sourceIds)
+        .is("deleted_at", null)
+    : { data: [] };
 
   // Breadcrumb trail from the page's ancestors.
   const crumbs: { id: string; title: string }[] = [];
@@ -133,6 +174,14 @@ export default async function PageView({
           fullWidth={page.full_width}
           smallText={page.small_text}
           canEdit={canEditThisPage}
+          share={
+            canEditThisPage
+              ? {
+                  enabled: share?.public_enabled ?? false,
+                  token: share?.public_enabled ? share.public_token : null,
+                }
+              : null
+          }
         />
       </div>
 
@@ -164,6 +213,20 @@ export default async function PageView({
           collab={collab}
         />
       </div>
+
+      <BacklinksPanel
+        workspaceId={workspaceId}
+        backlinks={backlinkPages ?? []}
+      />
+
+      <CommentsPanel
+        workspaceId={workspaceId}
+        pageId={page.id}
+        comments={comments}
+        currentUserId={user.id}
+        canComment={canEditThisPage}
+        isOwner={isOwner}
+      />
     </main>
   );
 }

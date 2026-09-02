@@ -9,6 +9,7 @@ import { createPage } from "@/app/actions/pages";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { PageTree } from "@/components/sidebar/page-tree";
+import { SearchDialog } from "@/components/sidebar/search-dialog";
 import { WorkspaceSwitcher } from "@/components/sidebar/workspace-switcher";
 
 export interface SidebarWorkspace {
@@ -54,6 +55,10 @@ export function Sidebar({
             <Settings />
           </Link>
         </Button>
+      </div>
+      <Separator />
+      <div className="p-2">
+        <SearchDialog />
       </div>
       <Separator />
 
