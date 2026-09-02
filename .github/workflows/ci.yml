@@ -26,3 +26,8 @@ jobs:
           # Supabase. Real values live in Vercel environment settings.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder

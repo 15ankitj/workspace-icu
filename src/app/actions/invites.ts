@@ -60,6 +60,16 @@ export async function createInvite(formData: FormData) {
 
   const { supabase, user } = await requireUser();
 
+  // Brief §12: rate-limit invitations (20 per hour per user).
+  const { data: allowed } = await supabase.rpc("consume_rate_limit", {
+    p_action: "invite_create",
+    p_limit: 20,
+    p_window_seconds: 3600,
+  });
+  if (allowed === false) {
+    throw new Error("Too many invitations in the last hour — try again later");
+  }
+
   const [{ data: workspace }, { data: inviter }] = await Promise.all([
     supabase.from("workspaces").select("name").eq("id", workspaceId).single(),
     supabase.from("users").select("display_name").eq("id", user.id).single(),

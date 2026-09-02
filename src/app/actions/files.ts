@@ -50,6 +50,16 @@ export async function registerUpload(
   const rejection = isAllowedUpload(meta.mime, meta.sizeBytes);
   if (rejection) throw new Error(rejection);
 
+  // Brief §12: rate-limit uploads (60 per hour per user).
+  const { data: allowed } = await supabase.rpc("consume_rate_limit", {
+    p_action: "file_upload",
+    p_limit: 60,
+    p_window_seconds: 3600,
+  });
+  if (allowed === false) {
+    throw new Error("Too many uploads in the last hour — try again later");
+  }
+
   const { data: page, error: pageError } = await supabase
     .from("pages")
     .select("id, workspace_id")

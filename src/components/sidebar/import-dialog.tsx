@@ -47,11 +47,9 @@ export function ImportDialog({ workspaceId }: { workspaceId: string }) {
         { arrayBuffer: await file.arrayBuffer() },
         {
           convertImage: mammoth.images.imgElement((image) =>
-            image
-              .read("base64")
-              .then((data) => ({
-                src: `data:${image.contentType};base64,${data}`,
-              })),
+            image.read("base64").then((data) => ({
+              src: `data:${image.contentType};base64,${data}`,
+            })),
           ),
         },
       );

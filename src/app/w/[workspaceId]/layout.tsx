@@ -81,7 +81,9 @@ export default async function WorkspaceLayout({
         favourites={favouritePages}
         recents={recentPages}
       />
-      <div className="min-w-0 flex-1">{children}</div>
+      <div id="main" className="min-w-0 flex-1">
+        {children}
+      </div>
     </div>
   );
 }
