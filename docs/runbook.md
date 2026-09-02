@@ -66,13 +66,13 @@ Invitations are sent through Resend's REST API from server actions.
 
 - Set `RESEND_API_KEY` in Vercel (Production and Preview). Create the key in
   the Resend dashboard — never paste it into a Claude Code session.
-- Optionally set `RESEND_FROM` (e.g. `WorkspaceICU <invites@workspace.icu>`)
-  once a sending domain is verified in Resend. Until then the default
-  sandbox sender `onboarding@resend.dev` is used, which **only delivers to
-  the Resend account owner's own address** — fine for testing, not for
-  inviting colleagues.
-- Optionally set `NEXT_PUBLIC_APP_URL` (e.g. `https://workspace-icu.vercel.app`)
-  so invitation links use a fixed origin; otherwise the request host is used.
+- Sending domain: **icmworkspace.com**, verified in Resend (EU region) with
+  DNS records held in Vercel → Domains. Set `RESEND_FROM` to
+  `WorkspaceICU <invites@icmworkspace.com>` in Vercel (Production). Without
+  it the sandbox sender `onboarding@resend.dev` is used, which **only
+  delivers to the Resend account owner's own address**.
+- Set `NEXT_PUBLIC_APP_URL=https://icmworkspace.com` (Production) so
+  invitation links use the public origin; otherwise the request host is used.
 - Without `RESEND_API_KEY`, invitations are still created and their accept
   link can be copied from workspace settings and shared by hand.
 
@@ -157,6 +157,16 @@ first-time address), keeping `{{ .ConfirmationURL }}`:
   when the email is opened on a different device or the link has been
   rewritten by a mail filter. Default code length 6, expiry 1 hour.
 - Supabase allows one resend per address every 60 seconds; the page
-  surfaces its message. With the built-in SMTP the project can send only
-  a few auth emails per hour in total — route auth email through Resend
-  (Authentication → SMTP settings) once a sending domain is verified.
+  surfaces its message.
+- **Custom SMTP is required** — Supabase only allows template editing
+  (and a usable email rate) with it. Auth email goes through Resend from
+  the same domain as invitations. In each project, Authentication → SMTP
+  Settings: sender `sign-in@icmworkspace.com`, name `WorkspaceICU`, host
+  `smtp.resend.com`, port `465`, username `resend`, password = a Resend
+  API key created for that project (`supabase-auth-staging` /
+  `supabase-auth-production`, sending access, restricted to the domain).
+  Then Authentication → Rate Limits → emails per hour to a pilot-sized
+  value (e.g. 100).
+- Production URL configuration: Site URL `https://icmworkspace.com`,
+  redirect URLs include `https://icmworkspace.com/**` plus the
+  `*.vercel.app` entries previews use.

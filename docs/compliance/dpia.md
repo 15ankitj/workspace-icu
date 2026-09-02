@@ -43,14 +43,14 @@ No profiling, no automated decision-making, no marketing, no sale of data.
 
 ## 4. Processors and transfers
 
-| Processor  | Role                                        | Data                                                          | Location                                                         | Transfer mechanism                              |
-| ---------- | ------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
-| Supabase   | Database, auth, file storage                | Everything in §2                                              | London (eu-west-2) — both projects                               | UK processing; DPA                              |
-| Vercel     | Hosting, serverless functions               | Requests, logs (no content logged), env config                | Functions pinned to London (`lhr1`); edge network global         | DPA + SCCs/UK Addendum for edge                 |
-| Liveblocks | Real-time collaboration transport and state | Live page content while editing, presence (name), room tokens | Global (US-based) — chosen over the paid UK region at this stage | DPA + SCCs/UK Addendum. **Review before scale** |
-| Resend     | Transactional email                         | Recipient email, inviter name, workspace name                 | US                                                               | DPA + SCCs/UK Addendum                          |
-| Sentry     | Error monitoring (when a DSN is set)        | Stack traces, URL path, user id; **no content, no PII**       | EU or US depending on the DSN region chosen — choose EU          | DPA                                             |
-| Google     | OAuth sign-in (when enabled)                | Email, name, avatar                                           | Google's terms                                                   | Google as independent controller for sign-in    |
+| Processor  | Role                                                       | Data                                                          | Location                                                         | Transfer mechanism                              |
+| ---------- | ---------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| Supabase   | Database, auth, file storage                               | Everything in §2                                              | London (eu-west-2) — both projects                               | UK processing; DPA                              |
+| Vercel     | Hosting, serverless functions                              | Requests, logs (no content logged), env config                | Functions pinned to London (`lhr1`); edge network global         | DPA + SCCs/UK Addendum for edge                 |
+| Liveblocks | Real-time collaboration transport and state                | Live page content while editing, presence (name), room tokens | Global (US-based) — chosen over the paid UK region at this stage | DPA + SCCs/UK Addendum. **Review before scale** |
+| Resend     | Transactional email (sign-in links and codes, invitations) | Recipient email, inviter name, workspace name                 | US company; sending domain icmworkspace.com in the EU region     | DPA + SCCs/UK Addendum                          |
+| Sentry     | Error monitoring (when a DSN is set)                       | Stack traces, URL path, user id; **no content, no PII**       | EU or US depending on the DSN region chosen — choose EU          | DPA                                             |
+| Google     | OAuth sign-in (when enabled)                               | Email, name, avatar                                           | Google's terms                                                   | Google as independent controller for sign-in    |
 
 Checklist of DPAs to accept is in [processors.md](./processors.md).
 
