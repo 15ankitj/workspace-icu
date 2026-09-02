@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TEMPLATE_CATEGORIES } from "@/lib/template-categories";
+import { installPack, listPacks } from "@/app/actions/packs";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -19,23 +21,30 @@ export default async function GalleryPage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");
 
-  const [{ data: membership }, { data: templates }] = await Promise.all([
-    supabase
-      .from("workspace_members")
-      .select("role")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("templates")
-      .select(
-        "id, name, purpose, category, audience, kind, owner_scope, is_published, workspace_id, current_version_id",
-      )
-      .or(`owner_scope.eq.platform,workspace_id.eq.${workspaceId}`)
-      .not("current_version_id", "is", null)
-      .order("name", { ascending: true }),
-  ]);
+  const [{ data: membership }, { data: templates }, { data: platformOwner }] =
+    await Promise.all([
+      supabase
+        .from("workspace_members")
+        .select("role")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("templates")
+        .select(
+          "id, name, purpose, category, audience, kind, owner_scope, is_published, workspace_id, current_version_id",
+        )
+        .or(`owner_scope.eq.platform,workspace_id.eq.${workspaceId}`)
+        .not("current_version_id", "is", null)
+        .order("name", { ascending: true }),
+      supabase
+        .from("platform_owners")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+    ]);
   if (!membership) notFound();
+  const packs = platformOwner ? await listPacks() : [];
 
   const categories = [
     ...TEMPLATE_CATEGORIES,
@@ -60,6 +69,47 @@ export default async function GalleryPage({
           yours — template updates never change them.
         </p>
       </div>
+
+      {platformOwner && packs.some((p) => !p.installed) && (
+        <section className="space-y-3 rounded-lg border border-dashed p-4">
+          <h2 className="text-sm font-medium text-muted-foreground">
+            Platform packs (owner only)
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Bundled content packs authored in the repository. Installing
+            publishes them to the gallery for everyone; from then on edit them
+            in the app and republish.
+          </p>
+          <ul className="space-y-2">
+            {packs
+              .filter((p) => !p.installed)
+              .map((p) => (
+                <li
+                  key={p.name}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                >
+                  <span>
+                    <strong>{p.name}</strong>
+                    <span className="ml-2 text-muted-foreground">
+                      {p.purpose}
+                    </span>
+                  </span>
+                  <form action={installPack}>
+                    <input type="hidden" name="name" value={p.name} />
+                    <input
+                      type="hidden"
+                      name="workspaceId"
+                      value={workspaceId}
+                    />
+                    <Button type="submit" size="sm" variant="secondary">
+                      Install
+                    </Button>
+                  </form>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
 
       {(templates ?? []).length === 0 && (
         <p className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
