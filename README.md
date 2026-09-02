@@ -27,7 +27,9 @@ CI runs `typecheck`, `lint`, `test` (Vitest) and `build` on every PR.
 
 ## Status
 
-Phase 1 (foundations): auth with magic link + Google, personal workspace on
-sign-up, workspaces and membership with RLS, sidebar page tree with
-nesting, drag-reorder, favourites, recently viewed, private pages. The
-block editor (BlockNote) lands in Phase 2.
+Phases 1–4 are in: auth (magic link + Google), workspaces and membership
+with RLS, the sidebar page tree, the BlockNote editor with the v1 block
+list (bar columns), covers and @mentions, file uploads with the IG nudges
+and advisory PHI scan, and real-time collaboration via Liveblocks + Yjs
+with presence cursors (Phase 3; switches on when `LIVEBLOCKS_SECRET_KEY`
+is configured — see the runbook). Next: Phase 5, sharing and discovery.

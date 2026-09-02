@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buildDocument } from "@/lib/blocks";
+import { cursorColourFor } from "@/lib/collab";
 import { PageHeader } from "@/components/page/page-header";
 import { PageMenu } from "@/components/page/page-menu";
 import { PageCover } from "@/components/page/page-cover";
@@ -35,6 +36,7 @@ export default async function PageView({
     { data: workspacePages },
     { data: memberRows },
     { count: uploadCount },
+    { data: storedStateBase64 },
   ] = await Promise.all([
     supabase
       .from("workspace_members")
@@ -63,6 +65,8 @@ export default async function PageView({
       .select("id", { count: "exact", head: true })
       .eq("uploader_id", user.id)
       .is("deleted_at", null),
+    // Durable Yjs state for seeding the collaboration room.
+    supabase.rpc("load_page_document", { p_page_id: pageId }),
     // Recently-viewed tracking; failure is harmless so no error handling.
     supabase.from("recent_pages").upsert({
       user_id: user.id,
@@ -79,6 +83,15 @@ export default async function PageView({
     id: m.user_id,
     displayName: m.users?.display_name ?? "Unknown",
   }));
+  // Collaboration switches on when the Liveblocks secret is configured;
+  // otherwise the editor runs local-only (feature-flag by configuration).
+  const collab = process.env.LIVEBLOCKS_SECRET_KEY
+    ? {
+        userName: members.find((m) => m.id === user.id)?.displayName ?? "You",
+        userColour: cursorColourFor(user.id),
+        storedStateBase64: storedStateBase64 ?? null,
+      }
+    : null;
 
   // Breadcrumb trail from the page's ancestors.
   const crumbs: { id: string; title: string }[] = [];
@@ -139,6 +152,7 @@ export default async function PageView({
 
       <div className="mt-6">
         <PageEditorLoader
+          key={page.id}
           pageId={page.id}
           workspaceId={workspaceId}
           linkablePages={linkablePages}
@@ -147,6 +161,7 @@ export default async function PageView({
           editable={canEditThisPage}
           smallText={page.small_text}
           initialUploadCount={uploadCount ?? 0}
+          collab={collab}
         />
       </div>
     </main>

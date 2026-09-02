@@ -3,8 +3,11 @@
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as Y from "yjs";
+import type { Awareness } from "y-protocols/awareness";
 import { filterSuggestionItems } from "@blocknote/core";
+import { CollaborationExtension } from "@blocknote/core/yjs";
 import {
   SuggestionMenuController,
   getDefaultReactSlashMenuItems,
@@ -12,11 +15,18 @@ import {
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { savePageContent } from "@/app/actions/blocks";
+import { savePageDocument } from "@/app/actions/collab";
 import { useFileUpload } from "@/components/page/file-upload";
 import type { EditorBlock } from "@/lib/blocks";
+import { bytesToBase64 } from "@/lib/collab";
 import { editorSchema } from "@/components/editor/schema";
 import { customSlashMenuItems } from "@/components/editor/slash-items";
 import { mentionMenuItems } from "@/components/editor/mention-items";
+import {
+  acquireRoom,
+  releaseRoom,
+  type CollabRoom,
+} from "@/components/editor/collab-room";
 import {
   PageLinkContext,
   type LinkablePage,
@@ -25,10 +35,20 @@ import {
 
 const SAVE_DEBOUNCE_MS = 1500;
 
+export interface CollabConfig {
+  userName: string;
+  userColour: string;
+  /** Durable Yjs state from page_documents, if the page has been saved
+   *  collaboratively before. */
+  storedStateBase64: string | null;
+}
+
 /**
- * The page body editor. Local-only editing (Phase 2): saves the whole
- * document, debounced, via a server action; real-time collaboration
- * arrives in Phase 3 without changing this component's contract.
+ * The page body editor. With collaboration configured (brief §8) it binds
+ * BlockNote to a Yjs document synced through Liveblocks, with presence
+ * cursors, and persists the encoded state to Supabase; otherwise it runs
+ * in the Phase 2 local-only mode. Either way the whole document is saved
+ * debounced through a server action under RLS.
  */
 export function PageEditor({
   pageId,
@@ -39,6 +59,7 @@ export function PageEditor({
   editable,
   smallText,
   initialUploadCount,
+  collab,
 }: {
   pageId: string;
   workspaceId: string;
@@ -48,34 +69,97 @@ export function PageEditor({
   editable: boolean;
   smallText: boolean;
   initialUploadCount: number;
+  collab: CollabConfig | null;
 }) {
   const { uploadFile, dialogs } = useFileUpload({
     pageId,
     initialUploadCount,
   });
 
+  // The room is acquired synchronously so the collaboration extension can
+  // bind at editor creation; the ref-counted manager handles lifetimes.
+  const [room] = useState<CollabRoom | null>(() =>
+    collab ? acquireRoom(pageId, collab.storedStateBase64) : null,
+  );
+  useEffect(() => {
+    if (!collab) return;
+    acquireRoom(pageId, collab.storedStateBase64);
+    return () => {
+      releaseRoom(pageId);
+      releaseRoom(pageId);
+    };
+    // The room is bound for this component instance's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const editor = useCreateBlockNote(
     {
       schema: editorSchema,
-      initialContent: initialContent.length
-        ? (initialContent as unknown as (typeof editorSchema)["PartialBlock"][])
-        : undefined,
+      ...(room && collab
+        ? {
+            extensions: [
+              CollaborationExtension({
+                fragment: room.fragment,
+                user: { name: collab.userName, color: collab.userColour },
+                // Liveblocks bundles its own y-protocols; the awareness
+                // object is protocol-compatible, only the nominal type
+                // differs.
+                provider: {
+                  awareness: room.provider.awareness as unknown as Awareness,
+                },
+                showCursorLabels: "activity",
+              }),
+            ],
+          }
+        : {
+            initialContent: initialContent.length
+              ? (initialContent as unknown as (typeof editorSchema)["PartialBlock"][])
+              : undefined,
+          }),
       uploadFile,
     },
     [pageId],
   );
 
+  // Seed a room that is empty after its first sync (a page written before
+  // collaboration existed) from the Phase 2 block rows, once.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!room || !editable || seeded.current) return;
+    let cancelled = false;
+    void room.synced.then(() => {
+      if (cancelled || seeded.current) return;
+      seeded.current = true;
+      if (room.fragment.length === 0 && initialContent.length > 0) {
+        editor.replaceBlocks(
+          editor.document,
+          initialContent as unknown as (typeof editorSchema)["PartialBlock"][],
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [room, editor, editable, initialContent]);
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
 
   useEffect(() => {
+    if (!editable) return;
+
     const flush = () => {
       if (!dirty.current) return;
       dirty.current = false;
-      void savePageContent(
-        pageId,
-        editor.document as unknown as EditorBlock[],
-      ).catch((error) => console.error("Failed to save page:", error));
+      const blocks = editor.document as unknown as EditorBlock[];
+      const save = room
+        ? savePageDocument(
+            pageId,
+            bytesToBase64(Y.encodeStateAsUpdate(room.doc)),
+            blocks,
+          )
+        : savePageContent(pageId, blocks);
+      void save.catch((error) => console.error("Failed to save page:", error));
     };
 
     const unsubscribe = editor.onChange(() => {
@@ -95,7 +179,7 @@ export function PageEditor({
       if (saveTimer.current) clearTimeout(saveTimer.current);
       flush();
     };
-  }, [editor, pageId]);
+  }, [editor, pageId, room, editable]);
 
   const pageLinkValue = useMemo(
     () => ({ workspaceId, pages: linkablePages, members }),
