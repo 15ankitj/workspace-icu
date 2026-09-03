@@ -433,6 +433,10 @@ export type Database = {
         Args: { p_pages: Json };
         Returns: undefined;
       };
+      create_workspace: {
+        Args: { p_name: string };
+        Returns: string;
+      };
       consume_rate_limit: {
         Args: { p_action: string; p_limit: number; p_window_seconds: number };
         Returns: boolean;
