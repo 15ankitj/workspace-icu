@@ -142,7 +142,7 @@ Invitations are sent through Resend's REST API from server actions.
 
 ## Sign-in (magic link + one-time code)
 
-`signInWithOtp` sends one email that carries both a link and a 6-digit
+`signInWithOtp` sends one email that carries both a link and a one-time
 code, provided the Supabase email templates include both placeholders.
 In **each** project (Authentication → Email Templates) add this line to
 the **Magic Link** template and to **Confirm signup** (used for a
