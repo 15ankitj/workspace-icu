@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { createWorkspace } from "@/app/actions/workspaces";
 import type { SidebarWorkspace } from "@/components/sidebar/sidebar";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -21,6 +22,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/label";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export function WorkspaceSwitcher({
   workspaces,
@@ -30,33 +33,45 @@ export function WorkspaceSwitcher({
   currentWorkspace: SidebarWorkspace;
 }) {
   const [creating, setCreating] = useState(false);
+  const nameId = useId();
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-w-0 flex-1 justify-start px-2"
+            aria-label={`Workspace: ${currentWorkspace.name}. Switch workspace`}
           >
-            <span>{currentWorkspace.icon ?? "🗂️"}</span>
+            <span aria-hidden>{currentWorkspace.icon ?? "🗂️"}</span>
             <span className="truncate">{currentWorkspace.name}</span>
-            <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
-          </button>
+            <ChevronsUpDown className="ml-auto text-muted-foreground" />
+          </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
-          {workspaces.map((workspace) => (
-            <DropdownMenuItem key={workspace.id} asChild>
-              <Link href={`/w/${workspace.id}`}>
-                <span>{workspace.icon ?? "🗂️"}</span>
-                <span className="truncate">{workspace.name}</span>
-              </Link>
-            </DropdownMenuItem>
-          ))}
+          {workspaces.map((workspace) => {
+            const current = workspace.id === currentWorkspace.id;
+            return (
+              <DropdownMenuItem key={workspace.id} asChild>
+                <Link
+                  href={`/w/${workspace.id}`}
+                  aria-current={current ? "true" : undefined}
+                >
+                  <span aria-hidden>{workspace.icon ?? "🗂️"}</span>
+                  <span className="truncate">{workspace.name}</span>
+                  {current && (
+                    <Check className="ml-auto text-muted-foreground" />
+                  )}
+                </Link>
+              </DropdownMenuItem>
+            );
+          })}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setCreating(true)}>
-            <Plus /> New workspace
+            <Plus /> New workspace…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -67,16 +82,28 @@ export function WorkspaceSwitcher({
           <DialogDescription>
             A shared space with its own pages and members.
           </DialogDescription>
-          <form action={createWorkspace} className="space-y-3">
-            <Input
-              name="name"
-              placeholder="Workspace name"
-              required
-              autoFocus
-            />
-            <Button type="submit" className="w-full">
-              Create workspace
-            </Button>
+          <form action={createWorkspace} className="space-y-4">
+            <Field label="Workspace name" htmlFor={nameId}>
+              <Input
+                id={nameId}
+                name="name"
+                placeholder="e.g. ICU teaching"
+                required
+                autoFocus
+              />
+            </Field>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setCreating(false)}
+              >
+                Cancel
+              </Button>
+              <SubmitButton pendingLabel="Creating…">
+                Create workspace
+              </SubmitButton>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

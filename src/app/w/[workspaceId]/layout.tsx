@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/sidebar/sidebar";
+import { AppShell } from "@/components/sidebar/app-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export default async function WorkspaceLayout({
       .select("page_id, viewed_at")
       .eq("user_id", user.id)
       .order("viewed_at", { ascending: false })
-      .limit(8),
+      .limit(5),
   ]);
 
   if (!workspace || !membership) notFound();
@@ -71,19 +72,21 @@ export default async function WorkspaceLayout({
     .filter((p) => p !== undefined);
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar
-        userId={user.id}
-        workspaces={workspaces ?? []}
-        currentWorkspace={workspace}
-        role={membership.role}
-        pages={pages ?? []}
-        favourites={favouritePages}
-        recents={recentPages}
-      />
-      <div id="main" className="min-w-0 flex-1">
-        {children}
-      </div>
-    </div>
+    <AppShell
+      workspaceName={workspace.name}
+      sidebar={
+        <Sidebar
+          userId={user.id}
+          workspaces={workspaces ?? []}
+          currentWorkspace={workspace}
+          role={membership.role}
+          pages={pages ?? []}
+          favourites={favouritePages}
+          recents={recentPages}
+        />
+      }
+    >
+      {children}
+    </AppShell>
   );
 }

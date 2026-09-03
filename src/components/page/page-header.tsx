@@ -1,8 +1,15 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { Lock } from "lucide-react";
 import { renamePage, setPageIcon } from "@/app/actions/pages";
+import { Badge } from "@/components/ui/badge";
+import { useSaveStatus } from "@/components/page/save-status";
+
+const SAVE_DEBOUNCE_MS = 600;
+
+const fieldClass =
+  "-mx-1 rounded-md bg-transparent px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring read-only:cursor-default placeholder:text-muted-foreground";
 
 /** Editable title + icon. Saves on blur and debounced while typing. */
 export function PageHeader({
@@ -20,14 +27,37 @@ export function PageHeader({
 }) {
   const [title, setTitle] = useState(initialTitle);
   const [icon, setIcon] = useState(initialIcon ?? "");
-  const [, startTransition] = useTransition();
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { report } = useSaveStatus();
+  const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const iconTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function scheduleSave(nextTitle: string) {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      startTransition(() => renamePage(pageId, nextTitle));
-    }, 600);
+  function persist(label: string, action: () => Promise<unknown>) {
+    const attempt = () => {
+      report("saving");
+      action()
+        .then(() => report("saved"))
+        .catch((error) => {
+          console.error(`Failed to save ${label}:`, error);
+          report("error", attempt);
+        });
+    };
+    attempt();
+  }
+
+  function scheduleTitle(nextTitle: string) {
+    if (titleTimer.current) clearTimeout(titleTimer.current);
+    titleTimer.current = setTimeout(
+      () => persist("title", () => renamePage(pageId, nextTitle)),
+      SAVE_DEBOUNCE_MS,
+    );
+  }
+
+  function scheduleIcon(nextIcon: string) {
+    if (iconTimer.current) clearTimeout(iconTimer.current);
+    iconTimer.current = setTimeout(
+      () => persist("icon", () => setPageIcon(pageId, nextIcon || null)),
+      SAVE_DEBOUNCE_MS,
+    );
   }
 
   return (
@@ -36,37 +66,38 @@ export function PageHeader({
         <input
           type="text"
           value={icon}
-          disabled={!canEdit}
+          readOnly={!canEdit}
           onChange={(e) => {
             const next = e.target.value.slice(-2);
             setIcon(next);
-            startTransition(() => setPageIcon(pageId, next || null));
+            scheduleIcon(next);
           }}
           placeholder="📄"
           aria-label="Page icon (emoji)"
-          className="w-12 bg-transparent text-center text-4xl focus:outline-none disabled:opacity-100"
+          className={`${fieldClass} w-12 text-center text-4xl`}
         />
         {isPrivate && (
-          <span className="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            <Lock className="size-3" /> Private
-          </span>
+          <Badge variant="muted">
+            <Lock className="size-3" aria-hidden /> Private
+          </Badge>
         )}
       </div>
       <input
         type="text"
         value={title}
-        disabled={!canEdit}
+        readOnly={!canEdit}
         onChange={(e) => {
           setTitle(e.target.value);
-          scheduleSave(e.target.value);
+          scheduleTitle(e.target.value);
         }}
         onBlur={() => {
-          if (saveTimer.current) clearTimeout(saveTimer.current);
-          startTransition(() => renamePage(pageId, title));
+          if (!canEdit || title === initialTitle) return;
+          if (titleTimer.current) clearTimeout(titleTimer.current);
+          persist("title", () => renamePage(pageId, title));
         }}
         placeholder="Untitled"
         aria-label="Page title"
-        className="w-full bg-transparent text-4xl font-bold placeholder:text-muted-foreground/50 focus:outline-none disabled:opacity-100"
+        className={`${fieldClass} w-full text-4xl font-bold tracking-tight`}
       />
     </header>
   );

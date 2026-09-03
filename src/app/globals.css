@@ -17,11 +17,13 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
+  --selected: oklch(0.93 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --input: oklch(0.87 0 0);
+  /* Focus indicator: 0.55 gives ~4.7:1 on white, past the 3:1 WCAG floor. */
+  --ring: oklch(0.55 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --radius: 0.5rem;
@@ -42,11 +44,12 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
+  --selected: oklch(0.32 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.75 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
 }
@@ -66,6 +69,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-selected: var(--selected);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -83,11 +87,44 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;
   }
+  /*
+   * Every interactive element gets a visible keyboard focus ring by
+   * default. Zero specificity (:where) so a component that draws its own
+   * ring can opt out with `focus-visible:outline-none`.
+   */
+  :where(
+    a[href],
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="button"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+}
+
+/*
+ * BlockNote reserves a 54px gutter either side of the editor for its side
+ * menu. The page column already provides that room, so remove it and let
+ * body text share a left edge with the title. Unlayered on purpose: it must
+ * beat BlockNote's own (unlayered) stylesheet.
+ */
+.bn-container .bn-editor {
+  padding-inline: 0;
 }
 
 @media print {

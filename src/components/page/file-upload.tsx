@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   deleteFile,
@@ -18,8 +17,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Notice } from "@/components/ui/notice";
+import { toast } from "@/components/ui/toast";
 
 const FINDING_LABELS: Record<PhiFindingType, string> = {
   nhs_number: "Possible NHS number",
@@ -39,6 +41,18 @@ interface FlaggedUpload {
   findings: PhiFinding[];
 }
 
+function GuidanceLink() {
+  return (
+    <Link
+      href="/guidance/anonymisation"
+      target="_blank"
+      className="underline underline-offset-4"
+    >
+      anonymisation guidance
+    </Link>
+  );
+}
+
 /**
  * Upload pipeline with the layered IG nudges (brief §9): checkbox
  * confirmation for a user's first five uploads then an inline reminder,
@@ -52,22 +66,30 @@ export function useFileUpload({
   initialUploadCount: number;
 }) {
   const [gate, setGate] = useState<GateRequest | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [flagged, setFlagged] = useState<FlaggedUpload | null>(null);
-  const [reminder, setReminder] = useState(false);
-  const [flaggedResolved, setFlaggedResolved] = useState<string | null>(null);
+  const [resolving, setResolving] = useState<"remove" | "keep" | null>(null);
   const countRef = useRef(initialUploadCount);
+  const checkboxId = useId();
 
   const uploadTo = useCallback(async (targetPageId: string, file: File) => {
     const rejection = isAllowedUpload(file.type, file.size);
     if (rejection) throw new Error(rejection);
 
     if (countRef.current < CHECKBOX_CONFIRMATION_UPLOADS) {
+      setConfirmed(false);
       await new Promise<void>((resolve, reject) =>
         setGate({ resolve, reject }),
       );
     } else {
-      setReminder(true);
-      setTimeout(() => setReminder(false), 6000);
+      toast({
+        title: "Reminder: no patient-identifiable information",
+        description: (
+          <>
+            Check the file before it goes in. See the <GuidanceLink />.
+          </>
+        ),
+      });
     }
 
     const { fileId, storagePath } = await registerUpload(targetPageId, {
@@ -99,140 +121,148 @@ export function useFileUpload({
     [uploadTo, pageId],
   );
 
+  function cancelGate() {
+    gate?.reject(new Error("Upload cancelled"));
+    setGate(null);
+  }
+
+  async function resolveFlagged(mode: "remove" | "keep") {
+    if (!flagged) return;
+    setResolving(mode);
+    try {
+      if (mode === "remove") {
+        await deleteFile(flagged.fileId);
+        toast({
+          title: "File removed",
+          description:
+            "Delete its block from the page, anonymise the document and upload it again.",
+          duration: 10000,
+        });
+      } else {
+        await overridePhiFindings(flagged.fileId);
+        toast({
+          title: "Kept as anonymised",
+          description: `Your confirmation for “${flagged.filename}” has been recorded.`,
+        });
+      }
+      setFlagged(null);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title:
+          mode === "remove"
+            ? "Couldn't remove the file"
+            : "Couldn't record your confirmation",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+      });
+    } finally {
+      setResolving(null);
+    }
+  }
+
   const dialogs = (
     <>
       <Dialog
         open={gate !== null}
         onOpenChange={(open) => {
-          if (!open && gate) {
-            gate.reject(new Error("Upload cancelled"));
-            setGate(null);
-          }
+          if (!open && gate) cancelGate();
         }}
       >
         <DialogContent>
           <DialogTitle>Before you upload</DialogTitle>
-          <DialogDescription>{AUP_STATEMENT}</DialogDescription>
-          <p className="text-sm text-muted-foreground">
-            Not sure how?{" "}
-            <Link
-              href="/guidance/anonymisation"
-              target="_blank"
-              className="underline"
-            >
-              Read the anonymisation guidance
-            </Link>
-            .
-          </p>
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-1" required id="aup-confirm" />
+          <DialogDescription>
+            This applies to every file, image or document you add.
+          </DialogDescription>
+          <Notice variant="warning" title="Acceptable use">
+            <p>{AUP_STATEMENT}</p>
+            <p>
+              Not sure how? Read the <GuidanceLink />.
+            </p>
+          </Notice>
+          <label
+            htmlFor={checkboxId}
+            className="flex items-start gap-2 text-sm"
+          >
+            <input
+              id={checkboxId}
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+            />
             <span>
               I confirm this file contains no patient-identifiable information.
             </span>
           </label>
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                gate?.reject(new Error("Upload cancelled"));
-                setGate(null);
-              }}
-            >
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={cancelGate}>
               Cancel
             </Button>
             <Button
+              type="button"
+              disabled={!confirmed}
               onClick={() => {
-                const checkbox = document.getElementById(
-                  "aup-confirm",
-                ) as HTMLInputElement | null;
-                if (!checkbox?.checked) return;
                 gate?.resolve();
                 setGate(null);
               }}
             >
               Upload
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog
         open={flagged !== null}
         onOpenChange={(open) => {
-          if (!open) setFlagged(null);
+          if (!open && !resolving) setFlagged(null);
         }}
       >
         <DialogContent>
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="size-5 text-destructive" />
-            Possible patient information
-          </DialogTitle>
+          <DialogTitle>Possible patient information</DialogTitle>
           <DialogDescription>
             The advisory scan found patterns in “{flagged?.filename}” that can
             identify a patient. Nothing is blocked — but please check.
           </DialogDescription>
-          <ul className="max-h-40 space-y-1 overflow-y-auto text-sm">
-            {flagged?.findings.map((finding, i) => (
-              <li key={i} className="flex justify-between gap-2">
-                <span>{FINDING_LABELS[finding.type]}</span>
-                <span className="font-mono text-muted-foreground">
-                  {finding.masked}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-wrap justify-end gap-2">
+          <Notice variant="destructive" title="What the scan found">
+            <ul className="max-h-40 space-y-1 overflow-y-auto">
+              {flagged?.findings.map((finding, i) => (
+                <li key={i} className="flex justify-between gap-2">
+                  <span>{FINDING_LABELS[finding.type]}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {finding.masked}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Notice>
+          <p className="text-sm text-muted-foreground">
+            The safe choice is to remove the file, anonymise it (see the{" "}
+            <GuidanceLink />) and upload it again. Only keep it if you are sure
+            these are false positives; your confirmation is recorded.
+          </p>
+          <DialogFooter>
             <Button
-              variant="destructive"
-              onClick={async () => {
-                if (!flagged) return;
-                await deleteFile(flagged.fileId).catch(() => {});
-                setFlaggedResolved(
-                  "File removed. Delete its block from the page, anonymise the document and upload it again.",
-                );
-                setFlagged(null);
-              }}
+              type="button"
+              variant="outline"
+              disabled={resolving !== null}
+              onClick={() => resolveFlagged("keep")}
             >
-              Remove file
+              {resolving === "keep"
+                ? "Recording…"
+                : "Keep it — I confirm it is anonymised"}
             </Button>
             <Button
-              variant="secondary"
-              onClick={async () => {
-                if (!flagged) return;
-                await overridePhiFindings(flagged.fileId).catch(() => {});
-                setFlagged(null);
-              }}
+              type="button"
+              disabled={resolving !== null}
+              onClick={() => resolveFlagged("remove")}
             >
-              I confirm this is anonymised
+              {resolving === "remove" ? "Removing…" : "Remove file"}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {reminder && (
-        <p className="fixed bottom-4 right-4 z-50 max-w-xs rounded-md border bg-background p-3 text-xs shadow-md">
-          Reminder: no patient-identifiable information.{" "}
-          <Link
-            href="/guidance/anonymisation"
-            target="_blank"
-            className="underline"
-          >
-            Anonymisation guidance
-          </Link>
-        </p>
-      )}
-      {flaggedResolved && (
-        <p className="fixed bottom-4 right-4 z-50 max-w-xs rounded-md border bg-background p-3 text-xs shadow-md">
-          {flaggedResolved}{" "}
-          <button
-            type="button"
-            className="underline"
-            onClick={() => setFlaggedResolved(null)}
-          >
-            Dismiss
-          </button>
-        </p>
-      )}
     </>
   );
 

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { EditorBlock } from "@/lib/blocks";
+import { calloutClass } from "@/lib/callout";
 
 /**
  * Static, server-safe rendering of a block document (print/PDF view,
@@ -121,8 +122,10 @@ function Block({ block, ctx }: { block: EditorBlock; ctx: RenderContext }) {
       );
     case "callout":
       return (
-        <div className="flex gap-2 rounded-md bg-muted p-3">
-          <span>{String(props.emoji ?? "💡")}</span>
+        <div
+          className={`flex gap-2 rounded-md border-l-4 p-3 ${calloutClass(props.colour)}`}
+        >
+          <span aria-hidden>{String(props.emoji ?? "💡")}</span>
           <div className="flex-1">
             <div>{inline}</div>
             {children}

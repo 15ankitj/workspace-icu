@@ -25,15 +25,30 @@ import {
   toggleFavourite,
 } from "@/app/actions/pages";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
 type DropMode = "before" | "after" | "child";
+
+/** Small square icon button used inside tree rows. */
+const rowButton =
+  "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function PageTree({
   userId,
@@ -51,7 +66,7 @@ export function PageTree({
   const tree = useMemo(() => buildTree(pages), [pages]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dragId, setDragId] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -99,12 +114,31 @@ export function PageTree({
 
   if (tree.length === 0) {
     return (
-      <p className="px-2 py-1 text-xs text-muted-foreground">No pages yet.</p>
+      <EmptyState
+        compact
+        className="mx-1"
+        action={
+          canEdit ? (
+            <Button
+              variant="secondary"
+              size="xs"
+              disabled={isPending}
+              onClick={() =>
+                startTransition(() => createPage(workspaceId, null))
+              }
+            >
+              <Plus /> New page
+            </Button>
+          ) : undefined
+        }
+      >
+        No pages yet.
+      </EmptyState>
     );
   }
 
   return (
-    <ul role="tree">
+    <ul>
       {tree.map((node) => (
         <TreeRow
           key={node.page.id}
@@ -152,7 +186,9 @@ function TreeRow({
 }) {
   const { page, children } = node;
   const isExpanded = expanded.has(page.id);
+  const isActive = page.id === activePageId;
   const [dropMode, setDropMode] = useState<DropMode | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [, startTransition] = useTransition();
 
   function modeFromEvent(event: React.DragEvent<HTMLElement>): DropMode {
@@ -164,16 +200,12 @@ function TreeRow({
   }
 
   return (
-    <li
-      role="treeitem"
-      aria-selected={page.id === activePageId}
-      aria-expanded={children.length > 0 ? isExpanded : undefined}
-    >
+    <li>
       <div
         className={cn(
-          "group relative flex items-center gap-1 rounded px-1 py-1 text-sm hover:bg-accent hover:text-accent-foreground",
-          page.id === activePageId && "bg-accent font-medium",
-          dropMode === "child" && "ring-1 ring-ring",
+          "group relative flex items-center gap-0.5 rounded-md py-0.5 pr-1 text-sm hover:bg-accent hover:text-accent-foreground",
+          isActive && "bg-selected font-medium",
+          dropMode === "child" && "ring-2 ring-ring",
         )}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
         draggable={canEdit}
@@ -204,11 +236,9 @@ function TreeRow({
 
         <button
           type="button"
-          className={cn(
-            "rounded p-0.5 text-muted-foreground hover:bg-background",
-            children.length === 0 && "invisible",
-          )}
+          className={cn(rowButton, children.length === 0 && "invisible")}
           aria-label={isExpanded ? "Collapse" : "Expand"}
+          aria-expanded={children.length > 0 ? isExpanded : undefined}
           onClick={() => onToggle(page.id)}
         >
           {isExpanded ? (
@@ -220,23 +250,31 @@ function TreeRow({
 
         <Link
           href={`/w/${workspaceId}/p/${page.id}`}
-          className="flex min-w-0 flex-1 items-center gap-1.5"
+          aria-current={isActive ? "page" : undefined}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm py-0.5"
         >
-          <span className="w-4 shrink-0 text-center">{page.icon ?? "📄"}</span>
+          <span className="w-4 shrink-0 text-center" aria-hidden>
+            {page.icon ?? "📄"}
+          </span>
           <span className="truncate">{page.title || "Untitled"}</span>
           {page.is_private && (
-            <Lock className="size-3 shrink-0 text-muted-foreground" />
+            <Lock
+              className="size-3 shrink-0 text-muted-foreground"
+              aria-label="Private"
+            />
           )}
         </Link>
 
         {canEdit && (
-          <span className="hidden items-center group-hover:flex">
+          // Revealed on hover, on keyboard focus, and always on touch
+          // screens, where there is no hover.
+          <span className="flex items-center opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="rounded p-0.5 text-muted-foreground hover:bg-background"
-                  aria-label="Page actions"
+                  className={rowButton}
+                  aria-label={`Actions for ${page.title || "Untitled"}`}
                 >
                   <MoreHorizontal className="size-3.5" />
                 </button>
@@ -264,18 +302,16 @@ function TreeRow({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onSelect={() =>
-                    startTransition(() => deletePage(workspaceId, page.id))
-                  }
+                  onSelect={() => setConfirmingDelete(true)}
                 >
-                  <Trash2 /> Delete
+                  <Trash2 /> Delete…
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <button
               type="button"
-              className="rounded p-0.5 text-muted-foreground hover:bg-background"
-              aria-label="Add sub-page"
+              className={rowButton}
+              aria-label={`Add sub-page under ${page.title || "Untitled"}`}
               onClick={() =>
                 startTransition(() => createPage(workspaceId, page.id))
               }
@@ -286,8 +322,33 @@ function TreeRow({
         )}
       </div>
 
+      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+        <AlertDialogContent>
+          <AlertDialogTitle>
+            Move “{page.title || "Untitled"}” to the trash?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {children.length > 0
+              ? `Its ${children.length} sub-page${children.length === 1 ? "" : "s"} go with it. `
+              : ""}
+            You can restore it from the trash for 30 days; after that it is
+            removed permanently.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                startTransition(() => deletePage(workspaceId, page.id))
+              }
+            >
+              Move to trash
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {isExpanded && children.length > 0 && (
-        <ul role="group">
+        <ul>
           {children.map((child) => (
             <TreeRow
               key={child.page.id}

@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/sign-in", "/auth", "/aup", "/share"];
+// Readable without signing in: sign-in itself, the auth callbacks, public
+// share links, and the legal/guidance pages linked from sign-in.
+const PUBLIC_PATHS = ["/sign-in", "/auth", "/share", "/privacy", "/guidance"];
 
 /**
  * Next 16 proxy (formerly middleware): keeps the Supabase session cookie

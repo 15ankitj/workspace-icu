@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Upload } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { useCreateBlockNote } from "@blocknote/react";
 import { editorSchema } from "@/components/editor/schema";
 import { useFileUpload } from "@/components/page/file-upload";
@@ -17,6 +17,9 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
+import { toast } from "@/components/ui/toast";
 
 /**
  * Import Markdown and .docx files as pages (brief §5). Parsing happens in
@@ -26,8 +29,10 @@ import {
 export function ImportDialog({ workspaceId }: { workspaceId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const fileId = useId();
   // Headless editor used only for parsing.
   const editor = useCreateBlockNote({ schema: editorSchema });
   const [uploadCount, setUploadCount] = useState(0);
@@ -118,7 +123,8 @@ export function ImportDialog({ workspaceId }: { workspaceId: string }) {
         size="sm"
         className="w-full justify-start text-muted-foreground"
         onClick={async () => {
-          setStatus(null);
+          setProgress(null);
+          setError(null);
           setOpen(true);
           setUploadCount(await countMyUploads().catch(() => 0));
         }}
@@ -131,51 +137,88 @@ export function ImportDialog({ workspaceId }: { workspaceId: string }) {
           <DialogTitle>Import pages</DialogTitle>
           <DialogDescription>
             Markdown (.md) and Word (.docx) files become new top-level pages —
-            text, headings, lists, tables and images, best effort. Remember: no
-            patient-identifiable information.
+            text, headings, lists, tables and images, best effort.
           </DialogDescription>
-          <input
-            type="file"
-            multiple
-            accept=".md,.markdown,.txt,.docx"
-            disabled={isPending}
-            className="text-sm"
-            onChange={(event) => {
-              const files = Array.from(event.target.files ?? []);
-              if (files.length === 0) return;
-              startTransition(async () => {
-                let lastPageId: string | null = null;
-                let done = 0;
-                for (const file of files) {
-                  try {
-                    setStatus(`Importing ${file.name}…`);
-                    const { title, blocks } = await parseFile(file);
-                    const { pageId } = await createEmptyPage(
-                      workspaceId,
-                      null,
-                      title,
-                    );
-                    await uploadEmbeddedImages(pageId, blocks);
-                    await savePageContent(pageId, blocks);
-                    lastPageId = pageId;
-                    done++;
-                  } catch (error) {
-                    setStatus(
-                      `${file.name}: ${error instanceof Error ? error.message : "import failed"}`,
-                    );
-                    return;
+          <Notice variant="warning">
+            Check each document first: no patient-identifiable information.
+          </Notice>
+          <Field
+            label="Files to import"
+            htmlFor={fileId}
+            hint="You can choose several at once."
+          >
+            <input
+              id={fileId}
+              type="file"
+              multiple
+              accept=".md,.markdown,.txt,.docx"
+              disabled={isPending}
+              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-secondary-foreground hover:file:bg-secondary/80 disabled:opacity-50"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                if (files.length === 0) return;
+                setError(null);
+                startTransition(async () => {
+                  let lastPageId: string | null = null;
+                  let done = 0;
+                  for (const file of files) {
+                    try {
+                      setProgress(
+                        `Importing ${file.name} (${done + 1} of ${files.length})…`,
+                      );
+                      const { title, blocks } = await parseFile(file);
+                      const { pageId } = await createEmptyPage(
+                        workspaceId,
+                        null,
+                        title,
+                      );
+                      await uploadEmbeddedImages(pageId, blocks);
+                      await savePageContent(pageId, blocks);
+                      lastPageId = pageId;
+                      done++;
+                    } catch (error) {
+                      setProgress(null);
+                      setError(
+                        `${file.name} could not be imported: ${
+                          error instanceof Error
+                            ? error.message
+                            : "unknown error"
+                        }${done ? `. ${done} page${done === 1 ? "" : "s"} imported before it.` : "."}`,
+                      );
+                      router.refresh();
+                      return;
+                    }
                   }
-                }
-                setStatus(`Imported ${done} page${done === 1 ? "" : "s"}.`);
-                router.refresh();
-                if (lastPageId) {
-                  setOpen(false);
-                  router.push(`/w/${workspaceId}/p/${lastPageId}`);
-                }
-              });
-            }}
-          />
-          {status && <p className="text-xs text-muted-foreground">{status}</p>}
+                  setProgress(null);
+                  toast({
+                    title: `Imported ${done} page${done === 1 ? "" : "s"}`,
+                  });
+                  router.refresh();
+                  if (lastPageId) {
+                    setOpen(false);
+                    router.push(`/w/${workspaceId}/p/${lastPageId}`);
+                  }
+                });
+              }}
+            />
+          </Field>
+          {progress && (
+            <p
+              role="status"
+              className="flex items-center gap-2 text-sm text-muted-foreground"
+            >
+              <Loader2
+                className="size-4 motion-safe:animate-spin"
+                aria-hidden
+              />
+              {progress}
+            </p>
+          )}
+          {error && (
+            <Notice variant="destructive" title="Import stopped">
+              <p>{error}</p>
+            </Notice>
+          )}
         </DialogContent>
       </Dialog>
     </>

@@ -17,6 +17,7 @@ import { BlockNoteView } from "@blocknote/shadcn";
 import { savePageContent } from "@/app/actions/blocks";
 import { savePageDocument } from "@/app/actions/collab";
 import { useFileUpload } from "@/components/page/file-upload";
+import { useSaveStatus } from "@/components/page/save-status";
 import type { EditorBlock } from "@/lib/blocks";
 import { bytesToBase64 } from "@/lib/collab";
 import { editorSchema } from "@/components/editor/schema";
@@ -32,6 +33,7 @@ import {
   type LinkablePage,
   type MentionableUser,
 } from "@/components/editor/page-link-context";
+import { cn } from "@/lib/utils";
 
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -48,7 +50,8 @@ export interface CollabConfig {
  * BlockNote to a Yjs document synced through Liveblocks, with presence
  * cursors, and persists the encoded state to Supabase; otherwise it runs
  * in the Phase 2 local-only mode. Either way the whole document is saved
- * debounced through a server action under RLS.
+ * debounced through a server action under RLS, and the outcome is reported
+ * to the page's save-status indicator.
  */
 export function PageEditor({
   pageId,
@@ -75,6 +78,7 @@ export function PageEditor({
     pageId,
     initialUploadCount,
   });
+  const { report } = useSaveStatus();
 
   // The room is acquired synchronously so the collaboration extension can
   // bind at editor creation; the ref-counted manager handles lifetimes.
@@ -159,7 +163,18 @@ export function PageEditor({
             blocks,
           )
         : savePageContent(pageId, blocks);
-      void save.catch((error) => console.error("Failed to save page:", error));
+      report("saving");
+      save
+        .then(() => {
+          if (!dirty.current) report("saved");
+        })
+        .catch((error) => {
+          console.error("Failed to save page:", error);
+          // Keep the document marked dirty so a retry (or the next edit)
+          // sends everything again.
+          dirty.current = true;
+          report("error", flush);
+        });
     };
 
     const unsubscribe = editor.onChange(() => {
@@ -179,7 +194,7 @@ export function PageEditor({
       if (saveTimer.current) clearTimeout(saveTimer.current);
       flush();
     };
-  }, [editor, pageId, room, editable]);
+  }, [editor, pageId, room, editable, report]);
 
   const pageLinkValue = useMemo(
     () => ({ workspaceId, pages: linkablePages, members }),
@@ -189,7 +204,9 @@ export function PageEditor({
   return (
     <PageLinkContext.Provider value={pageLinkValue}>
       {dialogs}
-      <div className={smallText ? "-mx-[54px] text-sm" : "-mx-[54px]"}>
+      {/* BlockNote's side gutter is removed in globals.css so body text
+          shares a left edge with the title above it. */}
+      <div className={cn(smallText && "text-sm")}>
         <BlockNoteView editor={editor} editable={editable} slashMenu={false}>
           <SuggestionMenuController
             triggerCharacter="/"

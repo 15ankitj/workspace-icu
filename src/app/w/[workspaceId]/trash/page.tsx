@@ -1,7 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { purgePage, restorePage } from "@/app/actions/trash";
-import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageShell, PageHeading } from "@/components/ui/page-shell";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -46,44 +49,41 @@ export default async function TrashPage({
   );
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-6 p-6 md:p-12">
-      <div>
-        <h1 className="text-2xl font-semibold">Trash</h1>
-        <p className="text-sm text-muted-foreground">
-          Deleted pages stay here for {TRASH_DAYS} days, then are removed
-          permanently along with their files.
-        </p>
-      </div>
+    <PageShell className="gap-6">
+      <PageHeading title="Trash">
+        Deleted pages stay here for {TRASH_DAYS} days, then are removed
+        permanently along with their files.
+      </PageHeading>
 
       {roots.length === 0 ? (
-        <p className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-          The trash is empty.
-        </p>
+        <EmptyState>The trash is empty.</EmptyState>
       ) : (
         <ul className="space-y-2">
           {roots.map((page) => {
+            const title = page.title || "Untitled";
             const purgeOn = new Date(
               new Date(page.deleted_at!).getTime() + TRASH_DAYS * 86_400_000,
-            );
+            ).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            });
             return (
               <li
                 key={page.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
               >
-                <span className="min-w-0">
-                  {page.icon ? `${page.icon} ` : ""}
-                  {page.title || "Untitled"}
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    Removed permanently on{" "}
-                    {purgeOn.toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                <span className="min-w-0 space-y-0.5">
+                  <span className="block truncate">
+                    {page.icon ? `${page.icon} ` : ""}
+                    {title}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    Removed permanently on {purgeOn}
                   </span>
                 </span>
                 {canEdit && (
-                  <span className="flex gap-1">
+                  <span className="flex gap-2">
                     <form action={restorePage}>
                       <input
                         type="hidden"
@@ -91,9 +91,13 @@ export default async function TrashPage({
                         value={workspaceId}
                       />
                       <input type="hidden" name="pageId" value={page.id} />
-                      <Button type="submit" size="sm" variant="secondary">
+                      <SubmitButton
+                        size="sm"
+                        variant="secondary"
+                        pendingLabel="Restoring…"
+                      >
                         Restore
-                      </Button>
+                      </SubmitButton>
                     </form>
                     <form action={purgePage}>
                       <input
@@ -102,14 +106,14 @@ export default async function TrashPage({
                         value={workspaceId}
                       />
                       <input type="hidden" name="pageId" value={page.id} />
-                      <Button
-                        type="submit"
+                      <ConfirmButton
                         size="sm"
-                        variant="ghost"
-                        className="text-destructive"
+                        title={`Delete “${title}” permanently?`}
+                        description="The page, its sub-pages and their files are removed for good. This cannot be undone."
+                        confirmLabel="Delete permanently"
                       >
                         Delete permanently
-                      </Button>
+                      </ConfirmButton>
                     </form>
                   </span>
                 )}
@@ -118,6 +122,6 @@ export default async function TrashPage({
           })}
         </ul>
       )}
-    </main>
+    </PageShell>
   );
 }
