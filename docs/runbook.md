@@ -155,7 +155,9 @@ first-time address), keeping `{{ .ConfirmationURL }}`:
 - The link completes at `/auth/confirm`; the code is verified on the
   sign-in page itself (`verifyOtp`, type `email`), which is what works
   when the email is opened on a different device or the link has been
-  rewritten by a mail filter. Default code length 6, expiry 1 hour.
+  rewritten by a mail filter. The code length is a project setting
+  (Authentication → Providers → Email → "Email OTP Length"; ours is 8) and
+  the page accepts 6–10 digits; expiry 1 hour.
 - Supabase allows one resend per address every 60 seconds; the page
   surfaces its message.
 - **Custom SMTP is required** — Supabase only allows template editing
