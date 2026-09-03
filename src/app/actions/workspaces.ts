@@ -20,20 +20,19 @@ export async function createWorkspace(formData: FormData) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");
 
-  const { data: workspace, error } = await supabase
-    .from("workspaces")
-    .insert({ name, created_by: user.id })
-    .select("id")
-    .single();
-  if (error) throw new Error(`Could not create workspace: ${error.message}`);
+  // One definer call creates the workspace and the owner membership
+  // together: a plain insert cannot return its row before the caller is
+  // a member (migration 0013).
+  const { data: workspaceId, error } = await supabase.rpc("create_workspace", {
+    p_name: name,
+  });
+  if (error || !workspaceId) {
+    throw new Error(
+      `Could not create workspace: ${error?.message ?? "unknown error"}`,
+    );
+  }
 
-  const { error: memberError } = await supabase
-    .from("workspace_members")
-    .insert({ workspace_id: workspace.id, user_id: user.id, role: "owner" });
-  if (memberError)
-    throw new Error(`Could not join new workspace: ${memberError.message}`);
-
-  redirect(`/w/${workspace.id}`);
+  redirect(`/w/${workspaceId}`);
 }
 
 export async function renameWorkspace(formData: FormData) {
