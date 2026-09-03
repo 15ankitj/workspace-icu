@@ -47,16 +47,17 @@ export interface PackTemplate {
   pages: PackPage[];
 }
 
-const NO_PHI = callout(
-  "🚫",
-  [
-    b("Never add patient-identifiable information. "),
-    t(
-      "Describe cases in general terms, use relative dates, and anonymise every document before it goes anywhere near this workspace.",
-    ),
-  ],
-  "red",
-);
+const noPhi = () =>
+  callout(
+    "🚫",
+    [
+      b("Never add patient-identifiable information. "),
+      t(
+        "Describe cases in general terms, use relative dates, and anonymise every document before it goes anywhere near this workspace.",
+      ),
+    ],
+    "red",
+  );
 
 function howTo(text: string): EditorBlock {
   return callout("💡", [b("How to use this page: "), t(text)], "blue");
@@ -90,7 +91,7 @@ export function cesrJourney(): PackTemplate {
       howTo(
         "read this page once, then work mostly in My plan and the HiLLO pages. Share this workspace with your supervisor (Settings → Invite, role Editor) so meetings and comments happen in the same place.",
       ),
-      NO_PHI,
+      noPhi(),
       h2("What this workspace is"),
       p(
         "A working file for your CESR / Portfolio Pathway application in Intensive Care Medicine: one page per High-Level Learning Outcome, a place to plan, a running evidence index, and supervision meetings recorded where the evidence lives.",
@@ -416,7 +417,7 @@ export function cesrJourney(): PackTemplate {
       howTo(
         "capture quickly, reflect properly later. Start each reflection from the Reflection template in the gallery as a sub-page here, then link it from the HiLLO it evidences.",
       ),
-      NO_PHI,
+      noPhi(),
       h2("Quick capture"),
       p([i("A line or two now, a full reflection within the week:")]),
       ...todos([[fill("what happened, in one line, anonymised")]]),
@@ -751,7 +752,7 @@ export function supportingTemplates(): PackTemplate[] {
             howTo(
               "write it within a week of the event, anonymised, and link it from the HiLLO page it evidences.",
             ),
-            NO_PHI,
+            noPhi(),
             h2("Maps to"),
             p([t("HiLLO / KC: "), fill("e.g. 3 / 3.2")]),
             h2("What happened"),
