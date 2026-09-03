@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 
 /**
- * Sign-in: a magic link and a 6-digit code arrive in the same email
+ * Sign-in: a magic link and a one-time code arrive in the same email
  * (the Supabase templates include both `{{ .ConfirmationURL }}` and
  * `{{ .Token }}` — see docs/runbook.md). The link completes at
  * /auth/confirm; the code is verified here, on the page that asked for
@@ -64,8 +64,9 @@ function SignInForm() {
   async function verifyCode(event: React.FormEvent) {
     event.preventDefault();
     const token = code.replace(/\s+/g, "");
-    if (!/^\d{6}$/.test(token)) {
-      setError("Enter the 6-digit code from the email.");
+    // Supabase's code length is a project setting (6–10 digits).
+    if (!/^\d{6,10}$/.test(token)) {
+      setError("Enter the code from the email (digits only).");
       return;
     }
     setBusy("verifying");
@@ -119,17 +120,17 @@ function SignInForm() {
                 htmlFor="otp-code"
                 className="block text-sm text-muted-foreground"
               >
-                Enter the 6-digit code from the email
+                Enter the code from the email
               </label>
               <Input
                 id="otp-code"
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 pattern="[0-9 ]*"
-                maxLength={7}
+                maxLength={12}
                 required
                 autoFocus
-                placeholder="123456"
+                placeholder="12345678"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 className="text-center text-lg tracking-[0.3em]"
