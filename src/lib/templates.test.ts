@@ -146,6 +146,76 @@ describe("planInstantiation", () => {
     expect(plan.rootPageId).toBeNull();
   });
 
+  it("gives every block a fresh id and keeps parent links within the page", () => {
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `new-${++n}`,
+    });
+    const snapshotIds = new Set(
+      snapshot.pages.flatMap((p) => p.blocks.map((b) => b.id)),
+    );
+    for (const page of plan.pages) {
+      const ids = new Set(page.blocks.map((b) => b.id));
+      expect(ids.size).toBe(page.blocks.length);
+      for (const block of page.blocks) {
+        expect(snapshotIds.has(block.id)).toBe(false);
+        if (block.parent_block_id)
+          expect(ids.has(block.parent_block_id)).toBe(true);
+      }
+    }
+    const snapshotParents = snapshot.pages.flatMap(
+      (p) => p.blocks.filter((b) => b.parent_block_id).length,
+    );
+    const planParents = plan.pages.flatMap(
+      (p) => p.blocks.filter((b) => b.parent_block_id).length,
+    );
+    expect(planParents).toEqual(snapshotParents);
+  });
+
+  it("instantiates the same snapshot twice without reusing a block id", () => {
+    let n = 0;
+    const args = {
+      snapshot,
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `new-${++n}`,
+    };
+    const first = planInstantiation(args).pages.flatMap((p) =>
+      p.blocks.map((b) => b.id),
+    );
+    const second = planInstantiation(args).pages.flatMap((p) =>
+      p.blocks.map((b) => b.id),
+    );
+    expect(first.some((id) => second.includes(id))).toBe(false);
+  });
+
+  it("copes with a snapshot that repeats a block id across pages", () => {
+    const repeated = structuredClone(snapshot);
+    const shared = repeated.pages[0].blocks[0];
+    repeated.pages[1].blocks.push({ ...shared, parent_block_id: null });
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot: repeated,
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `new-${++n}`,
+    });
+    const all = plan.pages.flatMap((p) => p.blocks.map((b) => b.id));
+    expect(new Set(all).size).toBe(all.length);
+  });
+
   it("reports missing keys", () => {
     expect(missingPageKeys(snapshot, [A, B])).toEqual([C]);
   });

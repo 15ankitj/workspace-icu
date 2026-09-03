@@ -199,7 +199,24 @@ export function planInstantiation(input: {
         const id = fileIds.get(key);
         return id ? `/api/files/${id}` : "";
       });
-    return JSON.parse(text) as BlockRowFromDb[];
+    const rewritten = JSON.parse(text) as BlockRowFromDb[];
+    // Fresh row ids for every copy: block ids are a global primary key, so
+    // a copy must never reuse the snapshot's ids (nor a source page's, for
+    // workspace templates). One fresh id per row, so even a snapshot that
+    // repeats an id instantiates cleanly; parent links follow the map.
+    const freshIds = new Map<string, string>();
+    const withIds = rewritten.map((block) => {
+      const id = input.newId();
+      freshIds.set(block.id, id);
+      return { ...block, id };
+    });
+    return withIds.map((block, index) => {
+      const parent = rewritten[index].parent_block_id;
+      return {
+        ...block,
+        parent_block_id: parent ? (freshIds.get(parent) ?? null) : null,
+      };
+    });
   };
 
   let topPosition = input.lastSiblingPosition;
