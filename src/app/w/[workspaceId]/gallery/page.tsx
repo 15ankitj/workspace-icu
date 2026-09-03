@@ -3,7 +3,14 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { TEMPLATE_CATEGORIES } from "@/lib/template-categories";
 import { installPack, listPacks } from "@/app/actions/packs";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  PageShell,
+  PageHeading,
+  SectionHeading,
+} from "@/components/ui/page-shell";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
 
@@ -61,21 +68,18 @@ export default async function GalleryPage({
   ];
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-8 p-6 md:p-12">
-      <div>
-        <h1 className="text-2xl font-semibold">Template gallery</h1>
-        <p className="text-sm text-muted-foreground">
-          Start a page or a whole tree from a template. Your own copies are
-          yours — template updates never change them.
-        </p>
-      </div>
+    <PageShell width="wide">
+      <PageHeading title="Template gallery">
+        Start a page or a whole tree from a template. Your own copies are yours
+        — template updates never change them.
+      </PageHeading>
 
       {platformOwner && packs.some((p) => !p.installed) && (
-        <section className="space-y-3 rounded-lg border border-dashed p-4">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Platform packs (owner only)
-          </h2>
-          <p className="text-xs text-muted-foreground">
+        <section className="space-y-3 rounded-md border p-4">
+          <SectionHeading>
+            Platform packs <Badge variant="outline">Owner only</Badge>
+          </SectionHeading>
+          <p className="text-sm text-muted-foreground">
             Bundled content packs authored in the repository. Installing
             publishes them to the gallery for everyone; from then on edit them
             in the app and republish.
@@ -101,9 +105,13 @@ export default async function GalleryPage({
                       name="workspaceId"
                       value={workspaceId}
                     />
-                    <Button type="submit" size="sm" variant="secondary">
+                    <SubmitButton
+                      size="sm"
+                      variant="secondary"
+                      pendingLabel="Installing…"
+                    >
                       Install
-                    </Button>
+                    </SubmitButton>
                   </form>
                 </li>
               ))}
@@ -112,10 +120,10 @@ export default async function GalleryPage({
       )}
 
       {(templates ?? []).length === 0 && (
-        <p className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
-          No templates yet. Open any page → ⋯ → <em>Save as template</em> to
-          create the first one.
-        </p>
+        <EmptyState title="No templates yet">
+          Open any page, choose <em>Page options</em>, then{" "}
+          <em>Save as template</em> to create the first one.
+        </EmptyState>
       )}
 
       {categories.map((category) => {
@@ -123,21 +131,19 @@ export default async function GalleryPage({
         if (items.length === 0) return null;
         return (
           <section key={category} className="space-y-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              {category}
-            </h2>
+            <SectionHeading>{category}</SectionHeading>
             <ul className="grid gap-3 sm:grid-cols-2">
               {items.map((t) => (
                 <li key={t.id}>
                   <Link
                     href={`/w/${workspaceId}/gallery/${t.id}`}
-                    className="block h-full rounded-lg border p-4 hover:bg-accent"
+                    className="block h-full rounded-md border p-4 transition-colors hover:bg-accent"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-medium">{t.name}</h3>
-                      <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <Badge variant="muted" className="shrink-0 capitalize">
                         {t.kind}
-                      </span>
+                      </Badge>
                     </div>
                     {t.purpose && <p className="mt-1 text-sm">{t.purpose}</p>}
                     <p className="mt-2 text-xs text-muted-foreground">
@@ -155,6 +161,6 @@ export default async function GalleryPage({
           </section>
         );
       })}
-    </main>
+    </PageShell>
   );
 }

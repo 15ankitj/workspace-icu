@@ -1,4 +1,14 @@
+import Link from "next/link";
+import { Notice } from "@/components/ui/notice";
+import {
+  PageShell,
+  PageHeading,
+  SectionHeading,
+} from "@/components/ui/page-shell";
+
 export const metadata = { title: "Anonymisation guidance — WorkspaceICU" };
+
+const listClass = "list-disc space-y-1 pl-5 text-sm";
 
 /**
  * Linked from the upload reminder (brief §9 nudge 2). Plain-English,
@@ -6,18 +16,15 @@ export const metadata = { title: "Anonymisation guidance — WorkspaceICU" };
  */
 export default function AnonymisationGuidance() {
   return (
-    <main className="mx-auto max-w-2xl space-y-6 p-6 md:p-12">
-      <h1 className="text-2xl font-semibold">
-        Anonymising documents before upload
-      </h1>
-      <p className="text-sm text-muted-foreground">
+    <PageShell className="gap-6">
+      <PageHeading title="Anonymising documents before upload">
         WorkspaceICU is not a clinical record. Before uploading anything, remove
         everything that could identify a patient — on its own or in combination.
-      </p>
+      </PageHeading>
 
       <section className="space-y-2">
-        <h2 className="font-medium">Remove or replace</h2>
-        <ul className="list-disc space-y-1 pl-5 text-sm">
+        <SectionHeading>Remove or replace</SectionHeading>
+        <ul className={listClass}>
           <li>Names and initials of patients and relatives</li>
           <li>NHS numbers, hospital numbers, and any other identifiers</li>
           <li>Dates of birth, and exact dates of admission or procedures</li>
@@ -34,8 +41,8 @@ export default function AnonymisationGuidance() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="font-medium">How to anonymise</h2>
-        <ul className="list-disc space-y-1 pl-5 text-sm">
+        <SectionHeading>How to anonymise</SectionHeading>
+        <ul className={listClass}>
           <li>
             Rewrite rather than redact where possible: “a patient in their 60s
             admitted with sepsis”, not a name behind a black box.
@@ -52,12 +59,21 @@ export default function AnonymisationGuidance() {
         </ul>
       </section>
 
-      <p className="text-xs text-muted-foreground">
-        The upload scan is advisory only and cannot catch everything — the
-        responsibility for anonymisation stays with you, as it would in any
-        portfolio or teaching context. If in doubt, ask your Caldicott Guardian
-        or information-governance team.
+      <Notice variant="warning" title="The upload scan is advisory only">
+        <p>
+          It cannot catch everything. The responsibility for anonymisation stays
+          with you, as it would in any portfolio or teaching context. If in
+          doubt, ask your Caldicott Guardian or information-governance team.
+        </p>
+      </Notice>
+
+      <p className="text-sm text-muted-foreground">
+        See also the{" "}
+        <Link href="/privacy" className="underline">
+          privacy notice
+        </Link>
+        .
       </p>
-    </main>
+    </PageShell>
   );
 }

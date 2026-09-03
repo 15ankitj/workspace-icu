@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import {
-  Check,
   Download,
   Flag,
   LayoutTemplate,
@@ -15,14 +14,18 @@ import { reportPage } from "@/app/actions/reports";
 import { setPublicLink } from "@/app/actions/shares";
 import { SaveTemplateDialog } from "@/components/page/save-template-dialog";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
+import { CopyButton } from "@/components/ui/copy-button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -30,18 +33,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-
-function Tick({ on }: { on: boolean }) {
-  return <Check className={cn("size-4", !on && "invisible")} />;
-}
+import { Field } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 
 export interface ShareState {
   enabled: boolean;
   token: string | null;
 }
 
-/** Page ⋯ menu: sharing, templates and layout (editors), report (everyone). */
+/**
+ * Page actions: a visible Share button for editors, and a menu for
+ * templates, export, layout and reporting.
+ */
 export function PageMenu({
   pageId,
   workspaceId,
@@ -68,27 +73,58 @@ export function PageMenu({
   const [shareState, setShareState] = useState<ShareState>(
     share ?? { enabled: false, token: null },
   );
-  const [copied, setCopied] = useState(false);
+  const reasonId = useId();
 
   const shareUrl =
     shareState.enabled && shareState.token && typeof window !== "undefined"
       ? `${window.location.origin}/share/${shareState.token}`
       : null;
 
+  function updateShare(enabled: boolean) {
+    startTransition(async () => {
+      try {
+        if (enabled) {
+          const { token } = await setPublicLink(pageId, true);
+          setShareState({ enabled: true, token });
+        } else {
+          await setPublicLink(pageId, false);
+          setShareState({ enabled: false, token: null });
+          toast({ title: "Public link revoked" });
+        }
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: enabled
+            ? "Couldn't create the link"
+            : "Couldn't revoke the link",
+          description:
+            error instanceof Error ? error.message : "Please try again.",
+        });
+      }
+    });
+  }
+
   return (
     <>
+      {canEdit && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setSharing(true)}
+          aria-haspopup="dialog"
+        >
+          <Link2 /> Share
+        </Button>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" aria-label="Page options">
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
+        <DropdownMenuContent align="end" className="w-60">
           {canEdit && (
             <>
-              <DropdownMenuItem onSelect={() => setSharing(true)}>
-                <Link2 /> Share…
-              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setSavingTemplate(true)}>
                 <LayoutTemplate /> Save as template…
               </DropdownMenuItem>
@@ -98,17 +134,17 @@ export function PageMenu({
           <DropdownMenuLabel>Export</DropdownMenuLabel>
           <DropdownMenuItem asChild>
             <a href={`/api/export/${pageId}`}>
-              <Download /> Markdown (this page)
+              <Download /> Markdown
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href={`/api/export/${pageId}?tree=1`}>
-              <Download /> Markdown (with sub-pages)
+              <Download /> Markdown, with sub-pages
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href={`/print/${pageId}`} target="_blank" rel="noreferrer">
-              <Printer /> Print / PDF (this page)
+              <Printer /> Print or save as PDF
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
@@ -117,34 +153,36 @@ export function PageMenu({
               target="_blank"
               rel="noreferrer"
             >
-              <Printer /> Print / PDF (with sub-pages)
+              <Printer /> Print, with sub-pages
             </a>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
           {canEdit && (
             <>
-              <DropdownMenuLabel>Layout</DropdownMenuLabel>
-              <DropdownMenuItem
-                onSelect={() =>
-                  startTransition(() =>
-                    setPageLayout(pageId, { fullWidth: !fullWidth }),
-                  )
-                }
-              >
-                <Tick on={fullWidth} /> Full width
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
-                  startTransition(() =>
-                    setPageLayout(pageId, { smallText: !smallText }),
-                  )
-                }
-              >
-                <Tick on={smallText} /> Small text
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuLabel>Layout</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={fullWidth}
+                onCheckedChange={(next) =>
+                  startTransition(() =>
+                    setPageLayout(pageId, { fullWidth: next }),
+                  )
+                }
+              >
+                Full width
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={smallText}
+                onCheckedChange={(next) =>
+                  startTransition(() =>
+                    setPageLayout(pageId, { smallText: next }),
+                  )
+                }
+              >
+                Small text
+              </DropdownMenuCheckboxItem>
             </>
           )}
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => {
               setReported(false);
@@ -152,7 +190,7 @@ export function PageMenu({
               setReporting(true);
             }}
           >
-            <Flag /> Report content
+            <Flag /> Report content…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -174,46 +212,35 @@ export function PageMenu({
             at any time; the old link stops working immediately.
           </DialogDescription>
           {shareState.enabled && shareUrl ? (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <Input readOnly value={shareUrl} className="text-xs" />
-                <Button
-                  variant="secondary"
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(shareUrl);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 1500);
-                  }}
-                >
-                  {copied ? "Copied" : "Copy"}
-                </Button>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  readOnly
+                  value={shareUrl}
+                  aria-label="Public link"
+                  className="min-w-0 flex-1 text-xs"
+                />
+                <CopyButton value={shareUrl} />
               </div>
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={isPending}
-                onClick={() =>
-                  startTransition(async () => {
-                    await setPublicLink(pageId, false);
-                    setShareState({ enabled: false, token: null });
-                  })
-                }
-              >
-                Revoke public link
-              </Button>
+              <DialogFooter>
+                <ConfirmButton
+                  size="sm"
+                  disabled={isPending}
+                  title="Revoke the public link?"
+                  description="Anyone who has the link loses access straight away. You can create a new link later."
+                  confirmLabel="Revoke link"
+                  onConfirm={() => updateShare(false)}
+                >
+                  Revoke public link
+                </ConfirmButton>
+              </DialogFooter>
             </div>
           ) : (
-            <Button
-              disabled={isPending}
-              onClick={() =>
-                startTransition(async () => {
-                  const { token } = await setPublicLink(pageId, true);
-                  setShareState({ enabled: true, token });
-                })
-              }
-            >
-              Create public read-only link
-            </Button>
+            <DialogFooter>
+              <Button disabled={isPending} onClick={() => updateShare(true)}>
+                {isPending ? "Creating…" : "Create public read-only link"}
+              </Button>
+            </DialogFooter>
           )}
         </DialogContent>
       </Dialog>
@@ -227,31 +254,59 @@ export function PageMenu({
             shouldn&apos;t be here.
           </DialogDescription>
           {reported ? (
-            <p className="text-sm">
-              Thank you — the report has been sent for review.
-            </p>
+            <>
+              <Notice variant="info" title="Report sent">
+                <p>Thank you — it has been passed on for review.</p>
+              </Notice>
+              <DialogFooter>
+                <Button type="button" onClick={() => setReporting(false)}>
+                  Done
+                </Button>
+              </DialogFooter>
+            </>
           ) : (
             <form
-              className="space-y-3"
+              className="space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 startTransition(async () => {
-                  await reportPage(pageId, reason);
-                  setReported(true);
+                  try {
+                    await reportPage(pageId, reason);
+                    setReported(true);
+                  } catch (error) {
+                    toast({
+                      variant: "destructive",
+                      title: "Couldn't send the report",
+                      description:
+                        error instanceof Error
+                          ? error.message
+                          : "Please try again.",
+                    });
+                  }
                 });
               }}
             >
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                required
-                rows={3}
-                placeholder="What's the problem?"
-                className="w-full rounded-md border border-input bg-transparent p-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <div className="flex justify-end">
-                <Button type="submit">Send report</Button>
-              </div>
+              <Field label="What's the problem?" htmlFor={reasonId}>
+                <Textarea
+                  id={reasonId}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  required
+                  rows={3}
+                />
+              </Field>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setReporting(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending}>
+                  {isPending ? "Sending…" : "Send report"}
+                </Button>
+              </DialogFooter>
             </form>
           )}
         </DialogContent>

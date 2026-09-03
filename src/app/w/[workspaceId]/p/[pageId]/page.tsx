@@ -10,6 +10,11 @@ import { PageEditorLoader } from "@/components/page/page-editor-loader";
 import { CommentsPanel } from "@/components/page/comments-panel";
 import { BacklinksPanel } from "@/components/page/backlinks-panel";
 import { TemplateUpdateBanner } from "@/components/page/template-update-banner";
+import {
+  SaveStatusIndicator,
+  SaveStatusProvider,
+} from "@/components/page/save-status";
+import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +60,10 @@ export default async function PageView({
       .from("blocks")
       .select("id, parent_block_id, type, position, content")
       .eq("page_id", pageId),
-    // For the page-link block's picker.
+    // For the page-link block's picker and the breadcrumb trail.
     supabase
       .from("pages")
-      .select("id, title, icon")
+      .select("id, title, icon, parent_page_id")
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null),
     // For the "@" mention menu.
@@ -109,7 +114,10 @@ export default async function PageView({
   const canEditThisPage =
     canEdit && (!page.is_private || page.created_by === user.id);
   const initialContent = buildDocument(blockRows ?? []);
-  const linkablePages = (workspacePages ?? []).filter((p) => p.id !== pageId);
+  const allPages = workspacePages ?? [];
+  const linkablePages = allPages
+    .filter((p) => p.id !== pageId)
+    .map(({ id, title, icon }) => ({ id, title, icon }));
   const members = (memberRows ?? []).map((m) => ({
     id: m.user_id,
     displayName: m.users?.display_name ?? "Unknown",
@@ -165,96 +173,103 @@ export default async function PageView({
     }
   }
 
-  const sourceIds = (linkRows ?? []).map((l) => l.source_page_id);
-  const { data: backlinkPages } = sourceIds.length
-    ? await supabase
-        .from("pages")
-        .select("id, title, icon")
-        .in("id", sourceIds)
-        .is("deleted_at", null)
-    : { data: [] };
+  const sourceIds = new Set((linkRows ?? []).map((l) => l.source_page_id));
+  const backlinkPages = allPages
+    .filter((p) => sourceIds.has(p.id))
+    .map(({ id, title, icon }) => ({ id, title, icon }));
 
-  // Breadcrumb trail from the page's ancestors.
+  // Breadcrumb trail from the page's ancestors, resolved from the pages
+  // already loaded for this workspace (no extra round-trips).
+  const pageById = new Map(allPages.map((p) => [p.id, p]));
   const crumbs: { id: string; title: string }[] = [];
   let parentId = page.parent_page_id;
   for (let i = 0; parentId && i < 10; i++) {
-    const { data: parent } = await supabase
-      .from("pages")
-      .select("id, title, parent_page_id")
-      .eq("id", parentId)
-      .maybeSingle();
+    const parent = pageById.get(parentId);
     if (!parent) break;
     crumbs.unshift({ id: parent.id, title: parent.title || "Untitled" });
     parentId = parent.parent_page_id;
   }
 
   return (
-    <main
-      className={`mx-auto min-h-screen w-full p-6 md:p-12 ${
-        page.full_width ? "" : "max-w-3xl"
-      }`}
-    >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <nav className="min-w-0 text-sm text-muted-foreground">
-          {crumbs.map((crumb) => (
-            <span key={crumb.id}>
-              <Link
-                href={`/w/${workspaceId}/p/${crumb.id}`}
-                className="hover:text-foreground"
+    <SaveStatusProvider>
+      <PageShell
+        width={page.full_width ? "full" : "wide"}
+        className="min-h-screen gap-6"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <nav
+            aria-label="Breadcrumb"
+            className="min-w-0 text-sm text-muted-foreground"
+          >
+            <ol className="flex min-w-0 items-center gap-1">
+              {crumbs.map((crumb) => (
+                <li key={crumb.id} className="flex min-w-0 items-center gap-1">
+                  <Link
+                    href={`/w/${workspaceId}/p/${crumb.id}`}
+                    className="max-w-40 truncate rounded-sm hover:text-foreground"
+                  >
+                    {crumb.title}
+                  </Link>
+                  <span aria-hidden>/</span>
+                </li>
+              ))}
+              <li
+                className="min-w-0 truncate text-foreground"
+                aria-current="page"
               >
-                {crumb.title}
-              </Link>
-              <span className="mx-1">/</span>
-            </span>
-          ))}
-          <span className="text-foreground">{page.title || "Untitled"}</span>
-        </nav>
-        <PageMenu
-          pageId={page.id}
-          workspaceId={workspaceId}
-          fullWidth={page.full_width}
-          smallText={page.small_text}
-          canEdit={canEditThisPage}
-          isPlatformOwner={Boolean(platformOwner)}
-          share={
-            canEditThisPage
-              ? {
-                  enabled: share?.public_enabled ?? false,
-                  token: share?.public_enabled ? share.public_token : null,
-                }
-              : null
-          }
-        />
-      </div>
+                {page.title || "Untitled"}
+              </li>
+            </ol>
+          </nav>
+          <div className="flex shrink-0 items-center gap-2">
+            <SaveStatusIndicator />
+            <PageMenu
+              pageId={page.id}
+              workspaceId={workspaceId}
+              fullWidth={page.full_width}
+              smallText={page.small_text}
+              canEdit={canEditThisPage}
+              isPlatformOwner={Boolean(platformOwner)}
+              share={
+                canEditThisPage
+                  ? {
+                      enabled: share?.public_enabled ?? false,
+                      token: share?.public_enabled ? share.public_token : null,
+                    }
+                  : null
+              }
+            />
+          </div>
+        </div>
 
-      {templateUpdate && canEditThisPage && (
-        <TemplateUpdateBanner
-          workspaceId={workspaceId}
-          pageId={page.id}
-          parentPageId={page.parent_page_id}
-          templateId={templateUpdate.templateId}
-          templateName={templateUpdate.templateName}
-          currentVersion={page.template_version ?? 0}
-          latestVersion={templateUpdate.latestVersion}
-          changes={templateUpdate.changes}
-        />
-      )}
+        {templateUpdate && canEditThisPage && (
+          <TemplateUpdateBanner
+            workspaceId={workspaceId}
+            pageId={page.id}
+            parentPageId={page.parent_page_id}
+            templateId={templateUpdate.templateId}
+            templateName={templateUpdate.templateName}
+            currentVersion={page.template_version ?? 0}
+            latestVersion={templateUpdate.latestVersion}
+            changes={templateUpdate.changes}
+          />
+        )}
 
-      <PageCover
-        pageId={page.id}
-        cover={page.cover_url}
-        canEdit={canEditThisPage}
-      />
+        <div className="space-y-4">
+          <PageCover
+            pageId={page.id}
+            cover={page.cover_url}
+            canEdit={canEditThisPage}
+          />
+          <PageHeader
+            pageId={page.id}
+            initialTitle={page.title}
+            initialIcon={page.icon}
+            isPrivate={page.is_private}
+            canEdit={canEditThisPage}
+          />
+        </div>
 
-      <PageHeader
-        pageId={page.id}
-        initialTitle={page.title}
-        initialIcon={page.icon}
-        isPrivate={page.is_private}
-        canEdit={canEditThisPage}
-      />
-
-      <div className="mt-6">
         <PageEditorLoader
           key={page.id}
           pageId={page.id}
@@ -267,21 +282,18 @@ export default async function PageView({
           initialUploadCount={uploadCount ?? 0}
           collab={collab}
         />
-      </div>
 
-      <BacklinksPanel
-        workspaceId={workspaceId}
-        backlinks={backlinkPages ?? []}
-      />
+        <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />
 
-      <CommentsPanel
-        workspaceId={workspaceId}
-        pageId={page.id}
-        comments={comments}
-        currentUserId={user.id}
-        canComment={canEditThisPage}
-        isOwner={isOwner}
-      />
-    </main>
+        <CommentsPanel
+          workspaceId={workspaceId}
+          pageId={page.id}
+          comments={comments}
+          currentUserId={user.id}
+          canComment={canEditThisPage}
+          isOwner={isOwner}
+        />
+      </PageShell>
+    </SaveStatusProvider>
   );
 }

@@ -64,7 +64,7 @@ export default async function PrintPage({
   const titleById = new Map(pages.map((p) => [p.id, p.title]));
 
   return (
-    <main className="mx-auto max-w-3xl p-8 print:p-0">
+    <main id="main" className="mx-auto max-w-3xl p-6 md:p-12 print:p-0">
       <PrintTrigger />
       <p className="mb-6 text-xs text-muted-foreground print:hidden">
         Use your browser&apos;s print dialog to save as PDF. This view is

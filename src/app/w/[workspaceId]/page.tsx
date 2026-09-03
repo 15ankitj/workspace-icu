@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buildTree } from "@/lib/tree";
+import { EmptyWorkspaceActions } from "./empty-workspace-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,10 @@ export default async function WorkspaceHome({
 }: PageProps<"/w/[workspaceId]">) {
   const { workspaceId } = await params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/sign-in");
 
   const { data: pages } = await supabase
     .from("pages")
@@ -21,19 +26,37 @@ export default async function WorkspaceHome({
   const first = tree.at(0);
   if (first) redirect(`/w/${workspaceId}/p/${first.page.id}`);
 
-  const { data: workspace } = await supabase
-    .from("workspaces")
-    .select("name")
-    .eq("id", workspaceId)
-    .maybeSingle();
+  const [{ data: workspace }, { data: membership }] = await Promise.all([
+    supabase
+      .from("workspaces")
+      .select("name")
+      .eq("id", workspaceId)
+      .maybeSingle(),
+    supabase
+      .from("workspace_members")
+      .select("role")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
   if (!workspace) notFound();
+  const canEdit = membership?.role === "owner" || membership?.role === "editor";
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-2 p-6 text-center">
-      <h1 className="text-xl font-semibold">{workspace.name}</h1>
-      <p className="text-sm text-muted-foreground">
-        This workspace is empty. Create a page from the sidebar to get started.
-      </p>
+    <main
+      id="main"
+      className="flex flex-1 flex-col items-center justify-center gap-6 p-6 text-center"
+    >
+      <div className="space-y-2">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {workspace.name}
+        </h1>
+        <p className="max-w-md text-sm text-muted-foreground">
+          This workspace is empty. Start with a blank page, or pick a template
+          from the gallery.
+        </p>
+      </div>
+      <EmptyWorkspaceActions workspaceId={workspaceId} canEdit={canEdit} />
     </main>
   );
 }

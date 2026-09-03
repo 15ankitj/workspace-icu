@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { buildDocument } from "@/lib/blocks";
 import type { TemplateSnapshot } from "@/lib/templates";
@@ -9,8 +10,14 @@ import {
   setTemplatePublished,
   startFromTemplate,
 } from "@/app/actions/templates";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PageShell, SectionHeading } from "@/components/ui/page-shell";
 import { Separator } from "@/components/ui/separator";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { PageEditorLoader } from "@/components/page/page-editor-loader";
 
 export const dynamic = "force-dynamic";
@@ -71,53 +78,53 @@ export default async function TemplateDetail({
   const canStart = membership.role === "owner" || membership.role === "editor";
 
   return (
-    <main className="mx-auto w-full max-w-3xl space-y-6 p-6 md:p-12">
-      <Link
-        href={`/w/${workspaceId}/gallery`}
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← Gallery
-      </Link>
+    <PageShell width="wide" className="gap-6">
+      <Button variant="ghost" size="sm" className="-ml-3 w-fit" asChild>
+        <Link href={`/w/${workspaceId}/gallery`}>
+          <ArrowLeft /> Gallery
+        </Link>
+      </Button>
 
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold">{template.name}</h1>
-          <span className="rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-            {template.kind}
-          </span>
-          {current && (
-            <span className="text-xs text-muted-foreground">
-              v{current.version}
-            </span>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {template.name}
+            </h1>
+            <Badge variant="muted" className="capitalize">
+              {template.kind}
+            </Badge>
+            {current && <Badge variant="outline">v{current.version}</Badge>}
+          </div>
+          {template.purpose && <p className="text-sm">{template.purpose}</p>}
+          <p className="text-sm text-muted-foreground">
+            {template.category}
+            {template.audience ? ` · For ${template.audience}` : ""}
+            {snapshot
+              ? ` · ${snapshot.pages.length} page${snapshot.pages.length === 1 ? "" : "s"}`
+              : ""}
+          </p>
+          {template.description && (
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+              {template.description}
+            </p>
           )}
         </div>
-        {template.purpose && <p className="text-sm">{template.purpose}</p>}
-        <p className="text-xs text-muted-foreground">
-          {template.category}
-          {template.audience ? ` · For ${template.audience}` : ""}
-          {snapshot
-            ? ` · ${snapshot.pages.length} page${snapshot.pages.length === 1 ? "" : "s"}`
-            : ""}
-        </p>
-        {template.description && (
-          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-            {template.description}
-          </p>
+        {canStart && current && (
+          <form action={startFromTemplate}>
+            <input type="hidden" name="templateId" value={template.id} />
+            <input type="hidden" name="workspaceId" value={workspaceId} />
+            <SubmitButton pendingLabel="Creating…">
+              Start with this template
+            </SubmitButton>
+          </form>
         )}
       </header>
 
-      {canStart && current && (
-        <form action={startFromTemplate}>
-          <input type="hidden" name="templateId" value={template.id} />
-          <input type="hidden" name="workspaceId" value={workspaceId} />
-          <Button type="submit">Start with this template</Button>
-        </form>
-      )}
-
       {firstPage && (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Preview</h2>
-          <div className="rounded-lg border p-4">
+          <SectionHeading>Preview</SectionHeading>
+          <div className="rounded-md border p-4">
             <p className="mb-2 text-lg font-semibold">
               {firstPage.icon ? `${firstPage.icon} ` : ""}
               {firstPage.title || "Untitled"}
@@ -136,7 +143,7 @@ export default async function TemplateDetail({
             />
           </div>
           {snapshot && snapshot.pages.length > 1 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Also includes:{" "}
               {snapshot.pages
                 .slice(1)
@@ -149,9 +156,7 @@ export default async function TemplateDetail({
 
       {(versions ?? []).length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Versions
-          </h2>
+          <SectionHeading>Versions</SectionHeading>
           <ul className="space-y-1 text-sm">
             {(versions ?? []).map((v) => (
               <li key={v.id}>
@@ -170,21 +175,23 @@ export default async function TemplateDetail({
         <>
           <Separator />
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Manage
-            </h2>
+            <SectionHeading>Manage</SectionHeading>
             {template.source_page_id && (
               <form action={republishTemplate} className="flex flex-wrap gap-2">
                 <input type="hidden" name="templateId" value={template.id} />
                 <input type="hidden" name="workspaceId" value={workspaceId} />
-                <input
+                <Label htmlFor="changelog" className="sr-only">
+                  What changed in this version?
+                </Label>
+                <Input
+                  id="changelog"
                   name="changelog"
                   placeholder="What changed in this version?"
-                  className="h-9 flex-1 rounded-md border border-input bg-transparent px-3 text-sm"
+                  className="min-w-0 flex-1"
                 />
-                <Button type="submit" variant="secondary">
+                <SubmitButton variant="secondary" pendingLabel="Publishing…">
                   Republish from source page
-                </Button>
+                </SubmitButton>
               </form>
             )}
             <div className="flex flex-wrap gap-2">
@@ -197,28 +204,32 @@ export default async function TemplateDetail({
                     name="published"
                     value={template.is_published ? "false" : "true"}
                   />
-                  <Button type="submit" variant="secondary">
+                  <SubmitButton variant="secondary">
                     {template.is_published
-                      ? "Deprecate (hide from gallery)"
+                      ? "Hide from gallery"
                       : "Publish to gallery"}
-                  </Button>
+                  </SubmitButton>
                 </form>
               )}
               <form action={deleteTemplate}>
                 <input type="hidden" name="templateId" value={template.id} />
                 <input type="hidden" name="workspaceId" value={workspaceId} />
-                <Button type="submit" variant="ghost">
+                <ConfirmButton
+                  title={`Delete the template “${template.name}”?`}
+                  description="It disappears from the gallery for everyone. Pages already created from it are not affected."
+                  confirmLabel="Delete template"
+                >
                   Delete template
-                </Button>
+                </ConfirmButton>
               </form>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Existing copies are never affected by republishing, deprecating or
+            <p className="text-sm text-muted-foreground">
+              Existing copies are never affected by republishing, hiding or
               deleting a template.
             </p>
           </section>
         </>
       )}
-    </main>
+    </PageShell>
   );
 }

@@ -1,11 +1,14 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useId, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AUP_STATEMENT, AUP_VERSION } from "@/lib/aup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Field } from "@/components/ui/label";
+import { Notice } from "@/components/ui/notice";
 import { Separator } from "@/components/ui/separator";
 
 /**
@@ -29,6 +32,8 @@ function SignInForm() {
   const [phase, setPhase] = useState<"request" | "sent">("request");
   const [busy, setBusy] = useState<"sending" | "verifying" | null>(null);
   const [error, setError] = useState<string | null>(authError);
+  const emailId = useId();
+  const aupId = useId();
 
   const supabase = createClient();
   const redirectBase =
@@ -100,10 +105,15 @@ function SignInForm() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main
+      id="main"
+      className="flex min-h-screen items-center justify-center p-6"
+    >
       <div className="w-full max-w-sm space-y-6">
         <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold">WorkspaceICU</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            WorkspaceICU
+          </h1>
           <p className="text-sm text-muted-foreground">
             A collaborative workspace for intensive care doctors
           </p>
@@ -111,41 +121,38 @@ function SignInForm() {
 
         {phase === "sent" ? (
           <div className="space-y-4">
-            <p className="rounded-md border p-4 text-center text-sm">
-              Check your email — we&apos;ve sent a sign-in link and a code to{" "}
-              <strong>{email}</strong>.
-            </p>
+            <Notice title={`Check your email at ${email}`}>
+              <p>
+                We&apos;ve sent a sign-in link and a code. Either one signs you
+                in.
+              </p>
+            </Notice>
             <form onSubmit={verifyCode} className="space-y-3">
-              <label
-                htmlFor="otp-code"
-                className="block text-sm text-muted-foreground"
-              >
-                Enter the code from the email
-              </label>
-              <Input
-                id="otp-code"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9 ]*"
-                maxLength={12}
-                required
-                autoFocus
-                placeholder="12345678"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="text-center text-lg tracking-[0.3em]"
-              />
+              <Field label="Enter the code from the email" htmlFor="otp-code">
+                <Input
+                  id="otp-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9 ]*"
+                  maxLength={12}
+                  required
+                  autoFocus
+                  placeholder="12345678"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="text-center text-lg tracking-[0.3em]"
+                />
+              </Field>
               <Button type="submit" className="w-full" disabled={busy !== null}>
                 {busy === "verifying" ? "Signing in…" : "Sign in"}
               </Button>
             </form>
-            <p className="text-center text-xs text-muted-foreground">
-              Or open the link in the email — either works.
-            </p>
-            <div className="flex justify-between text-xs">
-              <button
+            <div className="flex justify-between">
+              <Button
                 type="button"
-                className="text-muted-foreground underline-offset-4 hover:underline"
+                variant="link"
+                size="xs"
+                className="px-0 text-muted-foreground"
                 onClick={() => {
                   setPhase("request");
                   setCode("");
@@ -153,10 +160,12 @@ function SignInForm() {
                 }}
               >
                 Use a different email
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
+                variant="link"
+                size="xs"
+                className="px-0 text-muted-foreground"
                 disabled={busy !== null}
                 onClick={() => {
                   setCode("");
@@ -164,20 +173,39 @@ function SignInForm() {
                 }}
               >
                 {busy === "sending" ? "Sending…" : "Send again"}
-              </button>
+              </Button>
             </div>
           </div>
         ) : (
           <>
+            <Notice variant="warning" title="Acceptable use">
+              <label htmlFor={aupId} className="flex items-start gap-2">
+                <input
+                  id={aupId}
+                  type="checkbox"
+                  className="mt-0.5 size-4 shrink-0 accent-primary"
+                  checked={aupAccepted}
+                  onChange={(e) => {
+                    setAupAccepted(e.target.checked);
+                    if (e.target.checked) setError(null);
+                  }}
+                />
+                <span>{AUP_STATEMENT}</span>
+              </label>
+            </Notice>
+
             <form onSubmit={sendMagicLink} className="space-y-3">
-              <Input
-                type="email"
-                required
-                placeholder="you@nhs.net or any email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                aria-label="Email address"
-              />
+              <Field label="Email address" htmlFor={emailId}>
+                <Input
+                  id={emailId}
+                  type="email"
+                  required
+                  autoComplete="email"
+                  placeholder="you@nhs.net or any email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </Field>
               <Button type="submit" className="w-full" disabled={busy !== null}>
                 {busy === "sending" ? "Sending…" : "Continue with email"}
               </Button>
@@ -196,17 +224,6 @@ function SignInForm() {
             >
               Continue with Google
             </Button>
-
-            <label className="flex items-start gap-2 rounded-md border p-3 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={aupAccepted}
-                onChange={(e) => setAupAccepted(e.target.checked)}
-                aria-label="Accept the acceptable-use statement"
-              />
-              <span>{AUP_STATEMENT}</span>
-            </label>
           </>
         )}
 
@@ -215,6 +232,13 @@ function SignInForm() {
             {error}
           </p>
         )}
+
+        <p className="text-center text-xs text-muted-foreground">
+          Not a clinical record.{" "}
+          <Link href="/privacy" className="underline underline-offset-4">
+            Privacy notice
+          </Link>
+        </p>
       </div>
     </main>
   );

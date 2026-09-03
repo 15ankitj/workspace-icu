@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { instantiateTemplate } from "@/app/actions/templates";
 import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
+import { toast } from "@/components/ui/toast";
 
 const DISMISS_EVENT = "tpl-dismiss";
 
@@ -69,56 +71,72 @@ export function TemplateUpdateBanner({
   );
   const [showChanges, setShowChanges] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [result, setResult] = useState<string | null>(null);
 
   if (dismissed) return null;
 
   return (
-    <div className="mb-4 rounded-md border bg-muted/40 p-3 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <Sparkles className="size-4 text-muted-foreground" />
-        <span>
-          A newer version of the template <strong>{templateName}</strong> is
-          available (v{latestVersion}; this page came from v{currentVersion}).
-        </span>
-        <span className="ml-auto flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowChanges((v) => !v)}
-          >
-            View changes
-          </Button>
+    <Notice
+      icon={<Sparkles className="size-4" />}
+      title={`The template “${templateName}” has a newer version`}
+      actions={
+        <>
           <Button
             variant="secondary"
             size="sm"
             disabled={isPending}
             onClick={() =>
               startTransition(async () => {
-                const { created } = await instantiateTemplate({
-                  templateId,
-                  workspaceId,
-                  parentPageId,
-                  onlyMissing: true,
-                });
-                setResult(
-                  created
-                    ? `${created} new page${created === 1 ? "" : "s"} added.`
-                    : "Your copy already has every page in the new version.",
-                );
-                router.refresh();
+                try {
+                  const { created } = await instantiateTemplate({
+                    templateId,
+                    workspaceId,
+                    parentPageId,
+                    onlyMissing: true,
+                  });
+                  toast({
+                    title: created
+                      ? `${created} new page${created === 1 ? "" : "s"} added`
+                      : "Nothing to add",
+                    description: created
+                      ? "Your existing pages were not changed."
+                      : "Your copy already has every page in the new version.",
+                  });
+                  router.refresh();
+                } catch (error) {
+                  toast({
+                    variant: "destructive",
+                    title: "Couldn't add the new pages",
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : "Please try again.",
+                  });
+                }
               })
             }
           >
-            Add the new pages
+            {isPending ? "Adding…" : "Add the new pages"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-expanded={showChanges}
+            onClick={() => setShowChanges((v) => !v)}
+          >
+            {showChanges ? "Hide changes" : "View changes"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => dismiss(storageKey)}>
             Dismiss
           </Button>
-        </span>
-      </div>
+        </>
+      }
+    >
+      <p>
+        This page came from version {currentVersion}; version {latestVersion} is
+        available. Adding the new pages never changes what you already have.
+      </p>
       {showChanges && (
-        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+        <ul className="space-y-1 text-sm">
           {changes.map((c) => (
             <li key={c.version}>
               <strong>v{c.version}</strong>: {c.changelog || "No changelog"}
@@ -126,7 +144,6 @@ export function TemplateUpdateBanner({
           ))}
         </ul>
       )}
-      {result && <p className="mt-2 text-xs">{result}</p>}
-    </div>
+    </Notice>
   );
 }

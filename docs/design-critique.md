@@ -6,6 +6,15 @@ consistency and accessibility. Reviewed on 2026-09-03 against `main` at
 rendered in a browser (there is no local dev environment), so contrast
 figures are computed from the token values in `src/app/globals.css`._
 
+## Status
+
+The ten prioritised fixes below have been implemented on the
+`claude/design-critique-we93pn` branch (see the commit that follows the
+critique). Findings not in the top ten remain open, notably A2 (keyboard
+model for the page tree and a "Move to…" alternative to drag-and-drop),
+U10's per-hit workspace name, the callout emoji picker, and the dark-mode
+palette decision in C5.
+
 ## Overall assessment
 
 The brief asks for a workspace that is "deliberately bare at baseline", and the

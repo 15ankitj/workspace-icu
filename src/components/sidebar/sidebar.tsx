@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import {
   Clock,
   LayoutTemplate,
+  LogOut,
   Plus,
   Settings,
   Star,
@@ -19,6 +20,7 @@ import { PageTree } from "@/components/sidebar/page-tree";
 import { SearchDialog } from "@/components/sidebar/search-dialog";
 import { ImportDialog } from "@/components/sidebar/import-dialog";
 import { WorkspaceSwitcher } from "@/components/sidebar/workspace-switcher";
+import { cn } from "@/lib/utils";
 
 export interface SidebarWorkspace {
   id: string;
@@ -26,6 +28,10 @@ export interface SidebarWorkspace {
   icon: string | null;
   is_personal: boolean;
 }
+
+/** Group label style, shared with the page tree. */
+export const sidebarGroupLabel =
+  "flex items-center gap-1.5 px-2 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground";
 
 export function Sidebar({
   userId,
@@ -49,7 +55,7 @@ export function Sidebar({
   const canEdit = role === "owner" || role === "editor";
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex items-center gap-1 p-2">
         <WorkspaceSwitcher
           workspaces={workspaces}
@@ -59,12 +65,17 @@ export function Sidebar({
           <Link
             href={`/w/${currentWorkspace.id}/gallery`}
             aria-label="Template gallery"
+            title="Template gallery"
           >
             <LayoutTemplate />
           </Link>
         </Button>
         <Button variant="ghost" size="icon-sm" asChild>
-          <Link href={`/w/${currentWorkspace.id}/trash`} aria-label="Trash">
+          <Link
+            href={`/w/${currentWorkspace.id}/trash`}
+            aria-label="Trash"
+            title="Trash"
+          >
             <Trash2 />
           </Link>
         </Button>
@@ -72,6 +83,7 @@ export function Sidebar({
           <Link
             href={`/w/${currentWorkspace.id}/settings`}
             aria-label="Workspace settings"
+            title="Workspace settings"
           >
             <Settings />
           </Link>
@@ -84,51 +96,60 @@ export function Sidebar({
       </div>
       <Separator />
 
-      <nav className="flex-1 space-y-4 overflow-y-auto p-2">
+      <nav
+        aria-label="Workspace pages"
+        className="flex-1 space-y-4 overflow-y-auto p-2"
+      >
         {favourites.length > 0 && (
           <section>
-            <h2 className="flex items-center gap-1 px-2 pb-1 text-xs font-medium text-muted-foreground">
-              <Star className="size-3" /> Favourites
+            <h2 className={sidebarGroupLabel}>
+              <Star className="size-3" aria-hidden /> Favourites
             </h2>
-            {favourites.map((page) => (
-              <SidebarLink
-                key={page.id}
-                workspaceId={currentWorkspace.id}
-                page={page}
-                active={page.id === activePageId}
-              />
-            ))}
+            <ul>
+              {favourites.map((page) => (
+                <SidebarLink
+                  key={page.id}
+                  workspaceId={currentWorkspace.id}
+                  page={page}
+                  active={page.id === activePageId}
+                />
+              ))}
+            </ul>
           </section>
         )}
 
         {recents.length > 0 && (
           <section>
-            <h2 className="flex items-center gap-1 px-2 pb-1 text-xs font-medium text-muted-foreground">
-              <Clock className="size-3" /> Recent
+            <h2 className={sidebarGroupLabel}>
+              <Clock className="size-3" aria-hidden /> Recent
             </h2>
-            {recents.slice(0, 5).map((page) => (
-              <SidebarLink
-                key={page.id}
-                workspaceId={currentWorkspace.id}
-                page={page}
-                active={page.id === activePageId}
-              />
-            ))}
+            <ul>
+              {recents.map((page) => (
+                <SidebarLink
+                  key={page.id}
+                  workspaceId={currentWorkspace.id}
+                  page={page}
+                  active={page.id === activePageId}
+                />
+              ))}
+            </ul>
           </section>
         )}
 
         <section>
-          <div className="flex items-center justify-between px-2 pb-1">
-            <h2 className="text-xs font-medium text-muted-foreground">Pages</h2>
+          <div className="flex items-center justify-between pb-1">
+            <h2 className={cn(sidebarGroupLabel, "pb-0")}>Pages</h2>
             {canEdit && (
-              <button
-                type="button"
-                className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
                 aria-label="New page"
+                title="New page"
                 onClick={() => createPage(currentWorkspace.id, null)}
               >
-                <Plus className="size-4" />
-              </button>
+                <Plus />
+              </Button>
             )}
           </div>
           <PageTree
@@ -143,8 +164,12 @@ export function Sidebar({
 
       <Separator />
       <form action="/auth/sign-out" method="post" className="p-2">
-        <Button variant="ghost" size="sm" className="w-full justify-start">
-          Sign out
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-muted-foreground"
+        >
+          <LogOut /> Sign out
         </Button>
       </form>
     </aside>
@@ -161,14 +186,20 @@ function SidebarLink({
   active: boolean;
 }) {
   return (
-    <Link
-      href={`/w/${workspaceId}/p/${page.id}`}
-      className={`flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent hover:text-accent-foreground ${
-        active ? "bg-accent font-medium" : ""
-      }`}
-    >
-      <span className="w-4 text-center">{page.icon ?? "📄"}</span>
-      <span className="truncate">{page.title || "Untitled"}</span>
-    </Link>
+    <li>
+      <Link
+        href={`/w/${workspaceId}/p/${page.id}`}
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "flex items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-accent hover:text-accent-foreground",
+          active && "bg-selected font-medium",
+        )}
+      >
+        <span className="w-4 shrink-0 text-center" aria-hidden>
+          {page.icon ?? "📄"}
+        </span>
+        <span className="truncate">{page.title || "Untitled"}</span>
+      </Link>
+    </li>
   );
 }

@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { renameWorkspace } from "@/app/actions/workspaces";
@@ -8,11 +9,22 @@ import {
   revokeInvite,
   updateMemberRole,
 } from "@/app/actions/invites";
-import { deleteMyAccount } from "@/app/actions/account";
 import { isEmailConfigured } from "@/lib/email";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/ui/confirm-button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import {
+  PageShell,
+  PageHeading,
+  SectionHeading,
+} from "@/components/ui/page-shell";
 import { Separator } from "@/components/ui/separator";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { DeleteAccountForm } from "./delete-account-form";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +36,9 @@ async function appOrigin(): Promise<string> {
   const proto = h.get("x-forwarded-proto") ?? "https";
   return `${proto}://${host}`;
 }
+
+const rowClass =
+  "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm";
 
 export default async function WorkspaceSettings({
   params,
@@ -72,23 +87,27 @@ export default async function WorkspaceSettings({
   const emailConfigured = isEmailConfigured();
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-8 p-6 md:p-12">
-      <h1 className="text-2xl font-semibold">Workspace settings</h1>
+    <PageShell>
+      <PageHeading title="Workspace settings">{workspace.name}</PageHeading>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Name</h2>
+        <SectionHeading>Name</SectionHeading>
         {isOwner ? (
-          <form action={renameWorkspace} className="flex gap-2">
+          <form action={renameWorkspace} className="flex flex-wrap gap-2">
             <input type="hidden" name="workspaceId" value={workspace.id} />
+            <Label htmlFor="workspace-name" className="sr-only">
+              Workspace name
+            </Label>
             <Input
+              id="workspace-name"
               name="name"
               defaultValue={workspace.name}
               required
               className="max-w-sm"
             />
-            <Button type="submit" variant="secondary">
+            <SubmitButton variant="secondary" pendingLabel="Renaming…">
               Rename
-            </Button>
+            </SubmitButton>
           </form>
         ) : (
           <p className="text-sm">{workspace.name}</p>
@@ -98,7 +117,7 @@ export default async function WorkspaceSettings({
       <Separator />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Export</h2>
+        <SectionHeading>Export</SectionHeading>
         <p className="text-sm text-muted-foreground">
           Everything you can see in this workspace as Markdown files with
           attachments, in a zip. Accounts belong to individuals: take your
@@ -114,24 +133,22 @@ export default async function WorkspaceSettings({
       <Separator />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Members</h2>
+        <SectionHeading>Members</SectionHeading>
         <ul className="space-y-2">
           {(members ?? []).map((member) => {
             const manageable =
               isOwner && member.role !== "owner" && member.user_id !== user.id;
+            const name = member.users?.display_name ?? "Unknown";
             return (
-              <li
-                key={member.user_id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
-              >
+              <li key={member.user_id} className={rowClass}>
                 <span className="min-w-0">
-                  {member.users?.display_name ?? "Unknown"}
+                  {name}
                   <span className="ml-2 text-muted-foreground">
                     {member.users?.email}
                   </span>
                 </span>
                 {manageable ? (
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2">
                     <form action={updateMemberRole} className="flex gap-1">
                       <input
                         type="hidden"
@@ -143,18 +160,22 @@ export default async function WorkspaceSettings({
                         name="userId"
                         value={member.user_id}
                       />
-                      <select
+                      <NativeSelect
                         name="role"
                         defaultValue={member.role}
-                        className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
-                        aria-label="Role"
+                        aria-label={`Role for ${name}`}
+                        className="[&>select]:h-8"
                       >
                         <option value="editor">Editor</option>
                         <option value="viewer">Viewer</option>
-                      </select>
-                      <Button type="submit" size="sm" variant="secondary">
+                      </NativeSelect>
+                      <SubmitButton
+                        size="sm"
+                        variant="secondary"
+                        pendingLabel="Updating…"
+                      >
                         Update
-                      </Button>
+                      </SubmitButton>
                     </form>
                     <form action={removeMember}>
                       <input
@@ -167,15 +188,20 @@ export default async function WorkspaceSettings({
                         name="userId"
                         value={member.user_id}
                       />
-                      <Button type="submit" size="sm" variant="ghost">
+                      <ConfirmButton
+                        size="sm"
+                        title={`Remove ${name} from this workspace?`}
+                        description="They lose access immediately. Pages they wrote stay in the workspace."
+                        confirmLabel="Remove member"
+                      >
                         Remove
-                      </Button>
+                      </ConfirmButton>
                     </form>
                   </span>
                 ) : (
-                  <span className="rounded bg-muted px-2 py-0.5 text-xs capitalize">
+                  <Badge variant="muted" className="capitalize">
                     {member.role}
-                  </span>
+                  </Badge>
                 )}
               </li>
             );
@@ -187,30 +213,33 @@ export default async function WorkspaceSettings({
         <>
           <Separator />
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-muted-foreground">
-              Invite someone
-            </h2>
+            <SectionHeading>Invite someone</SectionHeading>
             <form action={createInvite} className="flex flex-wrap gap-2">
               <input type="hidden" name="workspaceId" value={workspace.id} />
+              <Label htmlFor="invite-email" className="sr-only">
+                Email address
+              </Label>
               <Input
+                id="invite-email"
                 name="email"
                 type="email"
                 required
                 placeholder="colleague@nhs.net"
                 className="max-w-xs"
               />
-              <select
+              <NativeSelect
                 name="role"
                 defaultValue="editor"
-                className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
-                aria-label="Role"
+                aria-label="Role for the invited person"
               >
                 <option value="editor">Editor — can edit pages</option>
                 <option value="viewer">Viewer — read only</option>
-              </select>
-              <Button type="submit">Send invitation</Button>
+              </NativeSelect>
+              <SubmitButton pendingLabel="Sending…">
+                Send invitation
+              </SubmitButton>
             </form>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {emailConfigured
                 ? "The invitation is emailed and expires in 7 days. It only works for the invited address."
                 : "Email sending isn't configured yet — copy the invitation link below and send it yourself. It expires in 7 days and only works for the invited address."}
@@ -218,42 +247,53 @@ export default async function WorkspaceSettings({
 
             {(invites ?? []).length > 0 && (
               <ul className="space-y-2">
-                {(invites ?? []).map((invite) => (
-                  <li
-                    key={invite.id}
-                    className="space-y-1 rounded-md border px-3 py-2 text-sm"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span>
-                        {invite.email}
-                        <span className="ml-2 rounded bg-muted px-2 py-0.5 text-xs capitalize">
-                          {invite.role}
+                {(invites ?? []).map((invite) => {
+                  const link = `${origin}/invite/${invite.token}`;
+                  return (
+                    <li
+                      key={invite.id}
+                      className="space-y-2 rounded-md border px-3 py-2 text-sm"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="flex items-center gap-2">
+                          {invite.email}
+                          <Badge variant="muted" className="capitalize">
+                            {invite.role}
+                          </Badge>
                         </span>
-                      </span>
-                      <form action={revokeInvite}>
-                        <input
-                          type="hidden"
-                          name="inviteId"
-                          value={invite.id}
+                        <form action={revokeInvite}>
+                          <input
+                            type="hidden"
+                            name="inviteId"
+                            value={invite.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="workspaceId"
+                            value={workspace.id}
+                          />
+                          <ConfirmButton
+                            size="sm"
+                            title={`Revoke the invitation for ${invite.email}?`}
+                            description="The link stops working immediately. You can send a new one."
+                            confirmLabel="Revoke invitation"
+                          >
+                            Revoke
+                          </ConfirmButton>
+                        </form>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Input
+                          readOnly
+                          value={link}
+                          className="min-w-0 flex-1 text-xs"
+                          aria-label={`Invitation link for ${invite.email}`}
                         />
-                        <input
-                          type="hidden"
-                          name="workspaceId"
-                          value={workspace.id}
-                        />
-                        <Button type="submit" size="sm" variant="ghost">
-                          Revoke
-                        </Button>
-                      </form>
-                    </div>
-                    <Input
-                      readOnly
-                      value={`${origin}/invite/${invite.token}`}
-                      className="h-8 text-xs"
-                      aria-label="Invitation link"
-                    />
-                  </li>
-                ))}
+                        <CopyButton value={link} size="default" />
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -263,9 +303,7 @@ export default async function WorkspaceSettings({
       <Separator />
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">
-          Your account
-        </h2>
+        <SectionHeading>Your account</SectionHeading>
         <p className="text-sm text-muted-foreground">
           Deleting your account removes your personal workspace and every
           workspace where you are the only member, including their files.
@@ -273,20 +311,15 @@ export default async function WorkspaceSettings({
           workspace and is reassigned to its owner. Export first if you want a
           copy. This cannot be undone.
         </p>
-        <form action={deleteMyAccount} className="flex flex-wrap gap-2">
-          <Input
-            name="confirm"
-            required
-            placeholder="Type: delete my account"
-            aria-label="Type “delete my account” to confirm"
-            autoComplete="off"
-            className="max-w-xs"
-          />
-          <Button type="submit" variant="ghost" className="text-destructive">
-            Delete my account
-          </Button>
-        </form>
+        <DeleteAccountForm />
+        <p className="text-sm text-muted-foreground">
+          See the{" "}
+          <Link href="/privacy" className="underline">
+            privacy notice
+          </Link>{" "}
+          for what we hold and for how long.
+        </p>
       </section>
-    </main>
+    </PageShell>
   );
 }
