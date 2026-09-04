@@ -74,9 +74,9 @@
     </header>
   </div>
 
-  <!-- State 3: saving / error, reusing the shipped indicator -->
+  <!-- State 3: no save indicator. "Edited just now" absorbs the saved state; a failed save is a toast. -->
   <div style="display: flex; flex-direction: column; gap: 8px;">
-    <p style="padding: 0 24px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #737373;">While saving, and when a save fails</p>
+    <p style="padding: 0 24px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #737373;">Right after your own edit · no save indicator; a failed save is a toast</p>
     <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 44px; padding: 0 24px; border-top: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; background: rgba(255,255,255,0.95); box-sizing: border-box;">
       <nav style="display: flex; min-width: 0; align-items: center; gap: 4px; color: #737373;">
         <a href="#" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border-radius: 6px; white-space: nowrap;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>St George's ICU</a>
@@ -86,8 +86,7 @@
         <span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; color: #0a0a0a;"><span>📄</span>Night shift · handover learning</span>
       </nav>
       <div style="display: flex; flex-shrink: 0; align-items: center; gap: 16px;">
-        <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #737373;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>Saving…</span>
-        <span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #dc2626;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" x2="12" y1="8" y2="12"></line><line x1="12" x2="12.01" y1="16" y2="16"></line></svg>Couldn't save · <a href="#" style="color: #dc2626; font-weight: 500; text-decoration: underline; text-underline-offset: 3px;">Retry</a></span>
+        <span style="padding: 0 8px; font-size: 12px; color: #737373;">Edited just now · You</span>
         <div style="display: flex; align-items: center; gap: 4px;">
           <a href="#" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>Share</a>
           <a href="#" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></a>
@@ -95,6 +94,15 @@
         </div>
       </div>
     </header>
+    <!-- The failure path: the existing toast, bottom-right, with its own Retry -->
+    <div style="display: flex; align-items: flex-start; gap: 12px; align-self: flex-end; width: 360px; margin-right: 24px; padding: 12px; border: 1px solid rgba(220,38,38,0.5); border-radius: 6px; background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.1); font-size: 14px;">
+      <div style="display: flex; flex: 1 1 0; flex-direction: column; gap: 4px;">
+        <span style="font-weight: 500; color: #dc2626;">Couldn't save your changes</span>
+        <span style="color: #737373;">Your edits are still on this page. Check your connection and retry.</span>
+        <a href="#" style="margin-top: 4px; font-weight: 500; text-decoration: underline; text-underline-offset: 4px;">Retry</a>
+      </div>
+      <svg class="i" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+    </div>
   </div>
 </div>
 </x-dc>
