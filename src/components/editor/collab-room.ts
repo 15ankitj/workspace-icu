@@ -3,7 +3,7 @@
 import * as Y from "yjs";
 import { createClient, type Client } from "@liveblocks/client";
 import { LiveblocksYjsProvider } from "@liveblocks/yjs";
-import { base64ToBytes, roomIdForPage } from "@/lib/collab";
+import { base64ToBytes } from "@/lib/collab";
 
 export interface CollabRoom {
   doc: Y.Doc;
@@ -29,17 +29,18 @@ function getClient(): Client {
 }
 
 /**
- * Enter (or reuse) the Liveblocks room for a page. Ref-counted with a short
- * release grace period so React's development double-mount, or a quick
- * navigate-away-and-back, never tears down and rebuilds a live connection.
- * The stored Yjs state (if any) is applied before the provider connects,
- * so an empty or new room is seeded from the durable copy.
+ * Enter (or reuse) a Liveblocks room — `page:{id}` for a page's document,
+ * `synced:{id}` for a synced block's. Ref-counted with a short release
+ * grace period so React's development double-mount, or a quick
+ * navigate-away-and-back, never tears down and rebuilds a live
+ * connection. The stored Yjs state (if any) is applied before the
+ * provider connects, so an empty or new room is seeded from the durable
+ * copy.
  */
 export function acquireRoom(
-  pageId: string,
+  roomId: string,
   storedStateBase64: string | null,
 ): CollabRoom {
-  const roomId = roomIdForPage(pageId);
   const existing = rooms.get(roomId);
   if (existing) {
     existing.refs += 1;
@@ -78,8 +79,7 @@ export function acquireRoom(
   return room;
 }
 
-export function releaseRoom(pageId: string) {
-  const roomId = roomIdForPage(pageId);
+export function releaseRoom(roomId: string) {
   const entry = rooms.get(roomId);
   if (!entry) return;
   entry.refs -= 1;

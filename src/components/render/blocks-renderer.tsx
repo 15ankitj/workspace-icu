@@ -10,6 +10,11 @@ import { calloutClass } from "@/lib/callout";
 export interface RenderContext {
   pageHref: (pageId: string) => string;
   pageTitle: (pageId: string) => string | null;
+  /** Content of a synced block when the renderer could load it; null or
+   *  absent renders a neutral placeholder. */
+  syncedBlock?: (
+    id: string,
+  ) => { blocks: EditorBlock[]; sourceTitle: string | null } | null;
 }
 
 const FILE_URL = /^\/api\/files\/[A-Za-z0-9-]+$/;
@@ -216,6 +221,27 @@ function Block({ block, ctx }: { block: EditorBlock; ctx: RenderContext }) {
     }
     case "tableOfContents":
       return null;
+    case "syncedBlock": {
+      const synced =
+        ctx.syncedBlock?.(String(props.syncedBlockId ?? "")) ?? null;
+      if (!synced) {
+        return (
+          <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+            Synced content unavailable
+          </p>
+        );
+      }
+      return (
+        <div className="space-y-1">
+          <Blocks blocks={synced.blocks} ctx={ctx} />
+          <p className="text-xs text-muted-foreground">
+            {synced.sourceTitle
+              ? `Synced from: ${synced.sourceTitle}`
+              : "Synced content"}
+          </p>
+        </div>
+      );
+    }
     case "bulletListItem":
     case "numberedListItem":
     case "toggleListItem":

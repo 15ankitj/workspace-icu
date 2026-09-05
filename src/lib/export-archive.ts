@@ -3,6 +3,8 @@ import type { createClient } from "@/lib/supabase/server";
 import { buildDocument } from "@/lib/blocks";
 import { blocksToMarkdown, fileIdsIn } from "@/lib/markdown";
 import { planExport, relativeLink, safeFilename } from "@/lib/export";
+import { loadSyncedForPages } from "@/lib/synced-export";
+import { syncedBlockIdsIn } from "@/lib/synced";
 import type { TreePage } from "@/lib/tree";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
@@ -36,10 +38,18 @@ export async function buildArchive(
   const files: Record<string, Uint8Array> = {};
   const fileNames = new Map<string, string>();
   const allFileIds = new Set<string>();
+  // Synced blocks placed on the selected pages export as their current
+  // content (Appendix A §1.3 rule 9), attachments included.
+  const syncedBlock = await loadSyncedForPages(supabase, [...pathById.keys()]);
   const documents = new Map(
     entries.map((e) => {
       const doc = buildDocument(byPage.get(e.page.id) ?? []);
       for (const id of fileIdsIn(doc)) allFileIds.add(id);
+      for (const syncedId of syncedBlockIdsIn(doc)) {
+        const synced = syncedBlock(syncedId);
+        if (synced)
+          for (const id of fileIdsIn(synced.blocks)) allFileIds.add(id);
+      }
       return [e.page.id, doc];
     }),
   );
@@ -74,6 +84,7 @@ export async function buildArchive(
         const name = fileNames.get(id);
         return name ? `${depthPrefix}${name}` : "(attachment not included)";
       },
+      syncedBlock,
     });
     const title = `${entry.page.icon ? `${entry.page.icon} ` : ""}${entry.page.title || "Untitled"}`;
     const description = (entry.page as { description?: string }).description;

@@ -172,3 +172,36 @@ first-time address), keeping `{{ .ConfirmationURL }}`:
 - Production URL configuration: Site URL `https://icmworkspace.com`,
   redirect URLs include `https://icmworkspace.com/**` plus the
   `*.vercel.app` entries previews use.
+
+## Synced blocks (Appendix A, Part 1)
+
+One identity, many placements. A synced block's content lives in its
+own collaborative document (`synced_blocks.ydoc`, projection in
+`synced_blocks.blocks`) synced through the Liveblocks room
+`synced:{id}`; every placement, the source page's included, is an editor
+block of type `syncedBlock` holding only the reference and a per-placement
+`readOnly` flag. Reading or editing through any placement is governed by
+the **source page**: the row is invisible to anyone who cannot see the
+source page (they get a neutral placeholder), and the room token is
+read-only unless they can edit the source page.
+
+- **Create**: a block's ⋮⋮ menu → _Turn into synced block_ (the block and
+  its children lift into the synced document; the page keeps a placement).
+  The paste token goes on the clipboard; paste it in any page, or use
+  `/synced`, to place it there. Same-page placements are allowed; nesting
+  synced blocks is refused.
+- **Placement chrome** appears on hover: source page link, placement
+  count, read-only badge, Copy, and per-placement _Make read-only here_ /
+  _Remove here_.
+- **Fan-out cap**: the first 20 distinct synced sources on a page go live;
+  further placements render the stored projection with a _Snapshot ·
+  refresh_ affordance (`MAX_LIVE_SYNCED_SOURCES` in `src/lib/synced.ts`).
+- **Search** indexes synced content once, under the source page. **Backlinks**
+  from host pages to the source page are added by `set_page_links`. Edits
+  through a placement write an audit event with both pages, coalesced to
+  one per actor per block per five minutes.
+- **Export/print** render placements as their current content plus
+  "Synced from: <page>"; anything the exporter cannot load renders as
+  "(synced content unavailable)", never as content.
+- Not yet: source-deletion prompt and tombstones on purge (slice B),
+  template snapshots and the CESR pack changes (slice C).

@@ -222,6 +222,28 @@ export type DbBlockRow = {
   updated_at: string;
 };
 
+export type SyncedBlockRow = {
+  id: string;
+  workspace_id: string;
+  source_page_id: string | null;
+  title: string;
+  template_key: string | null;
+  ydoc: string | null;
+  blocks: Json;
+  search_text: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
+export type SyncedEmbedRow = {
+  block_id: string;
+  synced_block_id: string;
+  host_page_id: string;
+  read_only: boolean;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -397,6 +419,22 @@ export type Database = {
           },
         ];
       };
+      synced_blocks: {
+        Row: SyncedBlockRow;
+        Insert: Partial<SyncedBlockRow> &
+          Pick<
+            SyncedBlockRow,
+            "workspace_id" | "source_page_id" | "created_by"
+          >;
+        Update: Partial<SyncedBlockRow>;
+        Relationships: [];
+      };
+      synced_embeds: {
+        Row: SyncedEmbedRow;
+        Insert: SyncedEmbedRow;
+        Update: Partial<SyncedEmbedRow>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -447,6 +485,35 @@ export type Database = {
       delete_my_account: {
         Args: Record<string, never>;
         Returns: undefined;
+      };
+      create_synced_block: {
+        Args: { p_source_page_id: string; p_title: string; p_blocks: Json };
+        Returns: string;
+      };
+      save_synced_block: {
+        Args: {
+          p_id: string;
+          p_ydoc_base64: string;
+          p_blocks: Json;
+          p_host_page_id: string;
+        };
+        Returns: undefined;
+      };
+      load_synced_block: {
+        Args: { p_id: string };
+        Returns: Json | null;
+      };
+      list_synced_blocks: {
+        Args: { p_workspace_id: string };
+        Returns: {
+          id: string;
+          title: string;
+          source_page_id: string;
+          source_title: string;
+          source_icon: string | null;
+          placements: number;
+          updated_at: string;
+        }[];
       };
       search_pages: {
         Args: { p_query: string };
