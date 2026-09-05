@@ -9,6 +9,8 @@ import type { Awareness } from "y-protocols/awareness";
 import { filterSuggestionItems } from "@blocknote/core";
 import { CollaborationExtension } from "@blocknote/core/yjs";
 import {
+  SideMenu,
+  SideMenuController,
   SuggestionMenuController,
   getDefaultReactSlashMenuItems,
   useCreateBlockNote,
@@ -19,10 +21,17 @@ import { savePageDocument } from "@/app/actions/collab";
 import { useFileUpload } from "@/components/page/file-upload";
 import { useSaveStatus } from "@/components/page/save-status";
 import type { EditorBlock } from "@/lib/blocks";
-import { bytesToBase64 } from "@/lib/collab";
+import { bytesToBase64, roomIdForPage } from "@/lib/collab";
+import { parseSyncedClipboardText } from "@/lib/synced";
 import { editorSchema } from "@/components/editor/schema";
 import { customSlashMenuItems } from "@/components/editor/slash-items";
 import { mentionMenuItems } from "@/components/editor/mention-items";
+import { SyncedDragHandleMenu } from "@/components/editor/synced-drag-menu";
+import {
+  SyncedHostContext,
+  createLiveSlotAllocator,
+  type SyncedHostValue,
+} from "@/components/editor/synced-host-context";
 import {
   acquireRoom,
   releaseRoom,
@@ -51,7 +60,8 @@ export interface CollabConfig {
  * cursors, and persists the encoded state to Supabase; otherwise it runs
  * in the Phase 2 local-only mode. Either way the whole document is saved
  * debounced through a server action under RLS, and the outcome is reported
- * to the page's save-status indicator.
+ * to the page's save-status indicator. Synced block placements on the
+ * page (Appendix A) mount their own live documents inside it.
  */
 export function PageEditor({
   pageId,
@@ -60,6 +70,7 @@ export function PageEditor({
   members,
   initialContent,
   editable,
+  isPrivate,
   smallText,
   initialUploadCount,
   collab,
@@ -70,6 +81,7 @@ export function PageEditor({
   members: MentionableUser[];
   initialContent: EditorBlock[];
   editable: boolean;
+  isPrivate?: boolean;
   smallText: boolean;
   initialUploadCount: number;
   collab: CollabConfig | null;
@@ -79,18 +91,19 @@ export function PageEditor({
     initialUploadCount,
   });
   const { report } = useSaveStatus();
+  const roomId = roomIdForPage(pageId);
 
   // The room is acquired synchronously so the collaboration extension can
   // bind at editor creation; the ref-counted manager handles lifetimes.
   const [room] = useState<CollabRoom | null>(() =>
-    collab ? acquireRoom(pageId, collab.storedStateBase64) : null,
+    collab ? acquireRoom(roomId, collab.storedStateBase64) : null,
   );
   useEffect(() => {
     if (!collab) return;
-    acquireRoom(pageId, collab.storedStateBase64);
+    acquireRoom(roomId, collab.storedStateBase64);
     return () => {
-      releaseRoom(pageId);
-      releaseRoom(pageId);
+      releaseRoom(roomId);
+      releaseRoom(roomId);
     };
     // The room is bound for this component instance's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,6 +134,25 @@ export function PageEditor({
               : undefined,
           }),
       uploadFile,
+      // A pasted synced-block token places that block here (Appendix A
+      // §1.3 rule 1); everything else pastes as usual.
+      pasteHandler: ({ event, editor: pasteEditor, defaultPasteHandler }) => {
+        const text = event.clipboardData?.getData("text/plain") ?? "";
+        const syncedId = parseSyncedClipboardText(text);
+        if (!syncedId) return defaultPasteHandler();
+        const cursor = pasteEditor.getTextCursorPosition();
+        pasteEditor.insertBlocks(
+          [
+            {
+              type: "syncedBlock",
+              props: { syncedBlockId: syncedId, readOnly: false },
+            },
+          ],
+          cursor.block,
+          "after",
+        );
+        return true;
+      },
     },
     [pageId],
   );
@@ -201,36 +233,67 @@ export function PageEditor({
     [workspaceId, linkablePages, members],
   );
 
+  // One live-slot allocator per page editor (Appendix A §1.4).
+  const [allocator] = useState(() => createLiveSlotAllocator());
+  const syncedHost = useMemo<SyncedHostValue>(
+    () => ({
+      hostPageId: pageId,
+      workspaceId,
+      editable,
+      hostIsPrivate: Boolean(isPrivate),
+      collab: collab
+        ? { userName: collab.userName, userColour: collab.userColour }
+        : null,
+      claimLiveSlot: allocator.claim,
+      releaseLiveSlot: allocator.release,
+      subscribe: allocator.subscribe,
+      isLive: allocator.isLive,
+    }),
+    [pageId, workspaceId, editable, isPrivate, collab, allocator],
+  );
+
   return (
     <PageLinkContext.Provider value={pageLinkValue}>
-      {dialogs}
-      {/* BlockNote's side gutter is removed in globals.css so body text
-          shares a left edge with the title above it. */}
-      <div className={cn(smallText && "text-sm")}>
-        <BlockNoteView editor={editor} editable={editable} slashMenu={false}>
-          <SuggestionMenuController
-            triggerCharacter="/"
-            getItems={async (query) =>
-              filterSuggestionItems(
-                [
-                  ...getDefaultReactSlashMenuItems(editor),
-                  ...customSlashMenuItems(editor),
-                ],
-                query,
-              )
-            }
-          />
-          <SuggestionMenuController
-            triggerCharacter="@"
-            getItems={async (query) =>
-              filterSuggestionItems(
-                mentionMenuItems(editor, members, linkablePages),
-                query,
-              )
-            }
-          />
-        </BlockNoteView>
-      </div>
+      <SyncedHostContext.Provider value={syncedHost}>
+        {dialogs}
+        {/* BlockNote's side gutter is removed in globals.css so body text
+            shares a left edge with the title above it. */}
+        <div className={cn(smallText && "text-sm")}>
+          <BlockNoteView
+            editor={editor}
+            editable={editable}
+            slashMenu={false}
+            sideMenu={false}
+          >
+            <SideMenuController
+              sideMenu={(props) => (
+                <SideMenu {...props} dragHandleMenu={SyncedDragHandleMenu} />
+              )}
+            />
+            <SuggestionMenuController
+              triggerCharacter="/"
+              getItems={async (query) =>
+                filterSuggestionItems(
+                  [
+                    ...getDefaultReactSlashMenuItems(editor),
+                    ...customSlashMenuItems(editor),
+                  ],
+                  query,
+                )
+              }
+            />
+            <SuggestionMenuController
+              triggerCharacter="@"
+              getItems={async (query) =>
+                filterSuggestionItems(
+                  mentionMenuItems(editor, members, linkablePages),
+                  query,
+                )
+              }
+            />
+          </BlockNoteView>
+        </div>
+      </SyncedHostContext.Provider>
     </PageLinkContext.Provider>
   );
 }

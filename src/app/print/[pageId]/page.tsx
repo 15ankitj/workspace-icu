@@ -4,6 +4,7 @@ import { buildDocument } from "@/lib/blocks";
 import { planExport } from "@/lib/export";
 import { descendantIds } from "@/lib/tree";
 import { Blocks } from "@/components/render/blocks-renderer";
+import { loadSyncedForPages } from "@/lib/synced-export";
 import { PrintTrigger } from "@/app/print/[pageId]/print-trigger";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +65,7 @@ export default async function PrintPage({
     byPage.set(row.page_id, list);
   }
   const titleById = new Map(pages.map((p) => [p.id, p.title]));
+  const syncedBlock = await loadSyncedForPages(supabase, [...include]);
 
   return (
     <main id="main" className="mx-auto max-w-3xl p-6 md:p-12 print:p-0">
@@ -91,6 +93,7 @@ export default async function PrintPage({
             ctx={{
               pageHref: (id) => `/w/${root.workspace_id}/p/${id}`,
               pageTitle: (id) => titleById.get(id) ?? null,
+              syncedBlock,
             }}
           />
         </article>

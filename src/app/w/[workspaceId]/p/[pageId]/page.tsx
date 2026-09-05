@@ -373,6 +373,7 @@ export default async function PageView({
           members={members}
           initialContent={initialContent}
           editable={canEditThisPage}
+          isPrivate={page.is_private}
           smallText={page.small_text}
           initialUploadCount={uploadCount ?? 0}
           collab={collab}
