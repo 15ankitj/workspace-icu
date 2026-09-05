@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Geist, system-ui, -apple-system, "Segoe UI", sans-serif; color: #0a0a0a; background: #fff; font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    a { color: #0a0a0a; text-decoration: none; } a:hover { color: #0a0a0a; text-decoration: underline; }
+    .i { width: 18px; height: 18px; flex-shrink: 0; }
+    .i-sm { width: 14px; height: 14px; flex-shrink: 0; }
+    p, h1, h2 { margin: 0; }
+  </style>
+</helmet>
+<div style="display: flex; flex-direction: column; width: 390px; height: 844px; background: #ffffff; overflow: hidden; box-sizing: border-box;">
+
+  <!-- Top bar: menu, parent crumb, star, more. 44px targets. -->
+  <header style="display: flex; align-items: center; gap: 4px; height: 52px; padding: 0 8px; border-bottom: 1px solid #e5e5e5; background: rgba(255,255,255,0.95); box-sizing: border-box;">
+    <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 6px;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></span>
+    <a href="#" style="display: flex; flex: 1 1 0; min-width: 0; align-items: center; gap: 6px; height: 44px; padding: 0 4px; color: #737373;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg><span>🤝</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Supervision meetings</span></a>
+    <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 6px; color: #d97706;"><svg class="i" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></span>
+    <span style="display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 6px;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></span>
+  </header>
+
+  <main style="display: flex; flex-direction: column; gap: 20px; padding: 20px 20px 32px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <span style="font-size: 32px; line-height: 1;">🤝</span>
+      <h1 style="font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15;">Supervision meeting · 12 Sep 2026</h1>
+      <p style="color: #737373;">Quarterly review with educational supervisor: portfolio progress and the sedation QI write-up.</p>
+    </div>
+
+    <!-- Details collapsed to one line; tap to expand -->
+    <div style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border: 1px solid #e5e5e5; border-radius: 6px; font-size: 13px; color: #737373;">
+      <span style="display: flex; align-items: center;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 2px solid #fff; background: #7c3aed; color: #fff; font-size: 8px; font-weight: 600;">AJ</span><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -6px; border-radius: 999px; border: 2px solid #fff; background: #0f766e; color: #fff; font-size: 8px; font-weight: 600;">PN</span></span>
+      <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">12 Sep · Supervision · edited 2 min ago</span>
+      <svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto;"><path d="m6 9 6 6 6-6"></path></svg>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.6;">
+      <div style="display: flex; gap: 10px; padding: 12px; border-left: 4px solid #3b82f6; border-radius: 6px; background: rgba(59,130,246,0.1);"><span>💡</span><p style="font-size: 15px;">Use this page during the meeting. Add agreed actions as to-dos and tick them off before the next review.</p></div>
+      <h2 style="margin-top: 4px; font-size: 20px; font-weight: 600;">Agenda</h2>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;"><span style="display: inline-block; width: 18px; height: 18px; margin-top: 4px; border-radius: 4px; background: #171717;"></span><span style="color: #737373; text-decoration: line-through;">Portfolio progress since June</span></div>
+        <div style="display: flex; align-items: flex-start; gap: 10px;"><span style="display: inline-block; width: 18px; height: 18px; margin-top: 4px; border: 1.5px solid #d4d4d4; border-radius: 4px; box-sizing: border-box;"></span><span>Sedation-hold QI: audit cycle 2 results</span></div>
+        <div style="display: flex; align-items: flex-start; gap: 10px;"><span style="display: inline-block; width: 18px; height: 18px; margin-top: 4px; border: 1.5px solid #d4d4d4; border-radius: 4px; box-sizing: border-box;"></span><span>HiLLO evidence gaps for domain 3</span></div>
+      </div>
+      <h2 style="margin-top: 4px; font-size: 20px; font-weight: 600;">Notes</h2>
+      <p>Cycle 2 shows a rise in documented daily sedation holds on the unit dashboard. Agreed to write up as a poster for the regional meeting.</p>
+    </div>
+  </main>
+</div>
+</x-dc>
+</body>
+</html>

@@ -36,7 +36,9 @@ export default async function PrintPage({
 
   const { data: allPages } = await supabase
     .from("pages")
-    .select("id, parent_page_id, position, title, icon, is_private, created_by")
+    .select(
+      "id, parent_page_id, position, title, icon, is_private, created_by, description",
+    )
     .eq("workspace_id", root.workspace_id)
     .is("deleted_at", null);
   const pages = allPages ?? [];
@@ -79,6 +81,11 @@ export default async function PrintPage({
             {entry.page.icon ? `${entry.page.icon} ` : ""}
             {entry.page.title || "Untitled"}
           </h1>
+          {entry.page.description && (
+            <p className="mb-4 text-base text-muted-foreground">
+              {entry.page.description}
+            </p>
+          )}
           <Blocks
             blocks={buildDocument(byPage.get(entry.page.id) ?? [])}
             ctx={{

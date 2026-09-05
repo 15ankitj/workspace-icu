@@ -17,6 +17,7 @@ interface PublicPage {
     cover_url: string | null;
     full_width: boolean;
     small_text: boolean;
+    description?: string;
     updated_at: string;
   };
   blocks: BlockRowFromDb[];
@@ -94,6 +95,11 @@ export default async function SharedPage({
           <h1 className="text-4xl font-bold tracking-tight">
             {page.title || "Untitled"}
           </h1>
+          {page.description && (
+            <p className="text-base text-muted-foreground">
+              {page.description}
+            </p>
+          )}
         </header>
       </div>
 

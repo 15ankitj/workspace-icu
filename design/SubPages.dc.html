@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Geist, system-ui, -apple-system, "Segoe UI", sans-serif; color: #0a0a0a; background: #fff; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    a { color: #0a0a0a; text-decoration: none; } a:hover { color: #0a0a0a; text-decoration: underline; }
+    .i { width: 16px; height: 16px; flex-shrink: 0; }
+    .i-sm { width: 14px; height: 14px; flex-shrink: 0; }
+    p, h2 { margin: 0; }
+  </style>
+</helmet>
+<div style="display: flex; flex-direction: column; gap: 32px; width: 900px; height: 560px; padding: 32px 48px; background: #ffffff; box-sizing: border-box;">
+
+  <!-- On a parent page such as "Supervision meetings" -->
+  <section style="display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+      <h2 style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600;">Sub-pages<span style="font-weight: 400; color: #737373;">6</span></h2>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 6px; background: #f5f5f5;">
+          <span style="display: flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 4px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 500;">All</span>
+          <span style="display: flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 4px; color: #737373; font-weight: 500;">Mine</span>
+          <span style="display: flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 4px; color: #737373; font-weight: 500;">Recently edited</span>
+        </div>
+        <span style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: #737373;" title="Sort"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path></svg></span>
+        <span style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; background: #171717; color: #fafafa; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>New sub-page</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; border: 1px solid #e5e5e5; border-radius: 6px;">
+      <a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-bottom: 1px solid #e5e5e5;"><span style="width: 20px; text-align: center;">📄</span><span style="flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">Meeting · 12 Sep 2026</span><span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: #f5f5f5; font-size: 12px; font-weight: 500;">Supervision</span><span style="display: flex; align-items: center;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 2px solid #fff; background: #7c3aed; color: #fff; font-size: 8px; font-weight: 600;">AJ</span><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -6px; border-radius: 999px; border: 2px solid #fff; background: #0f766e; color: #fff; font-size: 8px; font-weight: 600;">PN</span></span><span style="width: 120px; text-align: right; font-size: 12px; color: #737373;">12 Sep 2026</span><span style="width: 100px; text-align: right; font-size: 12px; color: #737373;">2 min ago</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-bottom: 1px solid #e5e5e5;"><span style="width: 20px; text-align: center;">📄</span><span style="flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">Meeting · 29 Aug 2026</span><span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: #f5f5f5; font-size: 12px; font-weight: 500;">Supervision</span><span style="display: flex; align-items: center;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 2px solid #fff; background: #7c3aed; color: #fff; font-size: 8px; font-weight: 600;">AJ</span><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -6px; border-radius: 999px; border: 2px solid #fff; background: #0f766e; color: #fff; font-size: 8px; font-weight: 600;">PN</span></span><span style="width: 120px; text-align: right; font-size: 12px; color: #737373;">29 Aug 2026</span><span style="width: 100px; text-align: right; font-size: 12px; color: #737373;">3 days ago</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-bottom: 1px solid #e5e5e5;"><span style="width: 20px; text-align: center;">🎓</span><span style="flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">ARCP preparation · autumn</span><span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: #f5f5f5; font-size: 12px; font-weight: 500;">ARCP</span><span style="display: flex; align-items: center;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 2px solid #fff; background: #7c3aed; color: #fff; font-size: 8px; font-weight: 600;">AJ</span></span><span style="width: 120px; text-align: right; font-size: 12px; color: #737373;">7 Oct 2026</span><span style="width: 100px; text-align: right; font-size: 12px; color: #737373;">1 week ago</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px; border-bottom: 1px solid #e5e5e5;"><span style="width: 20px; text-align: center;">📄</span><span style="flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">Meeting · 15 Jul 2026</span><span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: #f5f5f5; font-size: 12px; font-weight: 500;">Supervision</span><span style="display: flex; align-items: center;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 2px solid #fff; background: #7c3aed; color: #fff; font-size: 8px; font-weight: 600;">AJ</span><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-left: -6px; border-radius: 999px; border: 2px solid #fff; background: #0f766e; color: #fff; font-size: 8px; font-weight: 600;">PN</span></span><span style="width: 120px; text-align: right; font-size: 12px; color: #737373;">15 Jul 2026</span><span style="width: 100px; text-align: right; font-size: 12px; color: #737373;">7 weeks ago</span></a>
+      <a href="#" style="display: flex; align-items: center; gap: 12px; height: 44px; padding: 0 12px;"><span style="width: 20px; text-align: center;">🧑‍🏫</span><span style="flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">Teaching observation · airway workshop</span><span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: #f5f5f5; font-size: 12px; font-weight: 500;">Teaching</span><span style="display: flex; align-items: center;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 2px solid #fff; background: #b45309; color: #fff; font-size: 8px; font-weight: 600;">TO</span></span><span style="width: 120px; text-align: right; font-size: 12px; color: #737373;">2 Jun 2026</span><span style="width: 100px; text-align: right; font-size: 12px; color: #737373;">3 months ago</span></a>
+    </div>
+    <p style="font-size: 13px; color: #737373;">Mine = pages you created. Recently edited = newest change first. Both come from data the page already carries; nothing to configure.</p>
+  </section>
+
+  <!-- Empty state -->
+  <section style="display: flex; flex-direction: column; gap: 12px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+      <h2 style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600;">Sub-pages</h2>
+      <span style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; background: #f5f5f5; color: #0a0a0a; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>New sub-page</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px; padding: 24px; border: 1px dashed #d4d4d4; border-radius: 6px; color: #737373;">
+      <p style="color: #0a0a0a; font-weight: 500;">No sub-pages yet</p>
+      <p>Pages you create here will be listed with who wrote them and when they last changed.</p>
+    </div>
+  </section>
+</div>
+</x-dc>
+</body>
+</html>

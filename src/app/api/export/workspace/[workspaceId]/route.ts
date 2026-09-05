@@ -27,7 +27,7 @@ export async function GET(
     supabase
       .from("pages")
       .select(
-        "id, parent_page_id, position, title, icon, is_private, created_by",
+        "id, parent_page_id, position, title, icon, is_private, created_by, description",
       )
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null),

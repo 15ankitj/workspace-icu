@@ -67,9 +67,10 @@ export default async function WorkspaceLayout({
   const favouritePages = (favourites ?? [])
     .map((f) => pageById.get(f.page_id))
     .filter((p) => p !== undefined);
-  const recentPages = (recents ?? [])
-    .map((r) => pageById.get(r.page_id))
-    .filter((p) => p !== undefined);
+  const recentPages = (recents ?? []).flatMap((r) => {
+    const page = pageById.get(r.page_id);
+    return page ? [{ ...page, viewedAt: r.viewed_at }] : [];
+  });
 
   return (
     <AppShell

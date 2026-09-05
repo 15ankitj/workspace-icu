@@ -30,10 +30,16 @@ function CoverPicker({
   const [invalid, setInvalid] = useState(false);
   const urlId = useId();
 
+  const setUrlCover = () => {
+    if (isValidCover(url.trim()))
+      startTransition(() => setPageCover(pageId, url.trim()));
+    else setInvalid(true);
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 p-2">
+      <DropdownMenuContent align="start" className="w-64 p-2">
         <DropdownMenuLabel>Gradients</DropdownMenuLabel>
         <div className="grid grid-cols-4 gap-1 px-1 pb-1">
           {COVER_GRADIENTS.map((gradient, index) => {
@@ -85,20 +91,14 @@ function CoverPicker({
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;
               e.preventDefault();
-              if (isValidCover(url.trim()))
-                startTransition(() => setPageCover(pageId, url.trim()));
-              else setInvalid(true);
+              setUrlCover();
             }}
           />
           <Button
             type="button"
             size="sm"
             variant="secondary"
-            onClick={() => {
-              if (isValidCover(url.trim()))
-                startTransition(() => setPageCover(pageId, url.trim()));
-              else setInvalid(true);
-            }}
+            onClick={setUrlCover}
           >
             Set
           </Button>
@@ -113,6 +113,21 @@ function CoverPicker({
   );
 }
 
+/** The quiet "Add cover" trigger, placed in the page header's hover row. */
+export function AddCoverButton({ pageId }: { pageId: string }) {
+  return (
+    <CoverPicker
+      pageId={pageId}
+      current={null}
+      trigger={
+        <Button variant="ghost" size="xs" className="text-muted-foreground">
+          <ImageIcon /> Add cover
+        </Button>
+      }
+    />
+  );
+}
+
 /** Page cover banner: preset gradient or https image, per brief §5. */
 export function PageCover({
   pageId,
@@ -120,32 +135,10 @@ export function PageCover({
   canEdit,
 }: {
   pageId: string;
-  cover: string | null;
+  cover: string;
   canEdit: boolean;
 }) {
   const [, startTransition] = useTransition();
-
-  if (!cover) {
-    if (!canEdit) return null;
-    return (
-      <div>
-        <CoverPicker
-          pageId={pageId}
-          current={null}
-          trigger={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="-ml-3 text-muted-foreground"
-            >
-              <ImageIcon /> Add cover
-            </Button>
-          }
-        />
-      </div>
-    );
-  }
-
   const gradient = coverGradient(cover);
 
   return (

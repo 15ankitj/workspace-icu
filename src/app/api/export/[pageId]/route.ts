@@ -33,7 +33,9 @@ export async function GET(
 
   const { data: allPages } = await supabase
     .from("pages")
-    .select("id, parent_page_id, position, title, icon, is_private, created_by")
+    .select(
+      "id, parent_page_id, position, title, icon, is_private, created_by, description",
+    )
     .eq("workspace_id", root.workspace_id)
     .is("deleted_at", null);
   const pages = allPages ?? [];

@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { positionAfter, positionBetween, firstPosition } from "@/lib/position";
 import { canMove, descendantIds, siblingsOf, type TreePage } from "@/lib/tree";
 import { isValidCover } from "@/lib/cover";
+import { normalizeProperties } from "@/lib/page-properties";
+import type { Json } from "@/lib/database.types";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -219,4 +221,34 @@ export async function toggleFavourite(workspaceId: string, pageId: string) {
   }
 
   revalidatePath(`/w/${workspaceId}`, "layout");
+}
+
+const MAX_DESCRIPTION = 500;
+
+/** The one-line description under the title (0014). */
+export async function setPageDescription(pageId: string, description: string) {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase
+    .from("pages")
+    .update({ description: description.trim().slice(0, MAX_DESCRIPTION) })
+    .eq("id", pageId)
+    .select("workspace_id")
+    .single();
+  if (error) throw new Error(`Could not save description: ${error.message}`);
+  revalidatePath(`/w/${data.workspace_id}/p/${pageId}`);
+}
+
+/** Replace the page's property block; the shape is normalised first. */
+export async function setPageProperties(pageId: string, properties: unknown) {
+  const { supabase } = await requireUser();
+  const next = normalizeProperties(properties);
+  const { data, error } = await supabase
+    .from("pages")
+    .update({ properties: next as unknown as Json })
+    .eq("id", pageId)
+    .select("workspace_id")
+    .single();
+  if (error) throw new Error(`Could not save page details: ${error.message}`);
+  revalidatePath(`/w/${data.workspace_id}/p/${pageId}`);
+  return next;
 }

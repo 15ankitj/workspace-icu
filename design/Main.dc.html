@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Geist, system-ui, -apple-system, "Segoe UI", sans-serif; color: #0a0a0a; background: #fff; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    a { color: #0a0a0a; text-decoration: none; } a:hover { color: #0a0a0a; text-decoration: underline; }
+    .i { width: 16px; height: 16px; flex-shrink: 0; }
+    .i-sm { width: 14px; height: 14px; flex-shrink: 0; }
+    .i-xs { width: 12px; height: 12px; flex-shrink: 0; }
+    h1, h2, h3 { margin: 0; }
+    p { margin: 0; }
+  </style>
+</helmet>
+<div style="display: flex; width: 1440px; height: 1100px; background: #ffffff; overflow: hidden; box-sizing: border-box;">
+
+  <!-- Sidebar (as shipped on this branch, with the two additions from the Sidebar artboard) -->
+  <aside style="display: flex; flex-direction: column; width: 256px; flex-shrink: 0; background: #fafafa; border-right: 1px solid #e5e5e5; box-sizing: border-box;">
+    <div style="display: flex; align-items: center; gap: 4px; padding: 8px;">
+      <div style="display: flex; flex: 1 1 0; min-width: 0; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 6px; font-weight: 500;">
+        <span>🏥</span><span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">St George's ICU</span>
+        <svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: auto;"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: #737373;" title="Collapse sidebar"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path></svg></div>
+    </div>
+    <div style="height: 1px; background: #e5e5e5;"></div>
+    <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; color: #737373; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>Search<span style="margin-left: auto; font-size: 12px; padding: 0 6px; border: 1px solid #e5e5e5; border-radius: 4px; background: #f5f5f5;">⌘ K</span></div>
+      <div style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; color: #737373; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>Home</div>
+    </div>
+    <div style="height: 1px; background: #e5e5e5;"></div>
+    <nav style="display: flex; flex: 1 1 0; flex-direction: column; gap: 16px; padding: 8px; overflow: hidden;">
+      <section>
+        <h2 style="display: flex; align-items: center; gap: 6px; padding: 0 8px 4px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #737373;"><svg class="i-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>Favourites</h2>
+        <div style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px;"><span style="width: 16px; text-align: center;">📋</span><span>HiLLO checklist</span></div>
+      </section>
+      <section>
+        <h2 style="display: flex; align-items: center; gap: 6px; padding: 0 8px 4px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #737373;"><svg class="i-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Recent</h2>
+        <div style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px;"><span style="width: 16px; text-align: center;">📘</span><span style="flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Reflective log</span><span style="font-size: 12px; color: #737373;">2h</span></div>
+        <div style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px;"><span style="width: 16px; text-align: center;">🧪</span><span style="flex: 1 1 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">QI project · sedation holds</span><span style="font-size: 12px; color: #737373;">1d</span></div>
+      </section>
+      <section>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 4px;">
+          <h2 style="padding: 0 8px; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #737373;">Pages</h2>
+          <div style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 4px; border-radius: 6px;"><span style="width: 24px;"></span><span style="width: 16px; text-align: center;">👋</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Getting started</span></div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px; border-radius: 6px;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 5px;"><path d="m6 9 6 6 6-6"></path></svg><span style="width: 16px; text-align: center;">📚</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">CESR journey</span></div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 16px; border-radius: 6px;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 5px;"><path d="m6 9 6 6 6-6"></path></svg><span style="width: 16px; text-align: center;">🤝</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Supervision meetings</span><span style="margin-left: auto; font-size: 12px; color: #737373;">6</span></div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 28px; border-radius: 6px; background: #e8e8e8; font-weight: 500;"><span style="width: 24px;"></span><span style="width: 16px; text-align: center;">📄</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Meeting · 12 Sep 2026</span></div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 28px; border-radius: 6px;"><span style="width: 24px;"></span><span style="width: 16px; text-align: center;">📄</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Meeting · 29 Aug 2026</span></div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px 0 16px; border-radius: 6px;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 5px;"><path d="m9 18 6-6-6-6"></path></svg><span style="width: 16px; text-align: center;">📘</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Reflective log</span></div>
+        <div style="display: flex; align-items: center; gap: 2px; height: 28px; padding: 0 4px; border-radius: 6px;"><span style="width: 24px;"></span><span style="width: 16px; text-align: center;">🧪</span><span style="margin-left: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">QI project · sedation holds</span></div>
+      </section>
+    </nav>
+    <div style="height: 1px; background: #e5e5e5;"></div>
+    <div style="display: flex; align-items: center; gap: 8px; height: 32px; margin: 8px; padding: 0 12px; border-radius: 6px; color: #737373; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>Sign out</div>
+  </aside>
+
+  <!-- Content column -->
+  <div style="display: flex; flex: 1 1 0; min-width: 0; flex-direction: column;">
+
+    <!-- Sticky top bar: the page's control strip -->
+    <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 44px; padding: 0 24px; border-bottom: 1px solid #e5e5e5; background: rgba(255,255,255,0.95); box-sizing: border-box;">
+      <nav aria-label="Breadcrumb" style="display: flex; min-width: 0; align-items: center; gap: 4px; color: #737373;">
+        <a href="#" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border-radius: 6px; white-space: nowrap;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>St George's ICU</a>
+        <span style="color: #d4d4d4;">/</span>
+        <a href="#" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border-radius: 6px; white-space: nowrap;"><span>📚</span>CESR journey</a>
+        <span style="color: #d4d4d4;">/</span>
+        <a href="#" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border-radius: 6px; white-space: nowrap;"><span>🤝</span>Supervision meetings</a>
+        <span style="color: #d4d4d4;">/</span>
+        <span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; color: #0a0a0a; white-space: nowrap;"><span>📄</span>Meeting · 12 Sep 2026</span>
+      </nav>
+      <div style="display: flex; flex-shrink: 0; align-items: center; gap: 4px;">
+        <span style="display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; color: #737373;" title="Priya Nair · 3 Sep 2026, 14:52">Edited 2 min ago · Priya Nair</span>
+        <div style="display: flex; align-items: center; margin-right: 4px;">
+          <span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; border: 2px solid #fff; background: #0f766e; color: #fff; font-size: 10px; font-weight: 600;">PN</span>
+          <span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: -6px; border-radius: 999px; border: 2px solid #fff; background: #7c3aed; color: #fff; font-size: 10px; font-weight: 600;">AJ</span>
+        </div>
+        <a href="#" style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 6px; font-weight: 500; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>3</a>
+        <a href="#" style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 6px; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"></path><path d="M15 7h2a5 5 0 1 1 0 10h-2"></path><line x1="8" x2="16" y1="12" y2="12"></line></svg>Share</a>
+        <a href="#" aria-label="Favourite" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: #d97706;"><svg class="i" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></a>
+        <a href="#" aria-label="Page options" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: #0a0a0a;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></a>
+      </div>
+    </header>
+
+    <main style="display: flex; flex-direction: column; gap: 24px; width: 100%; max-width: 768px; margin: 0 auto; padding: 32px 48px 48px; box-sizing: border-box;">
+
+      <!-- Header: quiet affordances appear on hover/focus of this block -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 4px; margin-left: -8px; color: #737373; font-size: 13px;">
+          <span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>Add cover</span>
+          <span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px;"><svg class="i-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" x2="3" y1="6" y2="6"></line><line x1="15" x2="3" y1="12" y2="12"></line><line x1="17" x2="3" y1="18" y2="18"></line></svg>Add description</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 36px; line-height: 1;">🤝</span>
+          <h1 style="font-size: 36px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15;">Supervision meeting · 12 Sep 2026</h1>
+        </div>
+        <p style="font-size: 16px; color: #737373;">Quarterly review with educational supervisor: portfolio progress and the sedation QI write-up.</p>
+      </div>
+
+      <!-- Page details block -->
+      <section style="display: flex; flex-direction: column; gap: 2px; font-size: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; height: 32px;">
+          <span style="display: flex; align-items: center; gap: 8px; width: 160px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="10" r="3"></circle><path d="M7 20.66V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.66"></path></svg>Created by</span>
+          <span style="display: flex; align-items: center; gap: 8px;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: #7c3aed; color: #fff; font-size: 9px; font-weight: 600;">AJ</span>Ankit J.<span style="color: #737373;">· 3 Sep 2026</span></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 32px;">
+          <span style="display: flex; align-items: center; gap: 8px; width: 160px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg>Last edited</span>
+          <span style="display: flex; align-items: center; gap: 8px;"><span style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 9px; font-weight: 600;">PN</span>Priya Nair<span style="color: #737373;">· 2 min ago</span></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 32px;">
+          <span style="display: flex; align-items: center; gap: 8px; width: 160px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>People</span>
+          <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 3px; border-radius: 999px; background: #f5f5f5;"><span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: #7c3aed; color: #fff; font-size: 9px; font-weight: 600;">AJ</span>Ankit J.</span>
+            <span style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 3px; border-radius: 999px; background: #f5f5f5;"><span style="display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 9px; font-weight: 600;">PN</span>Priya Nair</span>
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 32px;">
+          <span style="display: flex; align-items: center; gap: 8px; width: 160px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>Date</span>
+          <span>12 Sep 2026, 14:00</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 32px; margin: 0 -8px; padding: 0 8px; border-radius: 6px; background: #f5f5f5;">
+          <span style="display: flex; align-items: center; gap: 8px; width: 160px; color: #737373;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"></path><circle cx="7.5" cy="7.5" r=".5"></circle></svg>Type</span>
+          <span style="display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: #e8e8e8; font-size: 12px; font-weight: 500;">Supervision</span>
+          <span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: auto; border-radius: 6px; color: #737373;" title="Property options"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; height: 32px; margin-left: -8px;">
+          <span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: 6px; color: #737373; font-weight: 500;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Add a property</span>
+          <span style="font-size: 12px; color: #737373;">1 hidden</span>
+        </div>
+      </section>
+
+      <!-- Body (BlockNote content, aligned with the title) -->
+      <div style="display: flex; flex-direction: column; gap: 12px; font-size: 16px; line-height: 1.6;">
+        <div style="display: flex; gap: 10px; padding: 12px; border-left: 4px solid #3b82f6; border-radius: 6px; background: rgba(59,130,246,0.1);"><span>💡</span><p style="font-size: 15px;">Use this page during the meeting. Add agreed actions as to-dos and tick them off before the next review.</p></div>
+        <h2 style="margin-top: 8px; font-size: 22px; font-weight: 600;">Agenda</h2>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; align-items: flex-start; gap: 10px;"><span style="display: inline-block; width: 16px; height: 16px; margin-top: 5px; border-radius: 4px; background: #171717;"></span><span style="color: #737373; text-decoration: line-through;">Portfolio progress since June</span></div>
+          <div style="display: flex; align-items: flex-start; gap: 10px;"><span style="display: inline-block; width: 16px; height: 16px; margin-top: 5px; border: 1.5px solid #d4d4d4; border-radius: 4px; box-sizing: border-box;"></span><span>Sedation-hold QI: audit cycle 2 results</span></div>
+          <div style="display: flex; align-items: flex-start; gap: 10px;"><span style="display: inline-block; width: 16px; height: 16px; margin-top: 5px; border: 1.5px solid #d4d4d4; border-radius: 4px; box-sizing: border-box;"></span><span>HiLLO evidence gaps for domain 3</span></div>
+        </div>
+        <h2 style="margin-top: 8px; font-size: 22px; font-weight: 600;">Notes</h2>
+        <p>Cycle 2 shows a rise in documented daily sedation holds on the unit dashboard. Agreed to write up as a poster for the regional meeting, with the anonymised run chart only.</p>
+      </div>
+
+      <!-- Linked from -->
+      <section style="display: flex; flex-direction: column; gap: 8px;">
+        <h2 style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600;"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 14 4 9 9 4"></polyline><path d="M20 20v-7a4 4 0 0 0-4-4H4"></path></svg>Linked from</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <a href="#" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid #e5e5e5; border-radius: 6px;"><span>📘</span>Reflective log</a>
+          <a href="#" style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid #e5e5e5; border-radius: 6px;"><span>🧪</span>QI project · sedation holds</a>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -76,7 +76,9 @@ export async function buildArchive(
       },
     });
     const title = `${entry.page.icon ? `${entry.page.icon} ` : ""}${entry.page.title || "Untitled"}`;
-    files[`${entry.path}.md`] = strToU8(`# ${title}\n\n${markdown}`);
+    const description = (entry.page as { description?: string }).description;
+    const intro = description ? `_${description}_\n\n` : "";
+    files[`${entry.path}.md`] = strToU8(`# ${title}\n\n${intro}${markdown}`);
   }
 
   return zipSync(files, { level: 6 });

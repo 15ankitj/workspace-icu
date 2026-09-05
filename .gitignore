@@ -43,3 +43,7 @@ next-env.d.ts
 # Playwright
 /test-results/
 /playwright-report/
+
+# Seeded design-canvas pages (regenerated from design/*.dc.html)
+design/*.html
+!design/*.dc.html

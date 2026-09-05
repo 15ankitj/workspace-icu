@@ -1,0 +1,19 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "Page view · proposed", "x": 0, "y": 0, "w": 1440, "h": 1100 },
+    { "file": "TopBar.dc.html", "title": "Top bar states", "x": 0, "y": 1260, "w": 1440, "h": 520 },
+    { "file": "PageDetails.dc.html", "title": "Page details block", "x": 0, "y": 1940, "w": 760, "h": 760 },
+    { "file": "SubPages.dc.html", "title": "Sub-pages list", "x": 860, "y": 1940, "w": 900, "h": 560 },
+    { "file": "Sidebar.dc.html", "title": "Sidebar refinements", "x": 0, "y": 2860, "w": 520, "h": 900 },
+    { "file": "Mobile.dc.html", "title": "Phone", "x": 620, "y": 2860, "w": 390, "h": 844 }
+  ],
+  "annotations": [
+    { "id": "note-main", "x": 1520, "y": 0, "w": 300, "text": "1 · The page view end to end\n\nSticky top bar carries breadcrumb, edited-by, presence, comments count, Share, ★ and ⋯. Quiet affordances above the title. Description under it. Page details block, then the body aligned with the title.\n\nTrade-off: the bar takes 44px from the reading area; on a phone it collapses to four targets." },
+    { "id": "note-topbar", "x": 1520, "y": 1260, "w": 300, "text": "2 · Top bar states\n\nEditor, viewer (Read only pill, no Share), and right after your own edit. No save indicator: \"Edited just now · You\" is the saved state, and a failed save is the toast with its own Retry. Hovering \"Edited …\" shows the full timestamp and a link to page history (history exists in the DB already, 90 days).\n\nDeep trails collapse the middle to \"…\" and keep the parent and the page." },
+    { "id": "note-details", "x": 0, "y": 2740, "w": 740, "text": "3 · Page details\n\nCreated by and Last edited are on by default and can be hidden per page. Five addable types: People, Date, Type, Link, Text. Hidden rows stay listed under \"Add a property\" so nothing is lost.\n\nTrade-off: the brief lists properties as v2. This is a bounded jsonb column designed to lift into v2 databases; not a database." },
+    { "id": "note-subpages", "x": 860, "y": 2540, "w": 900, "text": "4 · Sub-pages list\n\nOn any page with children. All / Mine / Recently edited come from created_by and updated_at, which pages already carry. \"New sub-page\" is the one primary action. Not a database view: no filters, no groups, no schema." },
+    { "id": "note-sidebar", "x": 0, "y": 3800, "w": 520, "text": "5 · Sidebar\n\nCollapse with hover-to-peek (⌘\\), Home and Templates as named rows, relative times on Recent, child counts, ⋯ and + on hover as shipped." },
+    { "id": "note-mobile", "x": 620, "y": 3740, "w": 390, "text": "6 · Phone\n\n44px targets, parent crumb as a back link, ★ and ⋯ only. Details collapse to a single line that expands on tap." }
+  ],
+  "launch": { "view": "canvas" }
+}

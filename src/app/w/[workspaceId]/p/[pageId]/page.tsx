@@ -1,19 +1,20 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buildDocument } from "@/lib/blocks";
 import { cursorColourFor } from "@/lib/collab";
+import { normalizeProperties } from "@/lib/page-properties";
+import { comparePositions } from "@/lib/position";
 import { PageHeader } from "@/components/page/page-header";
 import { PageMenu } from "@/components/page/page-menu";
-import { PageCover } from "@/components/page/page-cover";
+import { AddCoverButton, PageCover } from "@/components/page/page-cover";
+import { PageDetails } from "@/components/page/page-details";
+import { PageTopBar } from "@/components/page/page-top-bar";
+import { SubPages } from "@/components/page/sub-pages";
 import { PageEditorLoader } from "@/components/page/page-editor-loader";
 import { CommentsPanel } from "@/components/page/comments-panel";
 import { BacklinksPanel } from "@/components/page/backlinks-panel";
 import { TemplateUpdateBanner } from "@/components/page/template-update-banner";
-import {
-  SaveStatusIndicator,
-  SaveStatusProvider,
-} from "@/components/page/save-status";
+import { SaveStatusProvider } from "@/components/page/save-status";
 import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export default async function PageView({
   const { data: page } = await supabase
     .from("pages")
     .select(
-      "id, workspace_id, parent_page_id, title, icon, cover_url, is_private, full_width, small_text, created_by, updated_at, deleted_at, template_id, template_version",
+      "id, workspace_id, parent_page_id, title, icon, cover_url, description, properties, is_private, full_width, small_text, created_by, created_at, updated_by, updated_at, deleted_at, template_id, template_version",
     )
     .eq("id", pageId)
     .eq("workspace_id", workspaceId)
@@ -39,6 +40,7 @@ export default async function PageView({
   if (!page || page.deleted_at) notFound();
 
   const [
+    { data: workspace },
     { data: membership },
     { data: blockRows },
     { data: workspacePages },
@@ -49,7 +51,13 @@ export default async function PageView({
     { data: commentRows },
     { data: linkRows },
     { data: platformOwner },
+    { data: favourite },
   ] = await Promise.all([
+    supabase
+      .from("workspaces")
+      .select("name")
+      .eq("id", workspaceId)
+      .maybeSingle(),
     supabase
       .from("workspace_members")
       .select("role")
@@ -60,13 +68,16 @@ export default async function PageView({
       .from("blocks")
       .select("id, parent_block_id, type, position, content")
       .eq("page_id", pageId),
-    // For the page-link block's picker and the breadcrumb trail.
+    // For the page-link picker, the breadcrumb trail, the sub-pages list
+    // and the "Type" options offered on this page.
     supabase
       .from("pages")
-      .select("id, title, icon, parent_page_id")
+      .select(
+        "id, title, icon, parent_page_id, position, created_by, created_at, updated_at, properties",
+      )
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null),
-    // For the "@" mention menu.
+    // For the "@" mention menu, the People property and the edited-by names.
     supabase
       .from("workspace_members")
       .select("user_id, users (display_name)")
@@ -102,6 +113,13 @@ export default async function PageView({
       .select("user_id")
       .eq("user_id", user.id)
       .maybeSingle(),
+    // Is this page one of the viewer's favourites?
+    supabase
+      .from("favourites")
+      .select("page_id")
+      .eq("user_id", user.id)
+      .eq("page_id", pageId)
+      .maybeSingle(),
     // Recently-viewed tracking; failure is harmless so no error handling.
     supabase.from("recent_pages").upsert({
       user_id: user.id,
@@ -122,6 +140,11 @@ export default async function PageView({
     id: m.user_id,
     displayName: m.users?.display_name ?? "Unknown",
   }));
+  const nameOf = (id: string | null) =>
+    id === user.id
+      ? "You"
+      : (members.find((m) => m.id === id)?.displayName ?? "A former member");
+  const people = members.map((m) => ({ id: m.id, name: m.displayName }));
   // Collaboration switches on when the Liveblocks secret is configured;
   // otherwise the editor runs local-only (feature-flag by configuration).
   const collab = process.env.LIVEBLOCKS_SECRET_KEY
@@ -181,66 +204,103 @@ export default async function PageView({
   // Breadcrumb trail from the page's ancestors, resolved from the pages
   // already loaded for this workspace (no extra round-trips).
   const pageById = new Map(allPages.map((p) => [p.id, p]));
-  const crumbs: { id: string; title: string }[] = [];
+  const crumbs: { id: string; title: string; icon: string | null }[] = [];
   let parentId = page.parent_page_id;
   for (let i = 0; parentId && i < 10; i++) {
     const parent = pageById.get(parentId);
     if (!parent) break;
-    crumbs.unshift({ id: parent.id, title: parent.title || "Untitled" });
+    crumbs.unshift({ id: parent.id, title: parent.title, icon: parent.icon });
     parentId = parent.parent_page_id;
   }
+
+  // Page details, and the same properties on every other page in the
+  // workspace: "Type" values already in use are offered as options, and
+  // sub-pages show their own type, people and date.
+  const properties = normalizeProperties(page.properties);
+  const propertiesOf = new Map(
+    allPages.map((p) => [p.id, normalizeProperties(p.properties)]),
+  );
+  const selectValues = new Set<string>();
+  for (const props of propertiesOf.values()) {
+    for (const row of props.rows) {
+      if (row.type === "select" && row.value) selectValues.add(row.value);
+    }
+  }
+  const subPages = allPages
+    .filter((p) => p.parent_page_id === pageId)
+    .sort((a, b) => comparePositions(a.position, b.position))
+    .map((p) => {
+      const props = propertiesOf.get(p.id);
+      const select = props?.rows.find((r) => r.type === "select" && r.value);
+      const date = props?.rows.find((r) => r.type === "date" && r.value);
+      const peopleRow = props?.rows.find((r) => r.type === "people");
+      const ids = peopleRow?.type === "people" ? peopleRow.value : [];
+      return {
+        id: p.id,
+        title: p.title,
+        icon: p.icon,
+        createdBy: p.created_by,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
+        type: select?.type === "select" ? select.value : null,
+        date: date?.type === "date" ? date.value : null,
+        people: ids
+          .map((id) => people.find((m) => m.id === id))
+          .filter((m) => m !== undefined),
+      };
+    });
+
+  const menu = (
+    <PageMenu
+      pageId={page.id}
+      workspaceId={workspaceId}
+      fullWidth={page.full_width}
+      smallText={page.small_text}
+      canEdit={canEditThisPage}
+      isPlatformOwner={Boolean(platformOwner)}
+      share={
+        canEditThisPage
+          ? {
+              enabled: share?.public_enabled ?? false,
+              token: share?.public_enabled ? share.public_token : null,
+            }
+          : null
+      }
+    />
+  );
 
   return (
     <SaveStatusProvider>
       <PageShell
         width={page.full_width ? "full" : "wide"}
-        className="min-h-screen gap-6"
+        className="min-h-screen gap-6 pt-0 md:pt-0"
       >
-        <div className="flex items-center justify-between gap-3">
-          <nav
-            aria-label="Breadcrumb"
-            className="min-w-0 text-sm text-muted-foreground"
-          >
-            <ol className="flex min-w-0 items-center gap-1">
-              {crumbs.map((crumb) => (
-                <li key={crumb.id} className="flex min-w-0 items-center gap-1">
-                  <Link
-                    href={`/w/${workspaceId}/p/${crumb.id}`}
-                    className="max-w-40 truncate rounded-sm hover:text-foreground"
-                  >
-                    {crumb.title}
-                  </Link>
-                  <span aria-hidden>/</span>
-                </li>
-              ))}
-              <li
-                className="min-w-0 truncate text-foreground"
-                aria-current="page"
-              >
-                {page.title || "Untitled"}
-              </li>
-            </ol>
-          </nav>
-          <div className="flex shrink-0 items-center gap-2">
-            <SaveStatusIndicator />
-            <PageMenu
-              pageId={page.id}
-              workspaceId={workspaceId}
-              fullWidth={page.full_width}
-              smallText={page.small_text}
-              canEdit={canEditThisPage}
-              isPlatformOwner={Boolean(platformOwner)}
-              share={
-                canEditThisPage
-                  ? {
-                      enabled: share?.public_enabled ?? false,
-                      token: share?.public_enabled ? share.public_token : null,
-                    }
-                  : null
-              }
-            />
-          </div>
-        </div>
+        <PageTopBar
+          workspaceId={workspaceId}
+          workspaceName={workspace?.name ?? "Workspace"}
+          pageId={page.id}
+          title={page.title}
+          icon={page.icon}
+          crumbs={crumbs}
+          edited={{
+            at: page.updated_at,
+            name: nameOf(page.updated_by),
+            isYou: page.updated_by === user.id,
+          }}
+          created={{ at: page.created_at, name: nameOf(page.created_by) }}
+          commentCount={comments.filter((c) => !c.resolved).length}
+          isFavourite={Boolean(favourite)}
+          canEdit={canEditThisPage}
+          collab={
+            collab
+              ? {
+                  storedStateBase64: collab.storedStateBase64,
+                  userName: collab.userName,
+                }
+              : null
+          }
+          actions={menu}
+        />
 
         {templateUpdate && canEditThisPage && (
           <TemplateUpdateBanner
@@ -256,19 +316,54 @@ export default async function PageView({
         )}
 
         <div className="space-y-4">
-          <PageCover
-            pageId={page.id}
-            cover={page.cover_url}
-            canEdit={canEditThisPage}
-          />
+          {page.cover_url && (
+            <PageCover
+              pageId={page.id}
+              cover={page.cover_url}
+              canEdit={canEditThisPage}
+            />
+          )}
           <PageHeader
             pageId={page.id}
             initialTitle={page.title}
             initialIcon={page.icon}
+            initialDescription={page.description}
             isPrivate={page.is_private}
+            canEdit={canEditThisPage}
+            addCover={
+              !page.cover_url && canEditThisPage ? (
+                <AddCoverButton pageId={page.id} />
+              ) : undefined
+            }
+          />
+          <PageDetails
+            pageId={page.id}
+            initial={properties}
+            created={{
+              id: page.created_by,
+              name: nameOf(page.created_by),
+              at: page.created_at,
+            }}
+            edited={{
+              id: page.updated_by,
+              name: nameOf(page.updated_by),
+              at: page.updated_at,
+            }}
+            members={people}
+            siblingSelectValues={[...selectValues].sort()}
             canEdit={canEditThisPage}
           />
         </div>
+
+        {(subPages.length > 0 || canEditThisPage) && subPages.length > 0 && (
+          <SubPages
+            workspaceId={workspaceId}
+            pageId={page.id}
+            pages={subPages}
+            currentUserId={user.id}
+            canEdit={canEditThisPage}
+          />
+        )}
 
         <PageEditorLoader
           key={page.id}
@@ -285,14 +380,16 @@ export default async function PageView({
 
         <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />
 
-        <CommentsPanel
-          workspaceId={workspaceId}
-          pageId={page.id}
-          comments={comments}
-          currentUserId={user.id}
-          canComment={canEditThisPage}
-          isOwner={isOwner}
-        />
+        <div id="comments">
+          <CommentsPanel
+            workspaceId={workspaceId}
+            pageId={page.id}
+            comments={comments}
+            currentUserId={user.id}
+            canComment={canEditThisPage}
+            isOwner={isOwner}
+          />
+        </div>
       </PageShell>
     </SaveStatusProvider>
   );
