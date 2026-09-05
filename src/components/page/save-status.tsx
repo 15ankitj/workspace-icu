@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
@@ -26,9 +25,10 @@ const SaveStatusContext = createContext<SaveStatusValue>({
 });
 
 /**
- * Wraps a page's title and body editors so both report into one visible
- * status. A failed save also raises a toast, because the indicator is
- * small and the user may have scrolled past it.
+ * Wraps a page's title, details and body editors so all of them report
+ * into one place. A successful save lets the top bar say "Edited just now
+ * · You"; a failed save raises a toast with a Retry, and that toast is the
+ * only failure surface — there is no separate indicator.
  */
 export function SaveStatusProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<{
@@ -63,53 +63,4 @@ export function SaveStatusProvider({ children }: { children: ReactNode }) {
 
 export function useSaveStatus() {
   return useContext(SaveStatusContext);
-}
-
-/** "Saving…" / "Saved" / "Couldn't save · Retry", for the page top bar. */
-export function SaveStatusIndicator() {
-  const { state, retry } = useSaveStatus();
-  if (state === "idle") return null;
-
-  if (state === "error") {
-    return (
-      <span
-        role="status"
-        className="flex items-center gap-1.5 text-xs text-destructive"
-      >
-        <AlertCircle className="size-3.5" aria-hidden />
-        Couldn&apos;t save
-        {retry && (
-          <>
-            <span aria-hidden>·</span>
-            <button
-              type="button"
-              className="font-medium underline underline-offset-4"
-              onClick={retry}
-            >
-              Retry
-            </button>
-          </>
-        )}
-      </span>
-    );
-  }
-
-  return (
-    <span
-      role="status"
-      className="flex items-center gap-1.5 text-xs text-muted-foreground"
-    >
-      {state === "saving" ? (
-        <>
-          <Loader2 className="size-3.5 motion-safe:animate-spin" aria-hidden />
-          Saving…
-        </>
-      ) : (
-        <>
-          <Check className="size-3.5" aria-hidden />
-          Saved
-        </>
-      )}
-    </span>
-  );
 }

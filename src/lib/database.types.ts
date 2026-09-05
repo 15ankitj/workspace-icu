@@ -74,6 +74,9 @@ export type PageRow = {
   template_version: number | null;
   search_text: string | null;
   template_page_key: string | null;
+  description: string;
+  updated_by: string | null;
+  properties: Json;
 };
 
 export type FavouriteRow = {

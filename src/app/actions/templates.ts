@@ -80,7 +80,7 @@ export async function saveAsTemplate(
   const { data: allPages, error: pagesError } = await supabase
     .from("pages")
     .select(
-      "id, parent_page_id, position, title, icon, cover_url, full_width, small_text, is_private, created_by",
+      "id, parent_page_id, position, title, icon, cover_url, full_width, small_text, is_private, created_by, description, properties",
     )
     .eq("workspace_id", input.workspaceId)
     .is("deleted_at", null);

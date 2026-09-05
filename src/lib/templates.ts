@@ -1,5 +1,9 @@
 import { comparePositions, firstPosition, positionAfter } from "@/lib/position";
 import type { BlockRowFromDb } from "@/lib/blocks";
+import {
+  propertiesForTemplate,
+  type PageProperties,
+} from "@/lib/page-properties";
 
 /**
  * Template snapshots and instantiation (brief §10). Pure: the server
@@ -17,6 +21,9 @@ export interface SnapshotPage {
   cover_url: string | null;
   full_width: boolean;
   small_text: boolean;
+  /** Page details (0014); absent in snapshots made before them. */
+  description?: string;
+  properties?: PageProperties;
   blocks: BlockRowFromDb[];
 }
 
@@ -43,6 +50,8 @@ export interface SourcePage {
   cover_url: string | null;
   full_width: boolean;
   small_text: boolean;
+  description?: string;
+  properties?: unknown;
 }
 
 // Ids are whatever the caller generates (UUIDs in production); the
@@ -106,6 +115,8 @@ export function buildSnapshot(
         cover_url: page.cover_url,
         full_width: page.full_width,
         small_text: page.small_text,
+        description: page.description ?? "",
+        properties: propertiesForTemplate(page.properties),
         blocks: rewriteForSnapshot(
           blocksByPage.get(page.id) ?? [],
           ids,
@@ -136,6 +147,8 @@ export interface PlannedPage {
   cover_url: string | null;
   full_width: boolean;
   small_text: boolean;
+  description: string;
+  properties: PageProperties;
   template_id: string;
   template_version: number;
   template_page_key: string;
@@ -257,6 +270,8 @@ export function planInstantiation(input: {
       cover_url: page.cover_url,
       full_width: page.full_width,
       small_text: page.small_text,
+      description: page.description ?? "",
+      properties: propertiesForTemplate(page.properties),
       template_id: input.templateId,
       template_version: input.version,
       template_page_key: page.key,

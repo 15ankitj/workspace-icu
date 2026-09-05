@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import {
   Clock,
+  Home,
   LayoutTemplate,
   LogOut,
+  PanelLeft,
   Plus,
   Settings,
   Star,
@@ -20,6 +22,8 @@ import { PageTree } from "@/components/sidebar/page-tree";
 import { SearchDialog } from "@/components/sidebar/search-dialog";
 import { ImportDialog } from "@/components/sidebar/import-dialog";
 import { WorkspaceSwitcher } from "@/components/sidebar/workspace-switcher";
+import { useSidebarCollapse } from "@/components/sidebar/app-shell";
+import { formatRelativeShort } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 export interface SidebarWorkspace {
@@ -29,9 +33,16 @@ export interface SidebarWorkspace {
   is_personal: boolean;
 }
 
+export interface RecentPage extends TreePage {
+  viewedAt: string;
+}
+
 /** Group label style, shared with the page tree. */
 export const sidebarGroupLabel =
   "flex items-center gap-1.5 px-2 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground";
+
+const navRow =
+  "flex h-8 w-full items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground";
 
 export function Sidebar({
   userId,
@@ -48,11 +59,21 @@ export function Sidebar({
   role: WorkspaceRole;
   pages: TreePage[];
   favourites: TreePage[];
-  recents: TreePage[];
+  recents: RecentPage[];
 }) {
   const params = useParams<{ pageId?: string }>();
+  const pathname = usePathname();
   const activePageId = params.pageId ?? null;
   const canEdit = role === "owner" || role === "editor";
+  const { toggle } = useSidebarCollapse();
+  const base = `/w/${currentWorkspace.id}`;
+
+  const navLink = (href: string, exact = false) =>
+    cn(
+      navRow,
+      (exact ? pathname === href : pathname.startsWith(href)) &&
+        "bg-selected text-foreground",
+    );
 
   return (
     <aside className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground">
@@ -61,37 +82,26 @@ export function Sidebar({
           workspaces={workspaces}
           currentWorkspace={currentWorkspace}
         />
-        <Button variant="ghost" size="icon-sm" asChild>
-          <Link
-            href={`/w/${currentWorkspace.id}/gallery`}
-            aria-label="Template gallery"
-            title="Template gallery"
-          >
-            <LayoutTemplate />
-          </Link>
-        </Button>
-        <Button variant="ghost" size="icon-sm" asChild>
-          <Link
-            href={`/w/${currentWorkspace.id}/trash`}
-            aria-label="Trash"
-            title="Trash"
-          >
-            <Trash2 />
-          </Link>
-        </Button>
-        <Button variant="ghost" size="icon-sm" asChild>
-          <Link
-            href={`/w/${currentWorkspace.id}/settings`}
-            aria-label="Workspace settings"
-            title="Workspace settings"
-          >
-            <Settings />
-          </Link>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="hidden text-muted-foreground md:inline-flex"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar (⌘\)"
+          onClick={toggle}
+        >
+          <PanelLeft />
         </Button>
       </div>
       <Separator />
-      <div className="p-2">
+      <div className="flex flex-col gap-0.5 p-2">
         <SearchDialog />
+        <Link href={base} className={navLink(base, true)}>
+          <Home /> Home
+        </Link>
+        <Link href={`${base}/gallery`} className={navLink(`${base}/gallery`)}>
+          <LayoutTemplate /> Templates
+        </Link>
         {canEdit && <ImportDialog workspaceId={currentWorkspace.id} />}
       </div>
       <Separator />
@@ -130,6 +140,14 @@ export function Sidebar({
                   workspaceId={currentWorkspace.id}
                   page={page}
                   active={page.id === activePageId}
+                  trailing={
+                    <span
+                      className="text-xs text-muted-foreground"
+                      title={`Opened ${new Date(page.viewedAt).toLocaleString("en-GB")}`}
+                    >
+                      {formatRelativeShort(page.viewedAt)}
+                    </span>
+                  }
                 />
               ))}
             </ul>
@@ -163,15 +181,23 @@ export function Sidebar({
       </nav>
 
       <Separator />
-      <form action="/auth/sign-out" method="post" className="p-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start text-muted-foreground"
-        >
-          <LogOut /> Sign out
-        </Button>
-      </form>
+      <div className="flex flex-col gap-0.5 p-2">
+        <Link href={`${base}/trash`} className={navLink(`${base}/trash`)}>
+          <Trash2 /> Trash
+        </Link>
+        <Link href={`${base}/settings`} className={navLink(`${base}/settings`)}>
+          <Settings /> Settings
+        </Link>
+        <form action="/auth/sign-out" method="post">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground"
+          >
+            <LogOut /> Sign out
+          </Button>
+        </form>
+      </div>
     </aside>
   );
 }
@@ -180,10 +206,12 @@ function SidebarLink({
   workspaceId,
   page,
   active,
+  trailing,
 }: {
   workspaceId: string;
   page: TreePage;
   active: boolean;
+  trailing?: React.ReactNode;
 }) {
   return (
     <li>
@@ -198,7 +226,10 @@ function SidebarLink({
         <span className="w-4 shrink-0 text-center" aria-hidden>
           {page.icon ?? "📄"}
         </span>
-        <span className="truncate">{page.title || "Untitled"}</span>
+        <span className="min-w-0 flex-1 truncate">
+          {page.title || "Untitled"}
+        </span>
+        {trailing}
       </Link>
     </li>
   );
