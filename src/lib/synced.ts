@@ -107,3 +107,75 @@ export function titleFromBlocks(blocks: EditorBlock[], max = 80): string {
     ? `${joined.slice(0, max - 1).trimEnd()}…`
     : joined;
 }
+
+/* ------------------------------------------------------------------ */
+/* Deletion flows (Appendix A §1.3 rules 6 and 7).                     */
+/* ------------------------------------------------------------------ */
+
+/** The shape of a BlockNote change we care about, kept structural so the
+ *  helper is testable without the editor. */
+export interface PlacementChange {
+  type: string;
+  source: { type: string };
+  block: { type: string; props?: Record<string, unknown>; children?: unknown };
+}
+
+/**
+ * Synced block ids whose placements this user just removed from the
+ * document — by deleting, cutting, undoing or replacing them — nested
+ * placements included. Remote (Yjs) changes are somebody else's edit and
+ * are never attributed to this user.
+ */
+export function locallyRemovedPlacementIds(
+  changes: PlacementChange[],
+): string[] {
+  const out = new Set<string>();
+  for (const change of changes) {
+    if (change.type !== "delete" || change.source.type === "yjs-remote") {
+      continue;
+    }
+    for (const id of syncedBlockIdsIn([change.block as EditorBlock])) {
+      out.add(id);
+    }
+  }
+  return [...out];
+}
+
+/** Purge-time decision for a synced block whose source page is going:
+ *  "delete" (tombstone), or the id of the host page that becomes the source. */
+export const PURGE_DELETE = "delete";
+
+export type PurgeDecision = typeof PURGE_DELETE | string;
+
+/**
+ * Parse the decisions posted by the Trash's purge dialog: a JSON object
+ * of synced block id → "delete" | host page id. Unknown ids are ignored
+ * and anything unrecognised means delete, which is what happens anyway.
+ */
+export function parsePurgeDecisions(
+  raw: string | null | undefined,
+  allowedIds: Iterable<string>,
+): Map<string, PurgeDecision> {
+  const allowed = new Set(allowedIds);
+  const out = new Map<string, PurgeDecision>();
+  if (!raw) return out;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return out;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return out;
+  }
+  for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+    if (!allowed.has(id)) continue;
+    out.set(
+      id,
+      typeof value === "string" && UUID_PATTERN.test(value)
+        ? value.toLowerCase()
+        : PURGE_DELETE,
+    );
+  }
+  return out;
+}

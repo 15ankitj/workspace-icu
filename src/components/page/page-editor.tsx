@@ -22,16 +22,28 @@ import { useFileUpload } from "@/components/page/file-upload";
 import { useSaveStatus } from "@/components/page/save-status";
 import type { EditorBlock } from "@/lib/blocks";
 import { bytesToBase64, roomIdForPage } from "@/lib/collab";
-import { parseSyncedClipboardText } from "@/lib/synced";
+import {
+  locallyRemovedPlacementIds,
+  parseSyncedClipboardText,
+  syncedBlockIdsIn,
+  type PlacementChange,
+} from "@/lib/synced";
 import { editorSchema } from "@/components/editor/schema";
 import { customSlashMenuItems } from "@/components/editor/slash-items";
 import { mentionMenuItems } from "@/components/editor/mention-items";
 import { SyncedDragHandleMenu } from "@/components/editor/synced-drag-menu";
 import {
+  SourceRemovalDialog,
+  type SourceRemovalTarget,
+} from "@/components/editor/synced-source-dialog";
+import {
   SyncedHostContext,
   createLiveSlotAllocator,
   type SyncedHostValue,
+  type SyncedSourceInfo,
 } from "@/components/editor/synced-host-context";
+import { Button } from "@/components/ui/button";
+import { Notice } from "@/components/ui/notice";
 import {
   acquireRoom,
   releaseRoom,
@@ -45,6 +57,17 @@ import {
 import { cn } from "@/lib/utils";
 
 const SAVE_DEBOUNCE_MS = 1500;
+/** A cut placement may be about to be pasted back; wait before asking. */
+const REMOVAL_GRACE_MS = 1200;
+
+/** A synced block whose source is this page but which no longer has a
+ *  placement here (its source placement was removed without a decision). */
+export interface DetachedSource {
+  id: string;
+  title: string;
+  /** Pages still hosting a placement. */
+  placements: number;
+}
 
 export interface CollabConfig {
   userName: string;
@@ -74,6 +97,7 @@ export function PageEditor({
   smallText,
   initialUploadCount,
   collab,
+  detachedSources,
 }: {
   pageId: string;
   workspaceId: string;
@@ -85,6 +109,7 @@ export function PageEditor({
   smallText: boolean;
   initialUploadCount: number;
   collab: CollabConfig | null;
+  detachedSources?: DetachedSource[];
 }) {
   const { uploadFile, dialogs } = useFileUpload({
     pageId,
@@ -92,6 +117,17 @@ export function PageEditor({
   });
   const { report } = useSaveStatus();
   const roomId = roomIdForPage(pageId);
+
+  // Source placements on this page (Appendix A §1.3 rule 6): removing one
+  // is not like removing any other block, so the editor asks what should
+  // happen to the synced block. Placements register themselves as they
+  // load; the map is never pruned, because unmounting is the removal.
+  const sourcesRef = useRef(new Map<string, SyncedSourceInfo>());
+  const removalCheck = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [removal, setRemoval] = useState<SourceRemovalTarget | null>(null);
+  const [detached, setDetached] = useState<DetachedSource[]>(
+    detachedSources ?? [],
+  );
 
   // The room is acquired synchronously so the collaboration extension can
   // bind at editor creation; the ref-counted manager handles lifetimes.
@@ -209,10 +245,31 @@ export function PageEditor({
         });
     };
 
-    const unsubscribe = editor.onChange(() => {
+    const unsubscribe = editor.onChange((_, { getChanges }) => {
       dirty.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+
+      // Did this user just remove a source placement? Ask once it is clear
+      // the block is not coming straight back (cut and paste, undo).
+      const removed = locallyRemovedPlacementIds(
+        getChanges() as unknown as PlacementChange[],
+      ).filter((id) => sourcesRef.current.has(id));
+      if (removed.length === 0) return;
+      if (removalCheck.current) clearTimeout(removalCheck.current);
+      removalCheck.current = setTimeout(() => {
+        const present = new Set(
+          syncedBlockIdsIn(editor.document as unknown as EditorBlock[]),
+        );
+        const gone = removed.find((id) => !present.has(id));
+        const info = gone ? sourcesRef.current.get(gone) : undefined;
+        if (!gone || !info) return;
+        setRemoval({
+          id: gone,
+          title: info.title,
+          otherPages: Math.max(0, info.placements - 1),
+        });
+      }, REMOVAL_GRACE_MS);
     });
 
     const onHide = () => {
@@ -224,9 +281,21 @@ export function PageEditor({
       unsubscribe?.();
       document.removeEventListener("visibilitychange", onHide);
       if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (removalCheck.current) clearTimeout(removalCheck.current);
       flush();
     };
   }, [editor, pageId, room, editable, report]);
+
+  /** Re-insert a placement at the end of the page ("Put it back"). */
+  const putBack = (id: string) => {
+    const last = editor.document[editor.document.length - 1];
+    editor.insertBlocks(
+      [{ type: "syncedBlock", props: { syncedBlockId: id, readOnly: false } }],
+      last,
+      "after",
+    );
+    setDetached((list) => list.filter((item) => item.id !== id));
+  };
 
   const pageLinkValue = useMemo(
     () => ({ workspaceId, pages: linkablePages, members }),
@@ -248,6 +317,9 @@ export function PageEditor({
       releaseLiveSlot: allocator.release,
       subscribe: allocator.subscribe,
       isLive: allocator.isLive,
+      noteSource: (id, info) => {
+        sourcesRef.current.set(id, info);
+      },
     }),
     [pageId, workspaceId, editable, isPrivate, collab, allocator],
   );
@@ -256,6 +328,61 @@ export function PageEditor({
     <PageLinkContext.Provider value={pageLinkValue}>
       <SyncedHostContext.Provider value={syncedHost}>
         {dialogs}
+        {editable && detached.length > 0 && (
+          <Notice
+            variant="warning"
+            title={
+              detached.length === 1
+                ? "A synced block was removed from this page but still appears elsewhere"
+                : `${detached.length} synced blocks were removed from this page but still appear elsewhere`
+            }
+          >
+            <p>
+              This page is their source. Put each back, delete it everywhere, or
+              make one of the other pages the source.
+            </p>
+            <ul className="space-y-1">
+              {detached.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  <span className="min-w-0 truncate">
+                    {item.title || "Synced block"}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · appears in {item.placements} page
+                      {item.placements === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setRemoval({
+                        id: item.id,
+                        title: item.title,
+                        otherPages: item.placements,
+                      })
+                    }
+                  >
+                    Resolve…
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Notice>
+        )}
+        <SourceRemovalDialog
+          target={removal}
+          onPutBack={removal ? () => putBack(removal.id) : null}
+          onResolved={(id) => {
+            sourcesRef.current.delete(id);
+            setDetached((list) => list.filter((item) => item.id !== id));
+            setRemoval(null);
+          }}
+          onClose={() => setRemoval(null)}
+        />
         {/* BlockNote's side gutter is removed in globals.css so body text
             shares a left edge with the title above it. */}
         <div className={cn(smallText && "text-sm")}>

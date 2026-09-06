@@ -70,8 +70,9 @@ export async function POST(request: NextRequest) {
     const { data } = await supabase.rpc("load_synced_block", {
       p_id: syncedId,
     });
-    const view = data as { can_edit?: boolean } | null;
-    if (!view) {
+    const view = data as { can_edit?: boolean; tombstone?: boolean } | null;
+    // A tombstone's content is gone; its room is not somewhere to be.
+    if (!view || view.tombstone === true) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     canEdit = view.can_edit === true;

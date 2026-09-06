@@ -203,5 +203,23 @@ read-only unless they can edit the source page.
 - **Export/print** render placements as their current content plus
   "Synced from: <page>"; anything the exporter cannot load renders as
   "(synced content unavailable)", never as content.
-- Not yet: source-deletion prompt and tombstones on purge (slice B),
-  template snapshots and the CESR pack changes (slice C).
+- **Deleting** (rules 6, 7): removing a placement from a host page removes
+  only that placement (_Remove here_, or delete the block). Removing the
+  placement on the **source page** prompts: _Put it back_, _Delete
+  everywhere_ (the block becomes a tombstone: content cleared, title and
+  time kept, so remaining placements say what was lost), or _Choose a new
+  source_ (a page already hosting it takes over; permissions follow it).
+  Closing the prompt decides nothing: the page shows its detached sources
+  in a banner until each is resolved, so nothing is orphaned silently.
+- **Trash**: while the source page is in the Trash, placements show a
+  "source in trash" placeholder with _Check again_; they recover on
+  restore. _Delete permanently_ in the Trash prompts per synced block that
+  still appears elsewhere (delete everywhere / make a host the source). A
+  page removed by the nightly job takes its sources to tombstones by
+  trigger (`pages_tombstone_synced_sources`, migration 0016).
+- **Cleanup**: the nightly purge deletes the Liveblocks rooms of
+  tombstones (`content_purged_at`) and, 30 days on, tombstone rows nothing
+  places any more. It also deletes the rooms of purged pages. Room
+  deletion needs `LIVEBLOCKS_SECRET_KEY` and is best effort; the token
+  route refuses tombstone rooms regardless.
+- Not yet: template snapshots and the CESR pack changes (slice C).

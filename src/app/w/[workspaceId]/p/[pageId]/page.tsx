@@ -52,6 +52,9 @@ export default async function PageView({
     { data: linkRows },
     { data: platformOwner },
     { data: favourite },
+    ,
+    { data: sourceRows },
+    { data: embedRows },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -126,6 +129,21 @@ export default async function PageView({
       page_id: pageId,
       viewed_at: new Date().toISOString(),
     }),
+    // Synced blocks this page is the source of, and the placements it
+    // holds: a source without a placement here was removed without a
+    // decision and is surfaced for one (Appendix A §1.3 rule 6).
+    supabase
+      .from("synced_blocks")
+      .select("id, title, created_at")
+      .eq("source_page_id", pageId)
+      .is("deleted_at", null)
+      // A freshly created block gets a minute to be saved with its
+      // placement before it could count as detached.
+      .lt("created_at", new Date(new Date().getTime() - 60_000).toISOString()),
+    supabase
+      .from("synced_embeds")
+      .select("synced_block_id")
+      .eq("host_page_id", pageId),
   ]);
   const isOwner = membership?.role === "owner";
   const canEdit = isOwner || membership?.role === "editor";
@@ -194,6 +212,31 @@ export default async function PageView({
         changes: newer ?? [],
       };
     }
+  }
+
+  // Detached sources: this page is the source, but holds no placement.
+  const placedHere = new Set((embedRows ?? []).map((e) => e.synced_block_id));
+  const detachedRows = (sourceRows ?? []).filter((s) => !placedHere.has(s.id));
+  let detachedSources: { id: string; title: string; placements: number }[] = [];
+  if (canEditThisPage && detachedRows.length > 0) {
+    const { data: hostRows } = await supabase
+      .from("synced_embeds")
+      .select("synced_block_id, host_page_id")
+      .in(
+        "synced_block_id",
+        detachedRows.map((s) => s.id),
+      );
+    const hosts = new Map<string, Set<string>>();
+    for (const row of hostRows ?? []) {
+      const set = hosts.get(row.synced_block_id) ?? new Set<string>();
+      set.add(row.host_page_id);
+      hosts.set(row.synced_block_id, set);
+    }
+    detachedSources = detachedRows.map((s) => ({
+      id: s.id,
+      title: s.title,
+      placements: hosts.get(s.id)?.size ?? 0,
+    }));
   }
 
   const sourceIds = new Set((linkRows ?? []).map((l) => l.source_page_id));
@@ -377,6 +420,7 @@ export default async function PageView({
           smallText={page.small_text}
           initialUploadCount={uploadCount ?? 0}
           collab={collab}
+          detachedSources={detachedSources}
         />
 
         <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />

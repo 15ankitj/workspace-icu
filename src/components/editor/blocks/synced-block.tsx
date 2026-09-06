@@ -121,15 +121,44 @@ function SyncedPicker({
 /* Placeholders (Appendix A §1.3 rules 3, 4, 7).                        */
 /* ------------------------------------------------------------------ */
 
-function Placeholder({ children }: { children: React.ReactNode }) {
+function Placeholder({
+  children,
+  actions,
+}: {
+  children: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
   return (
     <div
       contentEditable={false}
-      className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
     >
-      <Repeat2 className="mr-1.5 inline size-4 align-text-bottom" aria-hidden />
-      {children}
+      <span>
+        <Repeat2
+          className="mr-1.5 inline size-4 align-text-bottom"
+          aria-hidden
+        />
+        {children}
+      </span>
+      {actions && (
+        <span className="flex shrink-0 gap-3 text-xs">{actions}</span>
+      )}
     </div>
+  );
+}
+
+/** "Remove here" on a placeholder: the host page drops its placement. */
+function RemoveAction({ onDetach }: { onDetach: (() => void) | null }) {
+  if (!onDetach) return null;
+  return (
+    <button
+      type="button"
+      className="hover:text-foreground"
+      title="Remove this placement from this page"
+      onClick={onDetach}
+    >
+      Remove here
+    </button>
   );
 }
 
@@ -289,6 +318,17 @@ function SyncedPlacement({
     };
   }, [syncedBlockId, reloadKey]);
 
+  // A placement on its own source page tells the editor, so removing it
+  // later is treated as removing the source (rule 6).
+  useEffect(() => {
+    if (view && !view.tombstone && view.sourcePageId === host.hostPageId) {
+      host.noteSource(view.id, {
+        title: view.title,
+        placements: view.placements,
+      });
+    }
+  }, [view, host]);
+
   // Claim one of the page's live slots while this placement can go live;
   // the allocator is a store, so the outcome arrives as a re-render.
   const wantsLive = Boolean(
@@ -312,20 +352,43 @@ function SyncedPlacement({
   }
   if (view === null) {
     return (
-      <Placeholder>Synced content you don&apos;t have access to</Placeholder>
+      <Placeholder actions={<RemoveAction onDetach={onDetach} />}>
+        Synced content you don&apos;t have access to
+      </Placeholder>
     );
   }
   if (view.tombstone) {
+    const when = view.deletedAt
+      ? new Date(view.deletedAt).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : null;
     return (
-      <Placeholder>
-        Synced content that was removed
-        {view.title ? ` (“${view.title}”)` : ""}.
+      <Placeholder actions={<RemoveAction onDetach={onDetach} />}>
+        Synced content that was deleted
+        {view.title ? ` (“${view.title}”)` : ""}
+        {when ? ` on ${when}` : ""}.
       </Placeholder>
     );
   }
   if (view.sourceDeleted) {
     return (
-      <Placeholder>
+      <Placeholder
+        actions={
+          <>
+            <button
+              type="button"
+              className="hover:text-foreground"
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
+              Check again
+            </button>
+            <RemoveAction onDetach={onDetach} />
+          </>
+        }
+      >
         Synced content whose source page is in the trash. It returns when the
         page is restored.
       </Placeholder>

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   containsSyncedBlock,
+  locallyRemovedPlacementIds,
+  parsePurgeDecisions,
   parseSyncedClipboardText,
+  PURGE_DELETE,
   placementProps,
   roomIdForSyncedBlock,
   syncedBlockIdFromRoomId,
@@ -118,5 +121,66 @@ describe("titleFromBlocks", () => {
         20,
       ),
     ).toHaveLength(20);
+  });
+});
+
+describe("locallyRemovedPlacementIds", () => {
+  const change = (type: string, source: string, block: EditorBlock) => ({
+    type,
+    source: { type: source },
+    block,
+  });
+
+  it("attributes local, undo and paste deletions, nested included", () => {
+    expect(
+      locallyRemovedPlacementIds([
+        change("delete", "local", placement(A)),
+        change("delete", "undo", {
+          id: "wrap",
+          type: "bulletListItem",
+          children: [placement(B)],
+        }),
+        change("delete", "local", { id: "p", type: "paragraph" }),
+        change("insert", "local", placement(A)),
+        change("delete", "local", placement(A)),
+      ]),
+    ).toEqual([A, B]);
+  });
+
+  it("ignores remote deletions and non-deletions", () => {
+    expect(
+      locallyRemovedPlacementIds([
+        change("delete", "yjs-remote", placement(A)),
+        change("update", "local", placement(B)),
+        change("move", "local", placement(B)),
+      ]),
+    ).toEqual([]);
+  });
+});
+
+describe("parsePurgeDecisions", () => {
+  it("keeps only known ids and valid targets", () => {
+    const decisions = parsePurgeDecisions(
+      JSON.stringify({
+        [A]: B.toUpperCase(),
+        [B]: "delete",
+        "cccccccc-cccc-4ccc-8ccc-cccccccccccc": B,
+        [`${A}x`]: "nope",
+      }),
+      [A, B],
+    );
+    expect([...decisions.entries()]).toEqual([
+      [A, B],
+      [B, PURGE_DELETE],
+    ]);
+  });
+
+  it("treats garbage as no decisions", () => {
+    expect(parsePurgeDecisions("not json", [A]).size).toBe(0);
+    expect(parsePurgeDecisions("[1]", [A]).size).toBe(0);
+    expect(parsePurgeDecisions(null, [A]).size).toBe(0);
+    expect(parsePurgeDecisions(JSON.stringify({ [A]: 42 }), [A]).get(A)).toBe(
+      PURGE_DELETE,
+    );
   });
 });
