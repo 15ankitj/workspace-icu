@@ -235,6 +235,7 @@ export type SyncedBlockRow = {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  content_purged_at: string | null;
 };
 
 export type SyncedEmbedRow = {
@@ -514,6 +515,37 @@ export type Database = {
           placements: number;
           updated_at: string;
         }[];
+      };
+      delete_synced_block: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
+      reassign_synced_source: {
+        Args: { p_id: string; p_new_source_page_id: string };
+        Returns: undefined;
+      };
+      list_synced_hosts: {
+        Args: { p_id: string };
+        Returns: {
+          page_id: string;
+          title: string;
+          icon: string | null;
+          is_private: boolean;
+        }[];
+      };
+      synced_sources_at_risk: {
+        Args: { p_page_ids: string[] };
+        Returns: {
+          id: string;
+          title: string;
+          source_page_id: string;
+          placements: number;
+          hosts: Json;
+        }[];
+      };
+      purge_synced_tombstones: {
+        Args: { p_cutoff: string };
+        Returns: number;
       };
       search_pages: {
         Args: { p_query: string };

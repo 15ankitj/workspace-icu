@@ -27,6 +27,15 @@ export interface SyncedHostValue {
    *  or release, so placements re-render without setting state in effects. */
   subscribe: (listener: () => void) => () => void;
   isLive: (syncedBlockId: string) => boolean;
+  /** Placements whose source is this page register here, so the editor
+   *  can tell a source placement being deleted from any other (rule 6). */
+  noteSource: (syncedBlockId: string, info: SyncedSourceInfo) => void;
+}
+
+export interface SyncedSourceInfo {
+  title: string;
+  /** Distinct pages hosting a placement, this one included. */
+  placements: number;
 }
 
 export const SyncedHostContext = createContext<SyncedHostValue>({
@@ -39,6 +48,7 @@ export const SyncedHostContext = createContext<SyncedHostValue>({
   releaseLiveSlot: () => {},
   subscribe: () => () => {},
   isLive: () => false,
+  noteSource: () => {},
 });
 
 export function useSyncedHost() {

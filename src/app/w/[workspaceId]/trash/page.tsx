@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { purgePage, restorePage } from "@/app/actions/trash";
-import { ConfirmButton } from "@/components/ui/confirm-button";
+import { restorePage } from "@/app/actions/trash";
+import { descendantIds } from "@/lib/tree";
+import { PurgeButton, type AtRiskSyncedBlock } from "./purge-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell, PageHeading } from "@/components/ui/page-shell";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -47,6 +48,54 @@ export default async function TrashPage({
   const roots = trashed.filter(
     (p) => !p.parent_page_id || !trashedIds.has(p.parent_page_id),
   );
+
+  // Synced blocks whose source is about to go but which still appear on
+  // pages outside the trash: the purge asks about them first (Appendix A
+  // §1.3 rule 7).
+  const treeRows = trashed.map((p) => ({
+    id: p.id,
+    parent_page_id: p.parent_page_id,
+    position: "",
+    title: p.title,
+    icon: p.icon,
+    is_private: false,
+    created_by: "",
+  }));
+  const atRiskByRoot = new Map<string, AtRiskSyncedBlock[]>();
+  if (canEdit && roots.length > 0) {
+    await Promise.all(
+      roots.map(async (root) => {
+        const ids = [root.id, ...descendantIds(treeRows, root.id)];
+        const { data } = await supabase.rpc("synced_sources_at_risk", {
+          p_page_ids: ids,
+        });
+        if (data && data.length > 0) {
+          atRiskByRoot.set(
+            root.id,
+            data.map((row) => ({
+              id: row.id,
+              title: row.title,
+              placements: Number(row.placements ?? 0),
+              hosts: (Array.isArray(row.hosts) ? row.hosts : []).map((h) => {
+                const host = h as {
+                  id: string;
+                  title: string;
+                  icon: string | null;
+                  is_private: boolean;
+                };
+                return {
+                  id: host.id,
+                  title: host.title,
+                  icon: host.icon,
+                  isPrivate: host.is_private,
+                };
+              }),
+            })),
+          );
+        }
+      }),
+    );
+  }
 
   return (
     <PageShell className="gap-6">
@@ -99,22 +148,12 @@ export default async function TrashPage({
                         Restore
                       </SubmitButton>
                     </form>
-                    <form action={purgePage}>
-                      <input
-                        type="hidden"
-                        name="workspaceId"
-                        value={workspaceId}
-                      />
-                      <input type="hidden" name="pageId" value={page.id} />
-                      <ConfirmButton
-                        size="sm"
-                        title={`Delete “${title}” permanently?`}
-                        description="The page, its sub-pages and their files are removed for good. This cannot be undone."
-                        confirmLabel="Delete permanently"
-                      >
-                        Delete permanently
-                      </ConfirmButton>
-                    </form>
+                    <PurgeButton
+                      workspaceId={workspaceId}
+                      pageId={page.id}
+                      title={title}
+                      atRisk={atRiskByRoot.get(page.id) ?? []}
+                    />
                   </span>
                 )}
               </li>

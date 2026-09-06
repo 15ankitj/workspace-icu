@@ -8,7 +8,12 @@ import {
   MAX_DOCUMENT_BYTES,
   type EditorBlock,
 } from "@/lib/blocks";
-import { containsSyncedBlock, titleFromBlocks } from "@/lib/synced";
+import {
+  containsSyncedBlock,
+  roomIdForSyncedBlock,
+  titleFromBlocks,
+} from "@/lib/synced";
+import { deleteLiveblocksRoom } from "@/lib/liveblocks-admin";
 import type { Json } from "@/lib/database.types";
 
 const MAX_YDOC_BASE64_CHARS = 4 * 1024 * 1024;
@@ -46,6 +51,7 @@ export interface SyncedBlockView {
   sourceIcon: string | null;
   sourceDeleted: boolean;
   tombstone: boolean;
+  deletedAt: string | null;
   canEdit: boolean;
   storedStateBase64: string | null;
   blocks: EditorBlock[];
@@ -100,6 +106,7 @@ export async function loadSyncedBlock(
     sourceIcon: row.source_icon === null ? null : String(row.source_icon),
     sourceDeleted: row.source_deleted === true,
     tombstone: row.tombstone === true,
+    deletedAt: row.deleted_at ? String(row.deleted_at) : null,
     canEdit: row.can_edit === true,
     storedStateBase64: row.ydoc ? String(row.ydoc) : null,
     blocks: Array.isArray(row.blocks) ? (row.blocks as EditorBlock[]) : [],
@@ -161,5 +168,62 @@ export async function listSyncedBlocks(
     sourceTitle: row.source_title,
     sourceIcon: row.source_icon,
     placements: Number(row.placements ?? 0),
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Deletion flows (Appendix A §1.3 rules 6 and 7).                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * "Delete everywhere": tombstone the synced block. Content is cleared
+ * here and in its collaborative room; placements on other pages show
+ * what was lost and when until their owners remove them.
+ */
+export async function deleteSyncedBlockEverywhere(id: string) {
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("delete_synced_block", { p_id: id });
+  if (error) {
+    throw new Error(`Could not delete synced block: ${error.message}`);
+  }
+  // Best effort: the nightly job retries rooms that are still there.
+  await deleteLiveblocksRoom(roomIdForSyncedBlock(id));
+}
+
+/** "Choose a new source": a page already hosting a placement takes over
+ *  as the source, so permission and provenance follow it. */
+export async function reassignSyncedSource(
+  id: string,
+  newSourcePageId: string,
+) {
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("reassign_synced_source", {
+    p_id: id,
+    p_new_source_page_id: newSourcePageId,
+  });
+  if (error) {
+    throw new Error(`Could not change the source: ${error.message}`);
+  }
+}
+
+export interface SyncedHostPage {
+  pageId: string;
+  title: string;
+  icon: string | null;
+  isPrivate: boolean;
+}
+
+/** Host pages (that the caller can see) which could become the source. */
+export async function listSyncedHosts(id: string): Promise<SyncedHostPage[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("list_synced_hosts", {
+    p_id: id,
+  });
+  if (error) throw new Error(`Could not list pages: ${error.message}`);
+  return (data ?? []).map((row) => ({
+    pageId: row.page_id,
+    title: row.title,
+    icon: row.icon,
+    isPrivate: row.is_private,
   }));
 }

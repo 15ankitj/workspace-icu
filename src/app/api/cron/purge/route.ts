@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { roomIdForPage } from "@/lib/collab";
+import { deleteLiveblocksRoom } from "@/lib/liveblocks-admin";
+import { roomIdForSyncedBlock } from "@/lib/synced";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +38,14 @@ export async function GET(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const cutoff = new Date(Date.now() - TRASH_DAYS * 86_400_000).toISOString();
-  const summary = { pages: 0, files: 0, workspaces: 0, versions: 0 };
+  const summary = {
+    pages: 0,
+    files: 0,
+    workspaces: 0,
+    versions: 0,
+    syncedRooms: 0,
+    syncedTombstones: 0,
+  };
 
   async function removeObjects(paths: string[]) {
     for (let i = 0; i < paths.length; i += 100) {
@@ -59,9 +69,37 @@ export async function GET(request: Request) {
     await removeObjects(
       (files ?? []).map((f: { storage_path: string }) => f.storage_path),
     );
+    // Synced blocks sourced from these pages become tombstones by trigger.
     const { error } = await admin.from("pages").delete().in("id", pageIds);
-    if (!error) summary.pages = pageIds.length;
+    if (!error) {
+      summary.pages = pageIds.length;
+      for (const id of pageIds) await deleteLiveblocksRoom(roomIdForPage(id));
+    }
   }
+
+  // Synced-block tombstones (Appendix A §1.3 rule 7): their rooms upstream
+  // still hold the content until deleted, then the rows themselves go once
+  // nothing places them any more.
+  const { data: tombstones } = await admin
+    .from("synced_blocks")
+    .select("id")
+    .not("deleted_at", "is", null)
+    .is("content_purged_at", null)
+    .limit(200);
+  for (const row of (tombstones ?? []) as { id: string }[]) {
+    if (await deleteLiveblocksRoom(roomIdForSyncedBlock(row.id))) {
+      const { error } = await admin
+        .from("synced_blocks")
+        .update({ content_purged_at: new Date().toISOString() })
+        .eq("id", row.id);
+      if (!error) summary.syncedRooms += 1;
+    }
+  }
+  const { data: purgedTombstones } = await admin.rpc(
+    "purge_synced_tombstones",
+    { p_cutoff: cutoff },
+  );
+  summary.syncedTombstones = purgedTombstones ?? 0;
 
   // Individually deleted files (bytes were removed at deletion; rows go now).
   const { data: deadFiles } = await admin
