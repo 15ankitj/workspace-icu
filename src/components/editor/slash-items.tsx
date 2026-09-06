@@ -8,6 +8,7 @@ import {
   Link2,
   ListTree,
   MonitorPlay,
+  Repeat2,
 } from "lucide-react";
 import type { EditorSchema } from "@/components/editor/schema";
 
@@ -53,6 +54,15 @@ export function customSlashMenuItems(
       icon: <MonitorPlay className="size-4" />,
       onItemClick: () =>
         insertOrUpdateBlockForSlashMenu(editor, { type: "embed" }),
+    },
+    {
+      title: "Synced block",
+      subtext: "Place content that stays in sync with its source page",
+      aliases: ["synced", "sync", "synced block", "embed block"],
+      group: "Advanced",
+      icon: <Repeat2 className="size-4" />,
+      onItemClick: () =>
+        insertOrUpdateBlockForSlashMenu(editor, { type: "syncedBlock" }),
     },
     {
       title: "Table of contents",

@@ -1,40 +1,19 @@
 "use client";
 
+import { BlockNoteSchema } from "@blocknote/core";
 import {
-  BlockNoteSchema,
-  defaultBlockSpecs,
-  defaultInlineContentSpecs,
-} from "@blocknote/core";
-import { createCalloutSpec } from "@/components/editor/blocks/callout";
-import { createEmbedSpec } from "@/components/editor/blocks/embed";
-import { createBookmarkSpec } from "@/components/editor/blocks/bookmark";
-import { createPageLinkSpec } from "@/components/editor/blocks/page-link";
-import { createTocSpec } from "@/components/editor/blocks/toc";
-import {
-  pageMentionSpec,
-  userMentionSpec,
-} from "@/components/editor/inline/mentions";
+  baseBlockSpecs,
+  baseInlineContentSpecs,
+} from "@/components/editor/base-specs";
+import { createSyncedBlockSpec } from "@/components/editor/blocks/synced-block";
 
-// The v1 block list (brief §6): defaults minus audio/video, plus the
-// custom blocks. Columns are deferred pending the licensing decision on
-// BlockNote's multi-column extension.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const { audio, video, ...v1DefaultBlockSpecs } = defaultBlockSpecs;
-
+/** The page schema: the base block set plus synced block placements. */
 export const editorSchema = BlockNoteSchema.create({
   blockSpecs: {
-    ...v1DefaultBlockSpecs,
-    callout: createCalloutSpec(),
-    embed: createEmbedSpec(),
-    bookmark: createBookmarkSpec(),
-    pageLink: createPageLinkSpec(),
-    tableOfContents: createTocSpec(),
+    ...baseBlockSpecs,
+    syncedBlock: createSyncedBlockSpec(),
   },
-  inlineContentSpecs: {
-    ...defaultInlineContentSpecs,
-    userMention: userMentionSpec,
-    pageMention: pageMentionSpec,
-  },
+  inlineContentSpecs: baseInlineContentSpecs,
 });
 
 export type EditorSchema = typeof editorSchema;

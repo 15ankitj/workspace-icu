@@ -13,6 +13,11 @@ export interface MarkdownContext {
   pageHref: (pageId: string) => string;
   /** Link target for an attached file, given its id. */
   fileHref: (fileId: string) => string;
+  /** Content of a synced block the exporter could load, with its source
+   *  page title for the provenance footnote; null when not accessible. */
+  syncedBlock?: (
+    id: string,
+  ) => { blocks: EditorBlock[]; sourceTitle: string | null } | null;
 }
 
 const FILE_URL = /^\/api\/files\/([A-Za-z0-9-]+)$/;
@@ -174,6 +179,16 @@ function blockToMarkdown(
     }
     case "tableOfContents":
       return children.trim();
+    case "syncedBlock": {
+      const id = String(props.syncedBlockId ?? "");
+      const synced = ctx.syncedBlock?.(id) ?? null;
+      if (!synced) return `_(synced content unavailable)_${children}`;
+      const inner = blocksToMarkdownInner(synced.blocks, ctx, depth);
+      const from = synced.sourceTitle
+        ? `Synced from: ${escapeText(synced.sourceTitle)}`
+        : "Synced content";
+      return `${inner}\n\n_${from}_${children}`;
+    }
     case "paragraph":
     default:
       return `${inline}${children}`;

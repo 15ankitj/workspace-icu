@@ -149,3 +149,42 @@ describe("blocksToMarkdown", () => {
     expect(blocksToMarkdown(doc, ctx)).toBe("a\\*b\\_c \\[d\\] \\#e\n");
   });
 });
+
+describe("synced blocks", () => {
+  const ctx = {
+    pageTitle: () => null,
+    pageHref: (id: string) => `#${id}`,
+    fileHref: (id: string) => `files/${id}`,
+  };
+  const placement = {
+    id: "s",
+    type: "syncedBlock",
+    props: {
+      syncedBlockId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      readOnly: false,
+    },
+  };
+
+  it("renders the current content with a provenance footnote", () => {
+    const out = blocksToMarkdown([placement], {
+      ...ctx,
+      syncedBlock: () => ({
+        blocks: [
+          {
+            id: "p",
+            type: "paragraph",
+            content: [{ type: "text", text: "Ticked", styles: {} }],
+          },
+        ],
+        sourceTitle: "HiLLO 3",
+      }),
+    });
+    expect(out).toContain("Ticked");
+    expect(out).toContain("_Synced from: HiLLO 3_");
+  });
+
+  it("never emits content it could not load", () => {
+    const out = blocksToMarkdown([placement], ctx);
+    expect(out).toContain("(synced content unavailable)");
+  });
+});
