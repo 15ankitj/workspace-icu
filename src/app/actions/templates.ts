@@ -10,8 +10,11 @@ import {
   buildSnapshot,
   planInstantiation,
   type SnapshotFile,
+  type SourceSynced,
   type TemplateSnapshot,
 } from "@/lib/templates";
+import { SYNCED_BLOCK_TYPE } from "@/lib/synced";
+import type { EditorBlock } from "@/lib/blocks";
 import { TEMPLATE_CATEGORIES } from "@/lib/template-categories";
 import type { Json, TemplateKind, TemplateScope } from "@/lib/database.types";
 
@@ -131,7 +134,39 @@ export async function saveAsTemplate(
     });
   }
 
-  const snapshot = buildSnapshot(sourcePages, blocksByPage, filesById);
+  // Synced blocks placed on these pages (Appendix A §1.3 rule 8): those
+  // sourced within the tree, or carrying a stable key, travel with the
+  // template; the rest are flattened to static copies, with a note.
+  const placementIds = new Set<string>();
+  for (const row of blockRows ?? []) {
+    const id = (row.content as { props?: { syncedBlockId?: unknown } } | null)
+      ?.props?.syncedBlockId;
+    if (row.type === SYNCED_BLOCK_TYPE && typeof id === "string" && id) {
+      placementIds.add(id.toLowerCase());
+    }
+  }
+  const { data: syncedRows } = placementIds.size
+    ? await supabase
+        .from("synced_blocks")
+        .select("id, source_page_id, template_key, title, blocks")
+        .in("id", [...placementIds])
+        .is("deleted_at", null)
+    : { data: [] };
+  const synced: SourceSynced[] = (syncedRows ?? []).map((row) => ({
+    id: row.id,
+    source_page_id: row.source_page_id,
+    template_key: row.template_key,
+    title: row.title,
+    blocks: (Array.isArray(row.blocks)
+      ? row.blocks
+      : []) as unknown as EditorBlock[],
+  }));
+
+  const snapshot = buildSnapshot(sourcePages, blocksByPage, filesById, {
+    synced,
+    newId: () => randomUUID(),
+  });
+  const notes = snapshot.notes ?? [];
 
   // Template row (new or existing) and the next version number.
   let templateId = input.templateId ?? null;
@@ -173,9 +208,13 @@ export async function saveAsTemplate(
       template_id: templateId,
       version,
       snapshot: snapshot as unknown as Json,
-      changelog: (
-        input.changelog ?? (version === 1 ? "Initial version" : "")
-      ).slice(0, 2000),
+      changelog: [
+        input.changelog ?? (version === 1 ? "Initial version" : ""),
+        ...notes,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, 2000),
       created_by: user.id,
     })
     .select("id")
@@ -209,6 +248,8 @@ export async function saveAsTemplate(
       kind: input.kind,
       scope: input.scope,
       pages: snapshot.pages.length,
+      synced: snapshot.synced?.length ?? 0,
+      flattened: notes.length,
     },
   );
 
@@ -264,6 +305,22 @@ export async function instantiateTemplate(input: {
     }
   }
 
+  // Synced blocks the workspace already holds under the template's stable
+  // keys resolve to those (Appendix A §1.3 rule 8).
+  const syncedKeys = (snapshot.synced ?? []).map((entry) => entry.key);
+  const existingSyncedByKey = new Map<string, string>();
+  if (syncedKeys.length > 0) {
+    const { data: existingSynced } = await supabase
+      .from("synced_blocks")
+      .select("id, template_key")
+      .eq("workspace_id", input.workspaceId)
+      .in("template_key", syncedKeys)
+      .is("deleted_at", null);
+    for (const row of existingSynced ?? []) {
+      if (row.template_key) existingSyncedByKey.set(row.template_key, row.id);
+    }
+  }
+
   const plan = planInstantiation({
     snapshot,
     templateId: template.id,
@@ -272,6 +329,7 @@ export async function instantiateTemplate(input: {
     parentPageId: input.parentPageId,
     lastSiblingPosition: lastSibling?.position ?? null,
     existingByKey: input.onlyMissing ? existingByKey : undefined,
+    existingSyncedByKey,
     newId: () => randomUUID(),
   });
 
@@ -279,6 +337,7 @@ export async function instantiateTemplate(input: {
 
   const { error } = await supabase.rpc("insert_template_pages", {
     p_pages: plan.pages as unknown as Json,
+    p_synced: plan.synced as unknown as Json,
   });
   if (error) throw new Error(`Could not create pages: ${error.message}`);
 
@@ -316,6 +375,8 @@ export async function instantiateTemplate(input: {
     {
       version: versionRow.version,
       pages: plan.pages.length,
+      synced: plan.synced.length,
+      flattened: plan.notes.length,
       only_missing: Boolean(input.onlyMissing),
     },
   );

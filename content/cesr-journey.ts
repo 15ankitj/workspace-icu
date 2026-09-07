@@ -13,6 +13,7 @@ import {
   p,
   pageLink,
   quote,
+  synced,
   t,
   table,
   todo,
@@ -37,6 +38,19 @@ export interface PackPage {
   blocks: (EditorBlock | EditorBlock[])[];
 }
 
+/** A synced block carried by a pack template (Appendix A §1.5). */
+export interface PackSynced {
+  id: string;
+  /** Stable key, the same across packs and versions. */
+  key: string;
+  /** The page in this template that is its source; null when the block is
+   *  resolved by key in the target workspace (placed by another template). */
+  sourcePageId: string | null;
+  title: string;
+  /** Seed content, and the static copy when the key cannot be resolved. */
+  blocks: EditorBlock[];
+}
+
 export interface PackTemplate {
   name: string;
   purpose: string;
@@ -44,7 +58,63 @@ export interface PackTemplate {
   category: string;
   audience: string;
   kind: "page" | "tree" | "workspace";
+  /** Bumped with a changelog when the pack's content changes; installing
+   *  a newer bundled version adds a template version (never edits copies). */
+  version: number;
+  changelog: string;
   pages: PackPage[];
+  synced?: PackSynced[];
+}
+
+// ---------------------------------------------------------------------
+// HiLLO progress tables: one synced block per HiLLO (Appendix A §1.5).
+// Source on the HiLLO page; read-only on the HiLLOs overview; read-write
+// in the mid- and end-of-placement meeting notes, so sign-offs made in a
+// meeting land on the HiLLO page. Keys are stable across packs and
+// versions so a meeting note placed later resolves to the same tables.
+// ---------------------------------------------------------------------
+
+const HILLO_COUNT = 14;
+
+const PROGRESS = Array.from({ length: HILLO_COUNT }, (_, index) => ({
+  n: index + 1,
+  id: randomUUID(),
+  key: `cesr-hillo-${index + 1}-progress`,
+}));
+
+function progressBlocks(n: number): EditorBlock[] {
+  return [
+    table([
+      [[b(`HiLLO ${n} — progress at a glance`)], [t("")]],
+      [[b("Status")], [fill("Not started / In progress / Evidenced")]],
+      [[b("Key Capabilities evidenced")], [fill(`e.g. ${n}.1, ${n}.3`)]],
+      [[b("Next action")], [fill("what, who, by when")]],
+      [[b("Supervisor sign-off")], [fill("name and date")]],
+    ]),
+  ];
+}
+
+function progressSynced(sourcePageIds: (string | null)[]): PackSynced[] {
+  return PROGRESS.map((entry, index) => ({
+    id: entry.id,
+    key: entry.key,
+    sourcePageId: sourcePageIds[index],
+    title: `HiLLO ${entry.n} progress`,
+    blocks: progressBlocks(entry.n),
+  }));
+}
+
+/** The 14 tables as placed on a meeting note (read-write). */
+function hilloReview(): EditorBlock[] {
+  return [
+    h2("HiLLO review"),
+    p([
+      i(
+        "These are the live progress tables from the HiLLO pages. What you record here — status, next action, sign-off — appears there too.",
+      ),
+    ]),
+    ...PROGRESS.flatMap((entry) => [synced(entry.id)]),
+  ];
 }
 
 const noPhi = () =>
@@ -80,7 +150,7 @@ export function cesrJourney(): PackTemplate {
     evidence: randomUUID(),
     resources: randomUUID(),
   };
-  const hilloIds = Array.from({ length: 14 }, () => randomUUID());
+  const hilloIds = Array.from({ length: HILLO_COUNT }, () => randomUUID());
 
   const start: PackPage = {
     id: ids.start,
@@ -218,19 +288,13 @@ export function cesrJourney(): PackTemplate {
     icon: "🎯",
     blocks: [
       howTo(
-        "each sub-page is one High-Level Learning Outcome. Work through them in the order your placements make evidence available, not numerically. Use the status column here as your at-a-glance map; computed completion and the RAG view arrive with databases in a later release.",
+        "each sub-page is one High-Level Learning Outcome. Work through them in the order your placements make evidence available, not numerically. The overview below is live: each table is the progress table from its HiLLO page, shown read-only here — update it on the HiLLO page or in a meeting note.",
       ),
       h2("Overview"),
-      table([
-        ["HiLLO", "Status", "Notes"],
-        ...hilloIds.map((_, index) => [
-          [t(`HiLLO ${index + 1}`)],
-          [fill("Not started / In progress / Evidenced")],
-          [t("")],
-        ]),
+      ...hilloIds.flatMap((id, index) => [
+        pageLink(id, `HiLLO ${index + 1}`, "🎯"),
+        synced(PROGRESS[index].id, true),
       ]),
-      divider(),
-      ...hilloIds.map((id, index) => pageLink(id, `HiLLO ${index + 1}`, "🎯")),
     ],
   };
 
@@ -243,8 +307,10 @@ export function cesrJourney(): PackTemplate {
       icon: "🎯",
       blocks: [
         howTo(
-          "paste the outcome and its Key Capabilities from the FICM curriculum, then tick capabilities as evidence accumulates. Your supervisor writes in the green callout; keep gaps honest.",
+          "paste the outcome and its Key Capabilities from the FICM curriculum, then tick capabilities as evidence accumulates. Your supervisor writes in the green callout; keep gaps honest. The progress table is synced: it also appears on the HiLLOs overview and in meeting notes.",
         ),
+        h2("Progress at a glance"),
+        synced(PROGRESS[index].id),
         h2("What the curriculum asks for"),
         p([
           fill(
@@ -568,6 +634,9 @@ export function cesrJourney(): PackTemplate {
     category: "Training & Portfolio",
     audience: "ICM CESR / Portfolio Pathway candidates and their supervisors",
     kind: "workspace",
+    version: 2,
+    changelog:
+      "Each HiLLO page gains a synced “Progress at a glance” table; the HiLLOs overview shows all fourteen live (read-only). Existing copies keep their pages as they are — the synced tables come with new installs.",
     pages: [
       start,
       plan,
@@ -581,6 +650,7 @@ export function cesrJourney(): PackTemplate {
       evidence,
       resources,
     ],
+    synced: progressSynced(hilloIds),
   };
 }
 
@@ -593,14 +663,24 @@ function meetingTemplate(
   purpose: string,
   howToText: string,
   sections: (EditorBlock | EditorBlock[])[],
+  release: { version: number; changelog: string; reviewsHillos: boolean } = {
+    version: 1,
+    changelog: "Initial version",
+    reviewsHillos: false,
+  },
 ): PackTemplate {
   return {
     name: `Supervision meeting — ${variant}`,
     purpose,
-    description: `Structured note for a ${variant.toLowerCase()} supervision meeting. Candidate and supervisor edit it together during the meeting; agreed actions are to-dos.`,
+    description: `Structured note for a ${variant.toLowerCase()} supervision meeting. Candidate and supervisor edit it together during the meeting; agreed actions are to-dos.${release.reviewsHillos ? " Includes the live HiLLO progress tables from the CESR Journey workspace." : ""}`,
     category: "Supervision",
     audience: "CESR candidates and supervisors",
     kind: "page",
+    version: release.version,
+    changelog: release.changelog,
+    synced: release.reviewsHillos
+      ? progressSynced(PROGRESS.map(() => null))
+      : undefined,
     pages: [
       {
         id: randomUUID(),
@@ -663,6 +743,7 @@ export function supportingTemplates(): PackTemplate[] {
       [
         h2("Progress since the initial meeting"),
         p([fill("summary")]),
+        ...hilloReview(),
         h2("Evidence reviewed"),
         table([
           ["Evidence", "HiLLO / KC", "Supervisor's view"],
@@ -675,6 +756,12 @@ export function supportingTemplates(): PackTemplate[] {
         h2("Concerns, wellbeing, workload"),
         p([fill("anything either party wants recorded")]),
       ],
+      {
+        version: 2,
+        changelog:
+          "Adds the HiLLO review section: the fourteen synced progress tables from the CESR Journey workspace, editable in the meeting. Without that workspace the tables are plain copies.",
+        reviewsHillos: true,
+      },
     ),
     meetingTemplate(
       "End-of-placement",
@@ -682,14 +769,12 @@ export function supportingTemplates(): PackTemplate[] {
       "the record that travels with the candidate: what was evidenced here, the supervisor's overall view, and what the next placement must cover.",
       [
         h2("Summary of achievement"),
-        table([
-          ["HiLLO", "Evidence gained this placement", "Status"],
-          [
-            [fill("n")],
-            [fill("items")],
-            [fill("evidenced / in progress / not addressed")],
-          ],
+        p([
+          fill(
+            "what was evidenced this placement, in a paragraph — the tables below carry the per-HiLLO detail",
+          ),
         ]),
+        ...hilloReview(),
         h2("Supervisor's overall comment"),
         callout(
           "🩺",
@@ -703,6 +788,12 @@ export function supportingTemplates(): PackTemplate[] {
         h2("For the next placement"),
         bullets([[fill("outcomes still needing evidence")]]),
       ],
+      {
+        version: 2,
+        changelog:
+          "The summary table becomes the HiLLO review section: the fourteen synced progress tables from the CESR Journey workspace, so sign-offs made here land on the HiLLO pages. Without that workspace the tables are plain copies.",
+        reviewsHillos: true,
+      },
     ),
     meetingTemplate(
       "Pre-submission",
@@ -735,6 +826,8 @@ export function supportingTemplates(): PackTemplate[] {
     ),
     {
       name: "Reflection",
+      version: 1,
+      changelog: "Initial version",
       purpose:
         "A structured reflective entry mapped to a HiLLO and Key Capability",
       description:
@@ -783,6 +876,8 @@ export function supportingTemplates(): PackTemplate[] {
     },
     {
       name: "Evidence cover sheet",
+      version: 1,
+      changelog: "Initial version",
       purpose:
         "Front page for one item of evidence: what it is, what it shows, who verified it",
       description:
@@ -830,6 +925,8 @@ export function supportingTemplates(): PackTemplate[] {
     },
     {
       name: "Personal development plan",
+      version: 1,
+      changelog: "Initial version",
       purpose: "Goals, actions and evidence of achievement with target dates",
       description:
         "A simple PDP table plus review notes, suitable for appraisal and supervision.",

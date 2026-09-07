@@ -222,4 +222,14 @@ read-only unless they can edit the source page.
   places any more. It also deletes the rooms of purged pages. Room
   deletion needs `LIVEBLOCKS_SECRET_KEY` and is best effort; the token
   route refuses tombstone rooms regardless.
-- Not yet: template snapshots and the CESR pack changes (slice C).
+- **Templates** (rule 8, migration 0017): saving a template keeps a
+  synced block whose source page is inside the tree (or which carries a
+  `template_key`) as a keyed reference and flattens any other placement
+  to a static copy, noting it in the changelog. Installing creates the
+  blocks whose source pages are created, resolves other keys to the
+  workspace's existing blocks, and copies unresolved placements as
+  content. Platform packs bind across templates by key (the CESR
+  Journey's fourteen `cesr-hillo-N-progress` tables are placed read-only
+  on the HiLLOs overview and read-write in the mid- and end-of-placement
+  meeting notes). The gallery offers **Update to vN** to the platform
+  owner when the bundled pack is newer than the installed one.

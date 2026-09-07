@@ -472,7 +472,7 @@ export type Database = {
         Returns: boolean;
       };
       insert_template_pages: {
-        Args: { p_pages: Json };
+        Args: { p_pages: Json; p_synced?: Json };
         Returns: undefined;
       };
       create_workspace: {

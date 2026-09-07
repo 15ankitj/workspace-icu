@@ -220,3 +220,194 @@ describe("planInstantiation", () => {
     expect(missingPageKeys(snapshot, [A, B])).toEqual([C]);
   });
 });
+
+describe("synced blocks in templates (Appendix A rule 8)", () => {
+  const S_IN = "11111111-1111-4111-8111-111111111111";
+  const S_KEYED = "22222222-2222-4222-8222-222222222222";
+  const S_OUT = "33333333-3333-4333-8333-333333333333";
+  const placement = (
+    id: string,
+    syncedId: string,
+    position: string,
+    readOnly = false,
+  ): BlockRowFromDb => ({
+    id,
+    parent_block_id: null,
+    type: "syncedBlock",
+    position,
+    content: { props: { syncedBlockId: syncedId, readOnly } },
+  });
+  const content = (text: string) => [
+    {
+      id: `c-${text}`,
+      type: "paragraph",
+      props: {},
+      content: [{ type: "text", text, styles: {} }],
+      children: [{ id: `cc-${text}`, type: "paragraph", props: {} }],
+    },
+  ];
+  const synced = [
+    {
+      id: S_IN,
+      source_page_id: A,
+      template_key: null,
+      title: "In tree",
+      blocks: content("in"),
+    },
+    {
+      id: S_KEYED,
+      source_page_id: OUTSIDE,
+      template_key: "pack-keyed",
+      title: "Keyed",
+      blocks: content("keyed"),
+    },
+    {
+      id: S_OUT,
+      source_page_id: OUTSIDE,
+      template_key: null,
+      title: "Outside",
+      blocks: content("out"),
+    },
+  ];
+  const rows = new Map<string, BlockRowFromDb[]>([
+    [
+      A,
+      [
+        {
+          id: "a0",
+          parent_block_id: null,
+          type: "paragraph",
+          position: "a0",
+          content: {},
+        },
+        placement("a1", S_IN, "a1"),
+        placement("a2", S_OUT, "a2"),
+        {
+          id: "a3",
+          parent_block_id: null,
+          type: "paragraph",
+          position: "a3",
+          content: {},
+        },
+      ],
+    ],
+    [B, [placement("b0", S_IN, "a0", true), placement("b1", S_KEYED, "a1")]],
+  ]);
+  const snapshot = buildSnapshot(
+    [page(A, null, "a0", "A"), page(B, A, "a0", "B")],
+    rows,
+    new Map(),
+    { synced },
+  );
+
+  it("keeps in-tree and keyed placements as references, flattens the rest", () => {
+    expect(snapshot.format).toBe(2);
+    expect(snapshot.synced?.map((s) => [s.key, s.source_key])).toEqual([
+      [S_IN, A],
+      ["pack-keyed", null],
+    ]);
+    const a = snapshot.pages[0].blocks;
+    expect(a.map((b) => b.type)).toEqual([
+      "paragraph",
+      "syncedBlock",
+      "paragraph",
+      "paragraph",
+      "paragraph",
+    ]);
+    expect(a[1].content?.props?.syncedBlockId).toBe(`synced:${S_IN}`);
+    // The flattened copy keeps its own nesting and sits where the
+    // placement was, with positions re-issued in order.
+    expect(a[3].parent_block_id).toBe(a[2].id);
+    const tops = a.filter((b) => !b.parent_block_id).map((b) => b.position);
+    expect([...tops].sort()).toEqual(tops);
+    expect(new Set(tops).size).toBe(tops.length);
+    expect(snapshot.notes).toHaveLength(1);
+    expect(snapshot.pages[1].blocks[1].content?.props?.syncedBlockId).toBe(
+      "synced:pack-keyed",
+    );
+    expect(snapshot.pages[1].blocks[0].content?.props?.readOnly).toBe(true);
+  });
+
+  it("creates blocks for created sources, reuses keyed ones, flattens unresolved", () => {
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      existingSyncedByKey: new Map([["pack-keyed", "existing-keyed"]]),
+      newId: () => `new-${++n}`,
+    });
+    expect(plan.synced).toHaveLength(1);
+    const created = plan.synced[0];
+    expect(created.source_page_id).toBe(plan.pages[0].id);
+    expect(created.template_key).toBe(S_IN);
+    expect(created.blocks[0].id).not.toBe("c-in");
+    expect(created.blocks[0].children?.[0].id).not.toBe("cc-in");
+    const a = plan.pages[0].blocks;
+    expect(a[1].content?.props?.syncedBlockId).toBe(created.id);
+    const b = plan.pages[1].blocks;
+    expect(b[0].content?.props?.syncedBlockId).toBe(created.id);
+    expect(b[1].content?.props?.syncedBlockId).toBe("existing-keyed");
+    expect(plan.notes).toEqual([]);
+  });
+
+  it("flattens a keyed placement when the workspace has no such block", () => {
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `new-${++n}`,
+    });
+    const b = plan.pages[1].blocks;
+    expect(b.map((row) => row.type)).toEqual([
+      "syncedBlock",
+      "paragraph",
+      "paragraph",
+    ]);
+    expect(JSON.stringify(b)).toContain("keyed");
+    expect(plan.notes).toHaveLength(1);
+    const ids = b.map((row) => row.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("leaves the key off a new block when the workspace already uses it", () => {
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      existingSyncedByKey: new Map([[S_IN, "older"]]),
+      newId: () => `new-${++n}`,
+    });
+    expect(plan.synced[0].template_key).toBeNull();
+    expect(plan.pages[0].blocks[1].content?.props?.syncedBlockId).toBe(
+      plan.synced[0].id,
+    );
+  });
+
+  it("reads format 1 snapshots unchanged", () => {
+    const legacy = buildSnapshot([page(A, null, "a0", "A")], blocks, files);
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot: { ...legacy, format: 1, synced: undefined },
+      templateId: "t",
+      version: 1,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `new-${++n}`,
+    });
+    expect(plan.synced).toEqual([]);
+    expect(plan.pages).toHaveLength(1);
+  });
+});

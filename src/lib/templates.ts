@@ -1,9 +1,14 @@
 import { comparePositions, firstPosition, positionAfter } from "@/lib/position";
-import type { BlockRowFromDb } from "@/lib/blocks";
+import {
+  flattenDocument,
+  type BlockRowFromDb,
+  type EditorBlock,
+} from "@/lib/blocks";
 import {
   propertiesForTemplate,
   type PageProperties,
 } from "@/lib/page-properties";
+import { SYNCED_BLOCK_TYPE } from "@/lib/synced";
 
 /**
  * Template snapshots and instantiation (brief §10). Pure: the server
@@ -35,10 +40,39 @@ export interface SnapshotFile {
   size_bytes: number;
 }
 
+/**
+ * A synced block carried by a template (Appendix A §1.3 rule 8). Its
+ * placements in the snapshot's pages refer to it as `synced:<key>`.
+ */
+export interface SnapshotSynced {
+  /** Stable key: the block's `template_key`, else its id at snapshot time. */
+  key: string;
+  /** Key of the source page when it is inside the snapshot; null when the
+   *  block is expected to exist in the target workspace under this key. */
+  source_key: string | null;
+  title: string;
+  /** Content at snapshot time — the seed for a new block, and the static
+   *  copy used when the key cannot be resolved on instantiation. */
+  blocks: EditorBlock[];
+}
+
 export interface TemplateSnapshot {
-  format: 1;
+  /** 2 adds `synced`; format 1 snapshots are read as having none. */
+  format: 1 | 2;
   pages: SnapshotPage[];
   files: SnapshotFile[];
+  synced?: SnapshotSynced[];
+  /** What the snapshot builder had to change, for the changelog. */
+  notes?: string[];
+}
+
+/** A synced block row as the saver sees it (RLS-visible ones only). */
+export interface SourceSynced {
+  id: string;
+  source_page_id: string | null;
+  template_key: string | null;
+  title: string;
+  blocks: EditorBlock[];
 }
 
 export interface SourcePage {
@@ -57,6 +91,135 @@ export interface SourcePage {
 // Ids are whatever the caller generates (UUIDs in production); the
 // pattern is deliberately format-agnostic so tests can use short ids.
 const FILE_URL = /\/api\/files\/([A-Za-z0-9-]+)/g;
+
+const SYNCED_REF = /^synced:(.+)$/;
+
+function placementIdOf(row: BlockRowFromDb): string | null {
+  if (row.type !== SYNCED_BLOCK_TYPE) return null;
+  const id = row.content?.props?.syncedBlockId;
+  return typeof id === "string" && id ? id : null;
+}
+
+function withPlacementId(row: BlockRowFromDb, id: string): BlockRowFromDb {
+  return {
+    ...row,
+    content: {
+      ...(row.content ?? {}),
+      props: { ...(row.content?.props ?? {}), syncedBlockId: id },
+    },
+  };
+}
+
+/** Positions re-issued per parent in array order, after rows were spliced. */
+function resequence(rows: BlockRowFromDb[]): BlockRowFromDb[] {
+  const last = new Map<string | null, string>();
+  return rows.map((row) => {
+    const previous = last.get(row.parent_block_id) ?? null;
+    const position = previous ? positionAfter(previous) : firstPosition();
+    last.set(row.parent_block_id, position);
+    return { ...row, position };
+  });
+}
+
+/**
+ * Replace a placement row with the rows of a document (a static copy of
+ * the synced content), in its place among its siblings. Ids for the new
+ * rows come from `newId`; positions are re-issued for the whole page.
+ */
+function flattenPlacement(
+  rows: BlockRowFromDb[],
+  index: number,
+  document: EditorBlock[],
+  newId: () => string,
+): BlockRowFromDb[] {
+  const placement = rows[index];
+  const ids = new Map<string, string>();
+  const copy = flattenDocument(document).map((row) => {
+    const id = newId();
+    ids.set(row.id, id);
+    return { ...row, id };
+  });
+  const replacement = copy.map((row) => ({
+    ...row,
+    parent_block_id: row.parent_block_id
+      ? (ids.get(row.parent_block_id) ?? placement.parent_block_id)
+      : placement.parent_block_id,
+  }));
+  const out = rows.slice();
+  out.splice(index, 1, ...replacement);
+  return resequence(out);
+}
+
+function unavailableDocument(): EditorBlock[] {
+  return [
+    {
+      id: "unavailable",
+      type: "paragraph",
+      props: {},
+      content: [
+        {
+          type: "text",
+          text: "(synced content was not available when this template was saved)",
+          styles: { italic: true },
+        },
+      ],
+    },
+  ];
+}
+
+/**
+ * Placements in a page's rows, for the snapshot: a block whose source is
+ * inside the snapshot, or which carries a stable key, is kept as a
+ * `synced:<key>` reference (and collected); any other is flattened to a
+ * static copy, with a note (rule 8).
+ */
+function snapshotPlacements(
+  rows: BlockRowFromDb[],
+  syncedById: Map<string, SourceSynced>,
+  pageKeys: Set<string>,
+  entries: Map<string, SnapshotSynced>,
+  notes: string[],
+  newId: () => string,
+): BlockRowFromDb[] {
+  let out = rows
+    .slice()
+    .sort((a, b) => comparePositions(a.position, b.position));
+  for (let index = 0; index < out.length; index++) {
+    const id = placementIdOf(out[index]);
+    if (!id) continue;
+    const synced = syncedById.get(id.toLowerCase());
+    const sourceKey =
+      synced?.source_page_id &&
+      pageKeys.has(synced.source_page_id.toLowerCase())
+        ? synced.source_page_id.toLowerCase()
+        : null;
+    if (synced && (sourceKey || synced.template_key)) {
+      const key = synced.template_key ?? synced.id.toLowerCase();
+      if (!entries.has(key)) {
+        entries.set(key, {
+          key,
+          source_key: sourceKey,
+          title: synced.title,
+          blocks: synced.blocks,
+        });
+      }
+      out[index] = withPlacementId(out[index], `synced:${key}`);
+      continue;
+    }
+    notes.push(
+      synced
+        ? `“${synced.title || "Synced block"}” was copied as ordinary content: its source page is outside this template.`
+        : "A synced block that was not accessible was replaced by a note.",
+    );
+    out = flattenPlacement(
+      out,
+      index,
+      synced ? synced.blocks : unavailableDocument(),
+      newId,
+    );
+  }
+  return out;
+}
 
 /** Internal page references become `key:<key>`; file URLs `file:<key>`. */
 function rewriteForSnapshot(
@@ -86,9 +249,17 @@ export function buildSnapshot(
   pages: SourcePage[],
   blocksByPage: Map<string, BlockRowFromDb[]>,
   filesById: Map<string, Omit<SnapshotFile, "key">>,
+  options: { synced?: SourceSynced[]; newId?: () => string } = {},
 ): TemplateSnapshot {
   const ids = new Set(pages.map((p) => p.id.toLowerCase()));
   const fileKeys = new Set<string>();
+  const syncedById = new Map(
+    (options.synced ?? []).map((row) => [row.id.toLowerCase(), row]),
+  );
+  const entries = new Map<string, SnapshotSynced>();
+  const notes: string[] = [];
+  let counter = 0;
+  const newId = options.newId ?? (() => `flat-${++counter}`);
 
   // Parents before children, siblings in position order.
   const byParent = new Map<string | null, SourcePage[]>();
@@ -118,7 +289,14 @@ export function buildSnapshot(
         description: page.description ?? "",
         properties: propertiesForTemplate(page.properties),
         blocks: rewriteForSnapshot(
-          blocksByPage.get(page.id) ?? [],
+          snapshotPlacements(
+            blocksByPage.get(page.id) ?? [],
+            syncedById,
+            ids,
+            entries,
+            notes,
+            newId,
+          ),
           ids,
           fileKeys,
         ),
@@ -134,7 +312,13 @@ export function buildSnapshot(
     if (meta) files.push({ key, ...meta });
   }
 
-  return { format: 1, pages: ordered, files };
+  return {
+    format: 2,
+    pages: ordered,
+    files,
+    synced: [...entries.values()],
+    notes,
+  };
 }
 
 export interface PlannedPage {
@@ -164,11 +348,39 @@ export interface PlannedFile {
   size_bytes: number;
 }
 
+export interface PlannedSynced {
+  id: string;
+  workspace_id: string;
+  source_page_id: string;
+  /** Null when the key is already taken in the workspace. */
+  template_key: string | null;
+  title: string;
+  blocks: EditorBlock[];
+}
+
 export interface InstantiationPlan {
   pages: PlannedPage[];
   files: PlannedFile[];
+  /** Synced blocks to create alongside the pages. */
+  synced: PlannedSynced[];
+  /** Placements that could not be resolved and were copied as content. */
+  notes: string[];
   /** Id of the first top-level created page, to navigate to. */
   rootPageId: string | null;
+}
+
+/** Fresh ids throughout a nested document (a synced block's seed). */
+function documentWithFreshIds(
+  blocks: EditorBlock[],
+  newId: () => string,
+): EditorBlock[] {
+  return blocks.map((block) => ({
+    ...block,
+    id: newId(),
+    ...(block.children?.length && {
+      children: documentWithFreshIds(block.children, newId),
+    }),
+  }));
 }
 
 /**
@@ -186,6 +398,8 @@ export function planInstantiation(input: {
   parentPageId: string | null;
   lastSiblingPosition: string | null;
   existingByKey?: Map<string, string>;
+  /** Synced blocks already in the workspace, by stable key (rule 8). */
+  existingSyncedByKey?: Map<string, string>;
   newId: () => string;
 }): InstantiationPlan {
   const existing = input.existingByKey ?? new Map<string, string>();
@@ -199,11 +413,66 @@ export function planInstantiation(input: {
     }
   }
 
+  // Synced blocks: a source page created here gets a new block; otherwise
+  // the key resolves to the workspace's existing block, or the placements
+  // are copied as ordinary content.
+  const existingSynced = input.existingSyncedByKey ?? new Map<string, string>();
+  const entries = new Map(
+    (input.snapshot.synced ?? []).map((entry) => [entry.key, entry]),
+  );
+  const syncedIds = new Map<string, string>();
+  const synced: PlannedSynced[] = [];
+  const notes: string[] = [];
+  for (const entry of entries.values()) {
+    const sourceCreated =
+      entry.source_key !== null && created.has(entry.source_key);
+    if (sourceCreated) {
+      const id = input.newId();
+      syncedIds.set(entry.key, id);
+      synced.push({
+        id,
+        workspace_id: input.workspaceId,
+        source_page_id: keyToId.get(entry.source_key!)!,
+        template_key: existingSynced.has(entry.key) ? null : entry.key,
+        title: entry.title,
+        blocks: documentWithFreshIds(entry.blocks, input.newId),
+      });
+    } else if (existingSynced.has(entry.key)) {
+      syncedIds.set(entry.key, existingSynced.get(entry.key)!);
+    } else {
+      notes.push(
+        `“${entry.title || "Synced block"}” was copied as ordinary content: its synced source is not in this workspace.`,
+      );
+    }
+  }
+
+  const expandPlacements = (rows: BlockRowFromDb[]): BlockRowFromDb[] => {
+    let out = rows.slice();
+    for (let index = 0; index < out.length; index++) {
+      const ref = placementIdOf(out[index])?.match(SYNCED_REF);
+      if (!ref) continue;
+      const key = ref[1];
+      const id = syncedIds.get(key);
+      if (id) {
+        out[index] = withPlacementId(out[index], id);
+        continue;
+      }
+      const entry = entries.get(key);
+      out = flattenPlacement(
+        out,
+        index,
+        entry ? entry.blocks : unavailableDocument(),
+        input.newId,
+      );
+    }
+    return out;
+  };
+
   const fileIds = new Map<string, string>();
   for (const file of input.snapshot.files) fileIds.set(file.key, input.newId());
 
   const remap = (blocks: BlockRowFromDb[]): BlockRowFromDb[] => {
-    const text = JSON.stringify(blocks)
+    const text = JSON.stringify(expandPlacements(blocks))
       .replace(/"pageId":"key:([0-9a-f-]{36})"/g, (match, key: string) => {
         const id = keyToId.get(key);
         return id ? `"pageId":"${id}"` : `"pageId":""`;
@@ -303,7 +572,7 @@ export function planInstantiation(input: {
     });
   }
 
-  return { pages, files, rootPageId };
+  return { pages, files, synced, notes, rootPageId };
 }
 
 /** Keys present in the newer snapshot but absent from the user's copy. */

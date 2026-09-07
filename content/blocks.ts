@@ -78,6 +78,13 @@ export const table = (rows: (string | Inline[])[][]) =>
     },
   );
 
+/**
+ * A placement of a synced block (Appendix A). `id` is the block's id in
+ * the pack; the snapshot builder rewrites it to the block's stable key.
+ */
+export const synced = (id: string, readOnly = false) =>
+  block("syncedBlock", { syncedBlockId: id, readOnly });
+
 export const bullets = (items: (string | Inline[])[]) =>
   items.map((x) => bullet(x));
 export const todos = (items: (string | Inline[])[]) =>
