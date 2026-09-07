@@ -33,6 +33,24 @@ import { customSlashMenuItems } from "@/components/editor/slash-items";
 import { mentionMenuItems } from "@/components/editor/mention-items";
 import { SyncedDragHandleMenu } from "@/components/editor/synced-drag-menu";
 import {
+  SuggestionsExtension,
+  cleanDocument,
+  coordsOf,
+  installSuggestDispatch,
+  listSuggestions,
+  setSuggesting,
+  suggestionAtSelection,
+  type SuggestionSpan,
+} from "@/components/editor/suggestions";
+import {
+  SuggestionPopover,
+  SuggestionsBar,
+  type SuggestionActor,
+} from "@/components/editor/suggestions-ui";
+import { registerSuggestions } from "@/app/actions/suggestions";
+import { usePageMode } from "@/components/page/page-mode";
+import { excerptOf, isOwnSuggestion } from "@/lib/suggestions";
+import {
   SourceRemovalDialog,
   type SourceRemovalTarget,
 } from "@/components/editor/synced-source-dialog";
@@ -57,6 +75,11 @@ import {
 import { cn } from "@/lib/utils";
 
 const SAVE_DEBOUNCE_MS = 1500;
+/** A rejected save on an authored page is retried quietly: the author's
+ *  own client persists their edits within this window. */
+const AUTHORED_RETRY_MS = 4000;
+/** New suggestions are indexed once typing pauses. */
+const REGISTER_DEBOUNCE_MS = 2000;
 /** A cut placement may be about to be pasted back; wait before asking. */
 const REMOVAL_GRACE_MS = 1200;
 
@@ -98,6 +121,7 @@ export function PageEditor({
   initialUploadCount,
   collab,
   detachedSources,
+  actor: actorProp,
 }: {
   pageId: string;
   workspaceId: string;
@@ -110,13 +134,34 @@ export function PageEditor({
   initialUploadCount: number;
   collab: CollabConfig | null;
   detachedSources?: DetachedSource[];
+  /** Who is editing, for suggestion mode (Appendix A, Part 2); read-only
+   *  previews (share links, gallery) omit it. */
+  actor?: SuggestionActor;
 }) {
+  const actor = useMemo<SuggestionActor>(
+    () =>
+      actorProp ?? { userId: "", isAuthor: false, isOwner: false, members: [] },
+    [actorProp],
+  );
   const { uploadFile, dialogs } = useFileUpload({
     pageId,
     initialUploadCount,
   });
   const { report } = useSaveStatus();
   const roomId = roomIdForPage(pageId);
+  const { mode, setPending } = usePageMode();
+  const modeRef = useRef(mode);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
+  const [spans, setSpans] = useState<SuggestionSpan[]>([]);
+  const [active, setActive] = useState<{
+    span: SuggestionSpan;
+    position: { left: number; top: number };
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const knownSuggestions = useRef<Set<string> | null>(null);
+  const registerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Source placements on this page (Appendix A §1.3 rule 6): removing one
   // is not like removing any other block, so the editor asks what should
@@ -148,9 +193,10 @@ export function PageEditor({
   const editor = useCreateBlockNote(
     {
       schema: editorSchema,
-      ...(room && collab
-        ? {
-            extensions: [
+      extensions:
+        room && collab
+          ? [
+              SuggestionsExtension(),
               CollaborationExtension({
                 fragment: room.fragment,
                 user: { name: collab.userName, color: collab.userColour },
@@ -162,13 +208,12 @@ export function PageEditor({
                 },
                 showCursorLabels: "activity",
               }),
-            ],
-          }
-        : {
-            initialContent: initialContent.length
-              ? (initialContent as unknown as (typeof editorSchema)["PartialBlock"][])
-              : undefined,
-          }),
+            ]
+          : [SuggestionsExtension()],
+      initialContent:
+        !room && initialContent.length
+          ? (initialContent as unknown as (typeof editorSchema)["PartialBlock"][])
+          : undefined,
       uploadFile,
       // A pasted synced-block token places that block here (Appendix A
       // §1.3 rule 1); everything else pastes as usual.
@@ -223,7 +268,8 @@ export function PageEditor({
     const flush = () => {
       if (!dirty.current) return;
       dirty.current = false;
-      const blocks = editor.document as unknown as EditorBlock[];
+      // The clean projection: open suggestions reverted (brief §2.4).
+      const blocks = cleanDocument(editor);
       const save = room
         ? savePageDocument(
             pageId,
@@ -237,18 +283,72 @@ export function PageEditor({
           if (!dirty.current) report("saved");
         })
         .catch((error) => {
+          dirty.current = true;
+          // On an authored page a non-author's save may carry the author's
+          // not-yet-persisted edits; the author's client lands them within
+          // seconds, so retry quietly rather than alarm the suggester.
+          if (
+            modeRef.current !== "edit" &&
+            error instanceof Error &&
+            error.message.includes("authored_content")
+          ) {
+            if (saveTimer.current) clearTimeout(saveTimer.current);
+            saveTimer.current = setTimeout(flush, AUTHORED_RETRY_MS);
+            return;
+          }
           console.error("Failed to save page:", error);
           // Keep the document marked dirty so a retry (or the next edit)
           // sends everything again.
-          dirty.current = true;
           report("error", flush);
         });
     };
+
+    // Suggestions present in the document (mine or anyone's): feed the
+    // review bar and the header badge, and index the ones this user just
+    // made (brief §2.3) once typing pauses.
+    const trackSuggestions = () => {
+      const current = listSuggestions(editor.prosemirrorState.doc);
+      setSpans(current);
+      setPending(current.length);
+      if (!knownSuggestions.current) {
+        knownSuggestions.current = new Set(current.map((s) => s.id));
+        return;
+      }
+      const fresh = current.filter(
+        (s) =>
+          !knownSuggestions.current!.has(s.id) &&
+          isOwnSuggestion(s.id, actor.userId),
+      );
+      if (fresh.length === 0) return;
+      if (registerTimer.current) clearTimeout(registerTimer.current);
+      registerTimer.current = setTimeout(() => {
+        const latest = listSuggestions(editor.prosemirrorState.doc);
+        const items = latest
+          .filter(
+            (s) =>
+              !knownSuggestions.current!.has(s.id) &&
+              isOwnSuggestion(s.id, actor.userId),
+          )
+          .map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            excerpt: excerptOf(s.text),
+          }));
+        for (const item of items) knownSuggestions.current!.add(item.id);
+        if (items.length > 0) {
+          registerSuggestions(pageId, items).catch((error) =>
+            console.error("Failed to record suggestions:", error),
+          );
+        }
+      }, REGISTER_DEBOUNCE_MS);
+    };
+    trackSuggestions();
 
     const unsubscribe = editor.onChange((_, { getChanges }) => {
       dirty.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+      trackSuggestions();
 
       // Did this user just remove a source placement? Ask once it is clear
       // the block is not coming straight back (cut and paste, undo).
@@ -282,9 +382,59 @@ export function PageEditor({
       document.removeEventListener("visibilitychange", onHide);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (removalCheck.current) clearTimeout(removalCheck.current);
+      if (registerTimer.current) clearTimeout(registerTimer.current);
       flush();
     };
-  }, [editor, pageId, room, editable, report]);
+  }, [editor, pageId, room, editable, report, setPending, actor.userId]);
+
+  // Suggest mode: route this user's transactions through the suggestion
+  // transform while it is on; the view is mounted by the time effects run.
+  useEffect(() => {
+    if (!editable) return;
+    let uninstall: (() => void) | null = null;
+    try {
+      uninstall = installSuggestDispatch(editor, actor.userId);
+    } catch (error) {
+      console.error("Suggest mode unavailable:", error);
+    }
+    return () => uninstall?.();
+  }, [editor, editable, actor.userId]);
+
+  useEffect(() => {
+    if (!editable) return;
+    try {
+      setSuggesting(editor, mode === "suggest");
+    } catch {
+      // Not mounted yet; the next mode change or mount re-applies it.
+    }
+  }, [editor, editable, mode]);
+
+  // The suggestion under the caret gets a floating Accept / Reject /
+  // Withdraw; positions are relative to the editor container.
+  useEffect(() => {
+    const unsubscribe = editor.onSelectionChange(() => {
+      const span = suggestionAtSelection(editor, spans);
+      const container = containerRef.current;
+      if (!span || !container) {
+        setActive(null);
+        return;
+      }
+      const coords = coordsOf(editor, span.from);
+      if (!coords) {
+        setActive(null);
+        return;
+      }
+      const box = container.getBoundingClientRect();
+      setActive({
+        span,
+        position: {
+          left: Math.max(0, coords.left - box.left),
+          top: Math.max(0, coords.top - box.top - 34),
+        },
+      });
+    }, true);
+    return () => unsubscribe?.();
+  }, [editor, spans]);
 
   /** Re-insert a placement at the end of the page ("Put it back"). */
   const putBack = (id: string) => {
@@ -385,10 +535,31 @@ export function PageEditor({
         />
         {/* BlockNote's side gutter is removed in globals.css so body text
             shares a left edge with the title above it. */}
-        <div className={cn(smallText && "text-sm")}>
+        {editable && (
+          <SuggestionsBar
+            editor={editor}
+            pageId={pageId}
+            actor={actor}
+            spans={spans}
+          />
+        )}
+        <div
+          ref={containerRef}
+          className={cn("relative", smallText && "text-sm")}
+        >
+          {active && editable && (
+            <SuggestionPopover
+              key={active.span.id}
+              editor={editor}
+              pageId={pageId}
+              actor={actor}
+              span={active.span}
+              position={active.position}
+            />
+          )}
           <BlockNoteView
             editor={editor}
-            editable={editable}
+            editable={editable && mode !== "view"}
             slashMenu={false}
             sideMenu={false}
           >

@@ -49,6 +49,7 @@ export function PageTopBar({
   commentCount,
   isFavourite,
   canEdit,
+  modeToggle,
   collab,
   actions,
 }: {
@@ -63,6 +64,8 @@ export function PageTopBar({
   commentCount: number;
   isFavourite: boolean;
   canEdit: boolean;
+  /** Edit / Suggest / View control (Appendix A §2.2). */
+  modeToggle?: React.ReactNode;
   collab: { storedStateBase64: string | null; userName: string } | null;
   /** Share button and page menu, rendered by the server page. */
   actions: React.ReactNode;
@@ -146,6 +149,7 @@ export function PageTopBar({
                 {parent ? parent.title || "Untitled" : workspaceName}
               </span>
             </Link>
+            {modeToggle}
             {favouriteButton}
             {actions}
           </div>,
@@ -220,6 +224,7 @@ export function PageTopBar({
               <Lock className="size-3" aria-hidden /> Read only
             </span>
           )}
+          {modeToggle}
           <span
             className="px-2 text-xs text-muted-foreground"
             title={`${shownEdit.isYou ? "You" : shownEdit.name} · ${formatDateTime(shownEdit.at)}\nCreated by ${created.name} · ${formatDateTime(created.at)}`}

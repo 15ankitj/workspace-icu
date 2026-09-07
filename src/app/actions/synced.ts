@@ -50,6 +50,9 @@ export interface SyncedBlockView {
   sourceTitle: string | null;
   sourceIcon: string | null;
   sourceDeleted: boolean;
+  /** The source page is authored content: only its author edits it,
+   *  through any placement (Appendix A §2.5). */
+  sourceAuthored: boolean;
   tombstone: boolean;
   deletedAt: string | null;
   canEdit: boolean;
@@ -105,6 +108,7 @@ export async function loadSyncedBlock(
     sourceTitle: row.source_title === null ? null : String(row.source_title),
     sourceIcon: row.source_icon === null ? null : String(row.source_icon),
     sourceDeleted: row.source_deleted === true,
+    sourceAuthored: row.source_authored === true,
     tombstone: row.tombstone === true,
     deletedAt: row.deleted_at ? String(row.deleted_at) : null,
     canEdit: row.can_edit === true,

@@ -8,11 +8,13 @@ import {
   Link2,
   MoreHorizontal,
   Printer,
+  PenLine,
 } from "lucide-react";
 import { setPageLayout } from "@/app/actions/pages";
 import { reportPage } from "@/app/actions/reports";
 import { setPublicLink } from "@/app/actions/shares";
 import { SaveTemplateDialog } from "@/components/page/save-template-dialog";
+import { AuthorshipDialog } from "@/components/page/authorship-dialog";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -55,6 +57,7 @@ export function PageMenu({
   canEdit,
   share,
   isPlatformOwner,
+  authorship,
 }: {
   pageId: string;
   workspaceId: string;
@@ -63,9 +66,17 @@ export function PageMenu({
   canEdit: boolean;
   share: ShareState | null;
   isPlatformOwner: boolean;
+  /** Authored content (Appendix A §2.2); null when this user may not set it. */
+  authorship?: {
+    creatorId: string;
+    authored: boolean;
+    coAuthors: string[];
+    members: { id: string; displayName: string }[];
+  } | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [authoring, setAuthoring] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [reason, setReason] = useState("");
   const [reported, setReported] = useState(false);
@@ -128,6 +139,11 @@ export function PageMenu({
               <DropdownMenuItem onSelect={() => setSavingTemplate(true)}>
                 <LayoutTemplate /> Save as template…
               </DropdownMenuItem>
+              {authorship && (
+                <DropdownMenuItem onSelect={() => setAuthoring(true)}>
+                  <PenLine /> Authorship…
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
             </>
           )}
@@ -195,6 +211,18 @@ export function PageMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {authorship && (
+        <AuthorshipDialog
+          open={authoring}
+          onOpenChange={setAuthoring}
+          workspaceId={workspaceId}
+          pageId={pageId}
+          creatorId={authorship.creatorId}
+          authored={authorship.authored}
+          coAuthors={authorship.coAuthors}
+          members={authorship.members}
+        />
+      )}
       <SaveTemplateDialog
         open={savingTemplate}
         onOpenChange={setSavingTemplate}

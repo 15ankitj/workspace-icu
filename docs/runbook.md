@@ -233,3 +233,41 @@ read-only unless they can edit the source page.
   on the HiLLOs overview and read-write in the mid- and end-of-placement
   meeting notes). The gallery offers **Update to vN** to the platform
   owner when the bundled pack is newer than the installed one.
+
+## Suggestion mode (Appendix A, Part 2)
+
+Suggestions are marks inside the page's collaborative document
+(`insertion`, `deletion`, `modification`, from
+`@handlewithcare/prosemirror-suggest-changes`), so they travel with Yjs,
+history and presence. Each suggestion id starts with the suggester's
+user id. `blocks` is the **clean** projection — every open suggestion
+reverted — so search, export and static rendering show what the page
+says until the author accepts (brief §2.4).
+
+- **Modes**: the page header offers Edit / Suggest / View. Pages carry
+  `authored_content` (page ⋯ menu → _Authorship_, authors and owners
+  only) and `co_authors`. On an authored page non-authors open in
+  Suggest and cannot pick Edit; anyone who can edit may choose Suggest.
+  Suggesting needs collaboration (`LIVEBLOCKS_SECRET_KEY`); without it
+  non-authors of authored pages get View.
+- **Enforcement** (migration 0018): `replace_page_blocks` — the one save
+  path — refuses a non-author's save of an authored page unless the
+  canonical text and block types are unchanged. A non-author's save can
+  carry the author's not-yet-persisted edits; the client retries quietly
+  after a few seconds. A workspace owner who resolved a suggestion on
+  the page in the last 10 minutes passes, so owner overrides apply.
+- **Resolution**: authors accept or reject (popover on the caret, or the
+  review bar with _Accept all_ / _Reject all_ behind a count-naming
+  confirm); the suggester may withdraw. A workspace owner who is not the
+  author must type a reason, stored on the suggestion and in the audit
+  event as an override. The server records the outcome before the
+  document applies it. Audit pair: `suggestion_created` and
+  `suggestion_accepted|rejected|withdrawn` on `page_suggestions`.
+- **Retention**: resolved-suggestion detail (excerpt, reason) is deleted
+  by the nightly purge after 90 days; audit events stay.
+- **Synced blocks** follow their source page: a block sourced from an
+  authored page is read-only for non-authors in every placement until
+  block-level suggestions arrive.
+- Not yet: rationale threads and notifications (slice 2), block-level
+  suggestions (3), "with markup" export and the GMC-bundle warning (4),
+  `authored_content` defaults in the CESR pack (5).
