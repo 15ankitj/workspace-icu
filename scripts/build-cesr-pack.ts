@@ -5,9 +5,14 @@
  *
  * The output is what a "Save as template" of the same pages would have
  * produced; it is inserted as published platform templates (see
- * content/README.md). Re-running produces fresh ids, so re-seeding is a
- * new version, never an in-place edit.
+ * content/README.md). Page keys are kept from the committed snapshots
+ * (matched by template name, page title and parent title) so a rebuilt
+ * pack installs as a new *version* of the same templates and "Add the
+ * new pages" adds only what is new; pages without a match get a fresh
+ * key. Synced blocks travel by their stable keys (Appendix A 1.5).
  */
+import { readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import {
   cesrJourney,
   supportingTemplates,
@@ -15,9 +20,60 @@ import {
 } from "../content/cesr-journey";
 import { flattenDocument } from "../src/lib/blocks";
 import { firstPosition, positionAfter } from "../src/lib/position";
-import { buildSnapshot, type SourcePage } from "../src/lib/templates";
+import {
+  buildSnapshot,
+  type SourcePage,
+  type SourceSynced,
+  type TemplateSnapshot,
+} from "../src/lib/templates";
+
+interface Built {
+  name: string;
+  version?: number;
+  snapshot: TemplateSnapshot;
+}
+
+/** Existing page keys by "template / parent title / title". */
+function existingKeys(): Map<string, string> {
+  const keys = new Map<string, string>();
+  let previous: Built[] = [];
+  try {
+    previous = JSON.parse(
+      readFileSync(
+        new URL("../content/cesr-journey.snapshots.json", import.meta.url),
+        "utf8",
+      ),
+    ) as Built[];
+  } catch {
+    return keys;
+  }
+  for (const template of previous) {
+    const titles = new Map(
+      template.snapshot.pages.map((page) => [page.key, page.title]),
+    );
+    for (const page of template.snapshot.pages) {
+      const parent = page.parent_key ? (titles.get(page.parent_key) ?? "") : "";
+      keys.set(`${template.name} / ${parent} / ${page.title}`, page.key);
+    }
+  }
+  return keys;
+}
+
+const previousKeys = existingKeys();
 
 function toSnapshot(template: PackTemplate) {
+  const titleOf = new Map(template.pages.map((page) => [page.id, page.title]));
+  const keyOf = new Map<string, string>();
+  for (const page of template.pages) {
+    const parent = page.parentId ? (titleOf.get(page.parentId) ?? "") : "";
+    keyOf.set(
+      page.id,
+      previousKeys.get(`${template.name} / ${parent} / ${page.title}`) ??
+        randomUUID(),
+    );
+  }
+  const idOf = (id: string) => keyOf.get(id) ?? id;
+
   // Sibling positions in declaration order.
   const lastByParent = new Map<string | null, string>();
   const pages: SourcePage[] = template.pages.map((page) => {
@@ -25,8 +81,8 @@ function toSnapshot(template: PackTemplate) {
     const position = previous ? positionAfter(previous) : firstPosition();
     lastByParent.set(page.parentId, position);
     return {
-      id: page.id,
-      parent_page_id: page.parentId,
+      id: idOf(page.id),
+      parent_page_id: page.parentId ? idOf(page.parentId) : null,
       position,
       title: page.title,
       icon: page.icon,
@@ -35,12 +91,25 @@ function toSnapshot(template: PackTemplate) {
       small_text: false,
     };
   });
+  // Page links in content use the authoring ids; rewrite them to the keys.
   const blocksByPage = new Map(
     template.pages.map((page) => [
-      page.id,
-      flattenDocument(page.blocks.flat()),
+      idOf(page.id),
+      JSON.parse(
+        JSON.stringify(flattenDocument(page.blocks.flat())).replace(
+          /"pageId":"([0-9a-f-]{36})"/gi,
+          (match, id: string) => `"pageId":"${idOf(id)}"`,
+        ),
+      ) as ReturnType<typeof flattenDocument>,
     ]),
   );
+  const synced: SourceSynced[] = (template.synced ?? []).map((entry) => ({
+    id: entry.id,
+    source_page_id: entry.sourcePageId ? idOf(entry.sourcePageId) : null,
+    template_key: entry.key,
+    title: entry.title,
+    blocks: entry.blocks,
+  }));
   return {
     name: template.name,
     purpose: template.purpose,
@@ -48,7 +117,12 @@ function toSnapshot(template: PackTemplate) {
     category: template.category,
     audience: template.audience,
     kind: template.kind,
-    snapshot: buildSnapshot(pages, blocksByPage, new Map()),
+    version: template.version,
+    changelog: template.changelog,
+    snapshot: buildSnapshot(pages, blocksByPage, new Map(), {
+      synced,
+      newId: () => randomUUID(),
+    }),
   };
 }
 

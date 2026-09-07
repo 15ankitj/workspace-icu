@@ -74,50 +74,57 @@ export default async function GalleryPage({
         — template updates never change them.
       </PageHeading>
 
-      {platformOwner && packs.some((p) => !p.installed) && (
-        <section className="space-y-3 rounded-md border p-4">
-          <SectionHeading>
-            Platform packs <Badge variant="outline">Owner only</Badge>
-          </SectionHeading>
-          <p className="text-sm text-muted-foreground">
-            Bundled content packs authored in the repository. Installing
-            publishes them to the gallery for everyone; from then on edit them
-            in the app and republish.
-          </p>
-          <ul className="space-y-2">
-            {packs
-              .filter((p) => !p.installed)
-              .map((p) => (
-                <li
-                  key={p.name}
-                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                >
-                  <span>
-                    <strong>{p.name}</strong>
-                    <span className="ml-2 text-muted-foreground">
-                      {p.purpose}
+      {platformOwner &&
+        packs.some((p) => !p.installed || p.version > p.installedVersion) && (
+          <section className="space-y-3 rounded-md border p-4">
+            <SectionHeading>
+              Platform packs <Badge variant="outline">Owner only</Badge>
+            </SectionHeading>
+            <p className="text-sm text-muted-foreground">
+              Bundled content packs authored in the repository. Installing
+              publishes them to the gallery for everyone; from then on edit them
+              in the app and republish.
+            </p>
+            <ul className="space-y-2">
+              {packs
+                .filter((p) => !p.installed || p.version > p.installedVersion)
+                .map((p) => (
+                  <li
+                    key={p.name}
+                    className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                  >
+                    <span>
+                      <strong>{p.name}</strong>
+                      <span className="ml-2 text-muted-foreground">
+                        {p.purpose}
+                      </span>
+                      {p.installed && (
+                        <span className="ml-2 text-muted-foreground">
+                          · installed v{p.installedVersion}, v{p.version}{" "}
+                          available
+                        </span>
+                      )}
                     </span>
-                  </span>
-                  <form action={installPack}>
-                    <input type="hidden" name="name" value={p.name} />
-                    <input
-                      type="hidden"
-                      name="workspaceId"
-                      value={workspaceId}
-                    />
-                    <SubmitButton
-                      size="sm"
-                      variant="secondary"
-                      pendingLabel="Installing…"
-                    >
-                      Install
-                    </SubmitButton>
-                  </form>
-                </li>
-              ))}
-          </ul>
-        </section>
-      )}
+                    <form action={installPack}>
+                      <input type="hidden" name="name" value={p.name} />
+                      <input
+                        type="hidden"
+                        name="workspaceId"
+                        value={workspaceId}
+                      />
+                      <SubmitButton
+                        size="sm"
+                        variant="secondary"
+                        pendingLabel={p.installed ? "Updating…" : "Installing…"}
+                      >
+                        {p.installed ? `Update to v${p.version}` : "Install"}
+                      </SubmitButton>
+                    </form>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
 
       {(templates ?? []).length === 0 && (
         <EmptyState title="No templates yet">
