@@ -29,6 +29,9 @@ export interface SnapshotPage {
   /** Page details (0014); absent in snapshots made before them. */
   description?: string;
   properties?: PageProperties;
+  /** Authored content (Appendix A §2.2, format 3): a copy starts with
+   *  non-authors in Suggest mode. Absent in older snapshots. */
+  authored_content?: boolean;
   blocks: BlockRowFromDb[];
 }
 
@@ -57,8 +60,9 @@ export interface SnapshotSynced {
 }
 
 export interface TemplateSnapshot {
-  /** 2 adds `synced`; format 1 snapshots are read as having none. */
-  format: 1 | 2;
+  /** 2 adds `synced`, 3 adds `authored_content` on pages; older formats
+   *  are read as having neither. */
+  format: 1 | 2 | 3;
   pages: SnapshotPage[];
   files: SnapshotFile[];
   synced?: SnapshotSynced[];
@@ -86,6 +90,7 @@ export interface SourcePage {
   small_text: boolean;
   description?: string;
   properties?: unknown;
+  authored_content?: boolean;
 }
 
 // Ids are whatever the caller generates (UUIDs in production); the
@@ -288,6 +293,7 @@ export function buildSnapshot(
         small_text: page.small_text,
         description: page.description ?? "",
         properties: propertiesForTemplate(page.properties),
+        authored_content: page.authored_content === true,
         blocks: rewriteForSnapshot(
           snapshotPlacements(
             blocksByPage.get(page.id) ?? [],
@@ -313,7 +319,7 @@ export function buildSnapshot(
   }
 
   return {
-    format: 2,
+    format: 3,
     pages: ordered,
     files,
     synced: [...entries.values()],
@@ -333,6 +339,8 @@ export interface PlannedPage {
   small_text: boolean;
   description: string;
   properties: PageProperties;
+  /** The copy's creator (the instantiating user) is its author. */
+  authored_content: boolean;
   template_id: string;
   template_version: number;
   template_page_key: string;
@@ -541,6 +549,7 @@ export function planInstantiation(input: {
       small_text: page.small_text,
       description: page.description ?? "",
       properties: propertiesForTemplate(page.properties),
+      authored_content: page.authored_content === true,
       template_id: input.templateId,
       template_version: input.version,
       template_page_key: page.key,

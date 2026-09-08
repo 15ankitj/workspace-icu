@@ -147,8 +147,18 @@ export default async function TemplateDetail({
               Also includes:{" "}
               {snapshot.pages
                 .slice(1)
-                .map((p) => p.title || "Untitled")
+                .map(
+                  (p) =>
+                    `${p.title || "Untitled"}${p.authored_content ? " (authored)" : ""}`,
+                )
                 .join(", ")}
+            </p>
+          )}
+          {snapshot && snapshot.pages.some((p) => p.authored_content) && (
+            <p className="text-sm text-muted-foreground">
+              Pages marked <em>authored</em> are authored content: whoever
+              starts from this template is their author, and other editors open
+              them in Suggest mode.
             </p>
           )}
         </section>

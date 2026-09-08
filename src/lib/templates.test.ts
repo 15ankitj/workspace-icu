@@ -301,7 +301,7 @@ describe("synced blocks in templates (Appendix A rule 8)", () => {
   );
 
   it("keeps in-tree and keyed placements as references, flattens the rest", () => {
-    expect(snapshot.format).toBe(2);
+    expect(snapshot.format).toBe(3);
     expect(snapshot.synced?.map((s) => [s.key, s.source_key])).toEqual([
       [S_IN, A],
       ["pack-keyed", null],
@@ -409,5 +409,57 @@ describe("synced blocks in templates (Appendix A rule 8)", () => {
     });
     expect(plan.synced).toEqual([]);
     expect(plan.pages).toHaveLength(1);
+  });
+});
+
+describe("authored content in templates (Appendix A §2.2)", () => {
+  it("snapshots and instantiates the flag, defaulting to off", () => {
+    const authored = { ...page(A, null, "a0", "A"), authored_content: true };
+    const snapshot = buildSnapshot(
+      [authored, page(B, A, "a1", "B")],
+      new Map(),
+      new Map(),
+    );
+    expect(snapshot.format).toBe(3);
+    expect(snapshot.pages.map((p) => p.authored_content)).toEqual([
+      true,
+      false,
+    ]);
+
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 3,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `id-${++n}`,
+    });
+    expect(plan.pages.map((p) => p.authored_content)).toEqual([true, false]);
+  });
+
+  it("reads older snapshots as direct-edit", () => {
+    const snapshot = buildSnapshot(
+      [page(A, null, "a0", "A")],
+      new Map(),
+      new Map(),
+    );
+    const older = { ...snapshot, format: 2 as const };
+    older.pages = older.pages.map((p) => {
+      const copy = { ...p };
+      delete copy.authored_content;
+      return copy;
+    });
+    const plan = planInstantiation({
+      snapshot: older,
+      templateId: "t",
+      version: 2,
+      workspaceId: "w",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => "id-1",
+    });
+    expect(plan.pages[0].authored_content).toBe(false);
   });
 });

@@ -1,7 +1,13 @@
 /**
  * Build the CESR Journey content pack into template snapshots.
  *
- * Usage: npx tsx scripts/build-cesr-pack.ts > content/cesr-journey.snapshots.json
+ * Usage: npx tsx scripts/build-cesr-pack.ts > /tmp/pack.json \
+ *        && mv /tmp/pack.json content/cesr-journey.snapshots.json \
+ *        && npx prettier --write content/cesr-journey.snapshots.json
+ *
+ * Write to a temporary file first: a shell redirect straight onto the
+ * snapshots file truncates it before this script reads the previous
+ * keys, and every page would get a fresh key.
  *
  * The output is what a "Save as template" of the same pages would have
  * produced; it is inserted as published platform templates (see
@@ -89,6 +95,7 @@ function toSnapshot(template: PackTemplate) {
       cover_url: null,
       full_width: false,
       small_text: false,
+      authored_content: page.authored === true,
     };
   });
   // Page links in content use the authoring ids; rewrite them to the keys.
