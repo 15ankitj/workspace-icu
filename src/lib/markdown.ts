@@ -1,9 +1,12 @@
 import type { EditorBlock } from "@/lib/blocks";
+import { inlineSuggestionOf } from "@/lib/suggestion-markup";
 
 /**
  * Block document → Markdown (brief §5 export). Pure and deterministic;
  * covers the whole v1 block list. Lossy where Markdown has no equivalent
  * (callout colour, embeds become links, table of contents is dropped).
+ * Suggestion markup (Appendix A §2.4, "with markup" exports) renders as
+ * `<ins>`/`<del>` inline and as a labelled line before a suggested block.
  */
 
 export interface MarkdownContext {
@@ -18,6 +21,24 @@ export interface MarkdownContext {
   syncedBlock?: (
     id: string,
   ) => { blocks: EditorBlock[]; sourceTitle: string | null } | null;
+  /** Display name of a suggestion's author, for markup exports. */
+  suggester?: (suggestionId: string) => string | null;
+}
+
+const BLOCK_SUGGESTION_LABEL = {
+  insertion: "Suggested insertion",
+  deletion: "Suggested deletion",
+  modification: "Suggested change",
+} as const;
+
+/** "Suggested insertion (Sam):" — the line that precedes a suggested block. */
+export function blockSuggestionLine(
+  block: EditorBlock,
+  ctx: MarkdownContext,
+): string {
+  if (!block.suggestion) return "";
+  const who = ctx.suggester?.(block.suggestion.id);
+  return `*${BLOCK_SUGGESTION_LABEL[block.suggestion.kind]}${who ? ` (${escapeText(who)})` : ""}:*\n`;
 }
 
 const FILE_URL = /^\/api\/files\/([A-Za-z0-9-]+)$/;
@@ -47,6 +68,9 @@ function styledText(node: StyledText): string {
   if (s.italic) out = `*${out}*`;
   if (s.strike) out = `~~${out}~~`;
   if (s.underline) out = `<u>${out}</u>`;
+  const suggestion = inlineSuggestionOf(s);
+  if (suggestion?.kind === "insertion") out = `<ins>${out}</ins>`;
+  else if (suggestion?.kind === "deletion") out = `<del>${out}</del>`;
   return out;
 }
 
@@ -204,7 +228,9 @@ function blocksToMarkdownInner(
   let listIndex = 0;
   for (const block of blocks) {
     listIndex = block.type === "numberedListItem" ? listIndex + 1 : 0;
-    const md = blockToMarkdown(block, ctx, depth, listIndex);
+    const md =
+      blockSuggestionLine(block, ctx) +
+      blockToMarkdown(block, ctx, depth, listIndex);
     parts.push(depth > 0 ? indent(md, depth) : md);
   }
   // List items are separated by single newlines; other blocks by blank lines.

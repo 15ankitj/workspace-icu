@@ -1,10 +1,13 @@
 import type { ReactNode } from "react";
 import type { EditorBlock } from "@/lib/blocks";
 import { calloutClass } from "@/lib/callout";
+import { inlineSuggestionOf } from "@/lib/suggestion-markup";
 
 /**
  * Static, server-safe rendering of a block document (print/PDF view,
  * previews). Mirrors the Markdown serializer's coverage of the v1 blocks.
+ * Suggestion markup (Appendix A §2.4) renders inline as ins/del in the
+ * editor's colours and as a labelled, ruled box around a suggested block.
  */
 
 export interface RenderContext {
@@ -15,6 +18,43 @@ export interface RenderContext {
   syncedBlock?: (
     id: string,
   ) => { blocks: EditorBlock[]; sourceTitle: string | null } | null;
+  /** Display name of a suggestion's author, for markup exports. */
+  suggester?: (suggestionId: string) => string | null;
+}
+
+const BLOCK_SUGGESTION_LABEL = {
+  insertion: "Suggested insertion",
+  deletion: "Suggested deletion",
+  modification: "Suggested change",
+} as const;
+
+const BLOCK_SUGGESTION_CLASS = {
+  insertion: "wi-suggest-block wi-suggest-block-ins",
+  deletion: "wi-suggest-block wi-suggest-block-del",
+  modification: "wi-suggest-block wi-suggest-block-mod",
+} as const;
+
+function SuggestedBlock({
+  block,
+  ctx,
+  children,
+}: {
+  block: EditorBlock;
+  ctx: RenderContext;
+  children: ReactNode;
+}) {
+  const s = block.suggestion;
+  if (!s) return <>{children}</>;
+  const who = ctx.suggester?.(s.id);
+  return (
+    <div className={BLOCK_SUGGESTION_CLASS[s.kind]} data-suggestion={s.kind}>
+      <p className="wi-suggest-label text-xs text-muted-foreground">
+        {BLOCK_SUGGESTION_LABEL[s.kind]}
+        {who ? ` · ${who}` : ""}
+      </p>
+      {children}
+    </div>
+  );
 }
 
 const FILE_URL = /^\/api\/files\/[A-Za-z0-9-]+$/;
@@ -42,6 +82,30 @@ function Inline({ content, ctx }: { content: unknown; ctx: RenderContext }) {
             if (s.italic) el = <em>{el}</em>;
             if (s.underline) el = <u>{el}</u>;
             if (s.strike) el = <s>{el}</s>;
+            const suggestion = inlineSuggestionOf(s);
+            if (suggestion?.kind === "insertion") {
+              const who = ctx.suggester?.(suggestion.id);
+              el = (
+                <ins
+                  className="wi-suggest wi-suggest-ins"
+                  title={who ? `Suggested by ${who}` : "Suggested insertion"}
+                >
+                  {el}
+                </ins>
+              );
+            } else if (suggestion?.kind === "deletion") {
+              const who = ctx.suggester?.(suggestion.id);
+              el = (
+                <del
+                  className="wi-suggest wi-suggest-del"
+                  title={
+                    who ? `Deletion suggested by ${who}` : "Suggested deletion"
+                  }
+                >
+                  {el}
+                </del>
+              );
+            }
             return <span key={i}>{el}</span>;
           }
           case "link":
@@ -79,6 +143,15 @@ function cellContent(cell: unknown): unknown {
 }
 
 function Block({ block, ctx }: { block: EditorBlock; ctx: RenderContext }) {
+  if (!block.suggestion) return <BlockBody block={block} ctx={ctx} />;
+  return (
+    <SuggestedBlock block={block} ctx={ctx}>
+      <BlockBody block={block} ctx={ctx} />
+    </SuggestedBlock>
+  );
+}
+
+function BlockBody({ block, ctx }: { block: EditorBlock; ctx: RenderContext }) {
   const props = (block.props ?? {}) as Record<string, unknown>;
   const children = block.children?.length ? (
     <div className="ml-6">

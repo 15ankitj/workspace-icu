@@ -5,7 +5,9 @@ import { buildArchive } from "@/lib/export-archive";
 
 export const dynamic = "force-dynamic";
 
-/** Whole-workspace Markdown export (brief §5): every page the caller can see. */
+/** Whole-workspace Markdown export (brief §5): every page the caller can
+ *  see, always in the clean state; EXPORT-NOTES.md inside the zip names
+ *  the pages with suggestions still waiting (Appendix A §2.4). */
 export async function GET(
   _request: NextRequest,
   ctx: RouteContext<"/api/export/workspace/[workspaceId]">,

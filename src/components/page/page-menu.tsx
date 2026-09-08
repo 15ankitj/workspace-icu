@@ -57,6 +57,7 @@ export function PageMenu({
   canEdit,
   share,
   isPlatformOwner,
+  unresolvedSuggestions = 0,
   authorship,
 }: {
   pageId: string;
@@ -66,6 +67,9 @@ export function PageMenu({
   canEdit: boolean;
   share: ShareState | null;
   isPlatformOwner: boolean;
+  /** Suggestions still waiting on this page: clean exports leave them out
+   *  (Appendix A §2.4), so the menu says so. */
+  unresolvedSuggestions?: number;
   /** Authored content (Appendix A §2.2); null when this user may not set it. */
   authorship?: {
     creatorId: string;
@@ -81,6 +85,15 @@ export function PageMenu({
   const [reason, setReason] = useState("");
   const [reported, setReported] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Exports are the clean state unless asked for markup (Appendix A §2.4).
+  const [withMarkup, setWithMarkup] = useState(false);
+  const exportQuery = (tree: boolean) => {
+    const params = new URLSearchParams();
+    if (tree) params.set("tree", "1");
+    if (withMarkup) params.set("markup", "1");
+    const q = params.toString();
+    return q ? `?${q}` : "";
+  };
   const [shareState, setShareState] = useState<ShareState>(
     share ?? { enabled: false, token: null },
   );
@@ -149,29 +162,49 @@ export function PageMenu({
           )}
           <DropdownMenuLabel>Export</DropdownMenuLabel>
           <DropdownMenuItem asChild>
-            <a href={`/api/export/${pageId}`}>
+            <a href={`/api/export/${pageId}${exportQuery(false)}`}>
               <Download /> Markdown
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <a href={`/api/export/${pageId}?tree=1`}>
+            <a href={`/api/export/${pageId}${exportQuery(true)}`}>
               <Download /> Markdown, with sub-pages
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <a href={`/print/${pageId}`} target="_blank" rel="noreferrer">
+            <a
+              href={`/print/${pageId}${exportQuery(false)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
               <Printer /> Print or save as PDF
             </a>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a
-              href={`/print/${pageId}?tree=1`}
+              href={`/print/${pageId}${exportQuery(true)}`}
               target="_blank"
               rel="noreferrer"
             >
               <Printer /> Print, with sub-pages
             </a>
           </DropdownMenuItem>
+          <DropdownMenuCheckboxItem
+            checked={withMarkup}
+            onCheckedChange={(next) => setWithMarkup(next === true)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            Include suggestion markup
+          </DropdownMenuCheckboxItem>
+          {unresolvedSuggestions > 0 && (
+            <p className="px-2 pb-1.5 text-xs text-muted-foreground">
+              {unresolvedSuggestions} suggestion
+              {unresolvedSuggestions === 1 ? "" : "s"} still waiting here.
+              {withMarkup
+                ? " Exports will show them as markup."
+                : " Clean exports leave them out."}
+            </p>
+          )}
           {canEdit && (
             <>
               <DropdownMenuSeparator />
