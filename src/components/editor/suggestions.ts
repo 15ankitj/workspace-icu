@@ -185,12 +185,21 @@ export function installSuggestDispatch(editor: AnyEditor, userId: string) {
   );
   view.setProps({ dispatchTransaction: wrapped });
   return () => {
-    view.setProps({ dispatchTransaction: original });
+    // On navigation BlockNote may have destroyed the view before this
+    // cleanup runs; restoring props on a dead view throws, and a throw
+    // here surfaces as the route's error boundary.
+    if (view.isDestroyed) return;
+    try {
+      view.setProps({ dispatchTransaction: original });
+    } catch {
+      // Nothing to restore.
+    }
   };
 }
 
 export function setSuggesting(editor: AnyEditor, on: boolean) {
   const view = editor.prosemirrorView;
+  if (view.isDestroyed) return;
   if (isSuggestChangesEnabled(view.state) === on) return;
   (on ? enableSuggestChanges : disableSuggestChanges)(
     view.state,
