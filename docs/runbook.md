@@ -121,6 +121,9 @@ Invitations are sent through Resend's REST API from server actions.
   workspaces and workspaces with no other member are erased (files
   included); content in shared workspaces is reassigned to a workspace
   owner. Platform owners must hand over ownership before deleting.
+  Membership removals that happen by cascade (the workspace or the user
+  is being deleted) are still audited, with the workspace id in the
+  event's metadata rather than as a reference (migration 0019).
 - **Rate limits**: 20 invitations and 60 uploads per user per hour
   (`consume_rate_limit`, migration 0011).
 - **Security headers**: `next.config.ts` sets a Content Security Policy
