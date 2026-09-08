@@ -271,6 +271,20 @@ says until the author accepts (brief §2.4).
 - **Synced blocks** follow their source page: a block sourced from an
   authored page is read-only for non-authors in every placement until
   block-level suggestions arrive.
-- Not yet: rationale threads and notifications (slice 2), block-level
-  suggestions (3), "with markup" export and the GMC-bundle warning (4),
-  `authored_content` defaults in the CESR pack (5).
+- **Rationale threads** (migration 0020): a suggestion's notes are
+  comments with `suggestion_id` — the same comment model — shown under
+  the suggestion in the review bar while it is open, and in the page's
+  comments (badged "On a suggestion") once resolved. They are deleted
+  with the suggestion's detail after 90 days.
+- **Notifications**: triggers write `notifications` rows — a new
+  suggestion to the page's authors, a resolution to the suggester, a
+  reply to everyone on the thread — never to the actor, never twice
+  while an identical one is unread. The sidebar shows _Updates_ with an
+  unread count (opening it marks them read) and the page tree shows open
+  suggestions per page. The nightly `/api/cron/digest` (07:00 UTC) sends
+  one email per person for unread, not-yet-emailed rows through Resend
+  (titles, names and counts only) and closes them out. Settings → Your
+  account switches the digest off (`users.email_digest`).
+- Not yet: block-level suggestions (3), "with markup" export and the
+  GMC-bundle warning (4), `authored_content` defaults in the CESR pack
+  (5).

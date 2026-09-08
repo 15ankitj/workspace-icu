@@ -46,6 +46,7 @@ import {
   SuggestionPopover,
   SuggestionsBar,
   type SuggestionActor,
+  type SuggestionThreads,
 } from "@/components/editor/suggestions-ui";
 import { registerSuggestions } from "@/app/actions/suggestions";
 import { usePageMode } from "@/components/page/page-mode";
@@ -122,6 +123,7 @@ export function PageEditor({
   collab,
   detachedSources,
   actor: actorProp,
+  suggestionThreads = {},
 }: {
   pageId: string;
   workspaceId: string;
@@ -137,6 +139,8 @@ export function PageEditor({
   /** Who is editing, for suggestion mode (Appendix A, Part 2); read-only
    *  previews (share links, gallery) omit it. */
   actor?: SuggestionActor;
+  /** Rationale threads on the page's open suggestions, by suggestion id. */
+  suggestionThreads?: SuggestionThreads;
 }) {
   const actor = useMemo<SuggestionActor>(
     () =>
@@ -564,9 +568,11 @@ export function PageEditor({
         {editable && (
           <SuggestionsBar
             editor={editor}
+            workspaceId={workspaceId}
             pageId={pageId}
             actor={actor}
             spans={spans}
+            threads={suggestionThreads}
           />
         )}
         <div
@@ -581,6 +587,7 @@ export function PageEditor({
               actor={actor}
               span={active.span}
               position={active.position}
+              noteCount={suggestionThreads[active.span.id]?.length ?? 0}
             />
           )}
           <BlockNoteView

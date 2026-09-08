@@ -56,12 +56,15 @@ export function PageTree({
   pages,
   activePageId,
   canEdit,
+  pendingByPage = {},
 }: {
   userId: string;
   workspaceId: string;
   pages: TreePage[];
   activePageId: string | null;
   canEdit: boolean;
+  /** Open suggestions per page id (Appendix A §2.5). */
+  pendingByPage?: Record<string, number>;
 }) {
   const tree = useMemo(() => buildTree(pages), [pages]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -148,6 +151,7 @@ export function PageTree({
           workspaceId={workspaceId}
           activePageId={activePageId}
           canEdit={canEdit}
+          pendingByPage={pendingByPage}
           expanded={expanded}
           onToggle={toggle}
           dragId={dragId}
@@ -166,6 +170,7 @@ function TreeRow({
   workspaceId,
   activePageId,
   canEdit,
+  pendingByPage,
   expanded,
   onToggle,
   dragId,
@@ -178,6 +183,7 @@ function TreeRow({
   workspaceId: string;
   activePageId: string | null;
   canEdit: boolean;
+  pendingByPage: Record<string, number>;
   expanded: Set<string>;
   onToggle: (id: string) => void;
   dragId: string | null;
@@ -257,6 +263,14 @@ function TreeRow({
             {page.icon ?? "📄"}
           </span>
           <span className="truncate">{page.title || "Untitled"}</span>
+          {(pendingByPage[page.id] ?? 0) > 0 && (
+            <span
+              className="ml-1 shrink-0 rounded-full bg-amber-600/15 px-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-300"
+              title={`${pendingByPage[page.id]} open suggestion${pendingByPage[page.id] === 1 ? "" : "s"}`}
+            >
+              {pendingByPage[page.id]}
+            </span>
+          )}
           {page.is_private && (
             <Lock
               className="size-3 shrink-0 text-muted-foreground"
@@ -358,6 +372,7 @@ function TreeRow({
               workspaceId={workspaceId}
               activePageId={activePageId}
               canEdit={canEdit}
+              pendingByPage={pendingByPage}
               expanded={expanded}
               onToggle={onToggle}
               dragId={dragId}

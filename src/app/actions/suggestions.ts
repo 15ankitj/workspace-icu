@@ -64,3 +64,27 @@ export async function setPageAuthorship(
   if (error) throw new Error(`Could not update authorship: ${error.message}`);
   revalidatePath(`/w/${workspaceId}/p/${pageId}`);
 }
+
+/** Mark this user's unread notifications read (one workspace, or all). */
+export async function markNotificationsRead(workspaceId?: string) {
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("mark_notifications_read", {
+    p_workspace_id: workspaceId,
+  });
+  if (error)
+    throw new Error(`Could not update notifications: ${error.message}`);
+  if (workspaceId) revalidatePath(`/w/${workspaceId}`, "layout");
+}
+
+/** Daily digest opt-out (Appendix A §2.5), from account settings. */
+export async function setEmailDigest(formData: FormData) {
+  const workspaceId = String(formData.get("workspaceId") ?? "");
+  const enabled = String(formData.get("enabled") ?? "") === "true";
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("set_email_digest", {
+    p_enabled: enabled,
+  });
+  if (error)
+    throw new Error(`Could not update the digest setting: ${error.message}`);
+  revalidatePath(`/w/${workspaceId}/settings`);
+}

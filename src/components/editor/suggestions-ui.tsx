@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { BlockNoteEditor } from "@blocknote/core";
 import { selectSuggestion } from "@handlewithcare/prosemirror-suggest-changes";
-import { Check, ListChecks, Undo2, X } from "lucide-react";
+import { Check, ListChecks, MessageSquare, Undo2, X } from "lucide-react";
+import { addComment } from "@/app/actions/comments";
 import { resolveSuggestion } from "@/app/actions/suggestions";
 import {
   resolveAllInDocument,
@@ -25,6 +27,17 @@ import { excerptOf, isOwnSuggestion, suggesterName } from "@/lib/suggestions";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyEditor = BlockNoteEditor<any, any, any>;
+
+/** A rationale or reply on a suggestion (the comment model, §2.5). */
+export interface SuggestionNote {
+  id: string;
+  authorId: string;
+  authorName: string;
+  text: string;
+  createdAt: string;
+}
+
+export type SuggestionThreads = Record<string, SuggestionNote[]>;
 
 export interface SuggestionActor {
   userId: string;
@@ -158,6 +171,7 @@ export function SuggestionPopover({
   actor,
   span,
   position,
+  noteCount = 0,
 }: {
   editor: AnyEditor;
   pageId: string;
@@ -165,6 +179,7 @@ export function SuggestionPopover({
   span: SuggestionSpan;
   /** Container-relative pixel position of the span's start. */
   position: { left: number; top: number };
+  noteCount?: number;
 }) {
   const { resolve, busy, reasonDialog } = useResolve(editor, pageId, actor);
   const name = suggesterName(span.id, actor.members);
@@ -179,6 +194,7 @@ export function SuggestionPopover({
       >
         <span className="text-muted-foreground">
           {kindLabel(span)} · {mine ? "you" : (name ?? "a colleague")}
+          {noteCount ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}` : ""}
         </span>
         {canResolve && (
           <>
@@ -225,16 +241,21 @@ export function SuggestionPopover({
 /** The page's open suggestions: count, review list, accept/reject all. */
 export function SuggestionsBar({
   editor,
+  workspaceId,
   pageId,
   actor,
   spans,
+  threads,
 }: {
   editor: AnyEditor;
+  workspaceId: string;
   pageId: string;
   actor: SuggestionActor;
   spans: SuggestionSpan[];
+  threads: SuggestionThreads;
 }) {
   const [open, setOpen] = useState(false);
+  const [openThread, setOpenThread] = useState<string | null>(null);
   const { resolve, busy, reasonDialog } = useResolve(editor, pageId, actor);
   if (spans.length === 0) return null;
   const canResolve = actor.isAuthor || actor.isOwner;
@@ -318,58 +339,92 @@ export function SuggestionsBar({
           {spans.map((span) => {
             const mine = isOwnSuggestion(span.id, actor.userId);
             const name = suggesterName(span.id, actor.members);
+            const notes = threads[span.id] ?? [];
             return (
-              <li
-                key={span.id}
-                className="flex flex-wrap items-center gap-2 px-3 py-1.5"
-              >
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 truncate text-left hover:underline"
-                  title="Show in the page"
-                  onClick={() => {
-                    const view = editor.prosemirrorView;
-                    selectSuggestion(span.id)(view.state, view.dispatch);
-                    view.focus();
-                  }}
-                >
-                  <span className="mr-2 text-xs text-muted-foreground">
-                    {kindLabel(span)} · {mine ? "you" : (name ?? "a colleague")}
-                  </span>
-                  {excerptOf(span.text) || <em>formatting</em>}
-                </button>
-                {canResolve && (
-                  <>
+              <li key={span.id} className="px-3 py-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 truncate text-left hover:underline"
+                    title="Show in the page"
+                    onClick={() => {
+                      const view = editor.prosemirrorView;
+                      selectSuggestion(span.id)(view.state, view.dispatch);
+                      view.focus();
+                    }}
+                  >
+                    <span className="mr-2 text-xs text-muted-foreground">
+                      {kindLabel(span)} ·{" "}
+                      {mine ? "you" : (name ?? "a colleague")}
+                    </span>
+                    {excerptOf(span.text) || <em>formatting</em>}
+                  </button>
+                  {canResolve && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2"
+                        disabled={busy}
+                        onClick={() => resolve([span.id], "accepted")}
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2"
+                        disabled={busy}
+                        onClick={() => resolve([span.id], "rejected")}
+                      >
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  {mine && (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
                       disabled={busy}
-                      onClick={() => resolve([span.id], "accepted")}
+                      onClick={() => resolve([span.id], "withdrawn")}
                     >
-                      Accept
+                      Withdraw
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2"
-                      disabled={busy}
-                      onClick={() => resolve([span.id], "rejected")}
-                    >
-                      Reject
-                    </Button>
-                  </>
-                )}
-                {mine && (
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 px-2"
-                    disabled={busy}
-                    onClick={() => resolve([span.id], "withdrawn")}
+                    className="h-7 px-2 text-muted-foreground"
+                    aria-expanded={openThread === span.id}
+                    onClick={() =>
+                      setOpenThread((current) =>
+                        current === span.id ? null : span.id,
+                      )
+                    }
+                    title={
+                      mine
+                        ? "Explain your suggestion"
+                        : "Discuss this suggestion"
+                    }
                   >
-                    Withdraw
+                    <MessageSquare className="size-3.5" aria-hidden />
+                    {notes.length > 0
+                      ? notes.length
+                      : mine
+                        ? "Add note"
+                        : "Reply"}
                   </Button>
+                </div>
+                {openThread === span.id && (
+                  <SuggestionThread
+                    workspaceId={workspaceId}
+                    pageId={pageId}
+                    suggestionId={span.id}
+                    notes={notes}
+                    mine={mine}
+                    currentUserId={actor.userId}
+                  />
                 )}
               </li>
             );
@@ -377,6 +432,88 @@ export function SuggestionsBar({
         </ul>
       )}
       {reasonDialog}
+    </div>
+  );
+}
+
+/** The rationale thread under one suggestion: notes so far, and a box. */
+function SuggestionThread({
+  workspaceId,
+  pageId,
+  suggestionId,
+  notes,
+  mine,
+  currentUserId,
+}: {
+  workspaceId: string;
+  pageId: string;
+  suggestionId: string;
+  notes: SuggestionNote[];
+  mine: boolean;
+  currentUserId: string;
+}) {
+  const router = useRouter();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    const value = text.trim();
+    if (!value) return;
+    setBusy(true);
+    try {
+      await addComment(workspaceId, pageId, value, suggestionId);
+      setText("");
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Could not add the note",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-1 space-y-2 rounded-md bg-muted/40 p-2">
+      {notes.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {mine
+            ? "Say why you are proposing this — the author sees it with the change."
+            : "No note yet. Ask a question or explain your decision."}
+        </p>
+      )}
+      <ul className="space-y-1">
+        {notes.map((note) => (
+          <li key={note.id} className="text-sm">
+            <span className="font-medium">
+              {note.authorId === currentUserId ? "You" : note.authorName}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {" "}
+              ·{" "}
+              {new Date(note.createdAt).toLocaleString("en-GB", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })}
+            </span>
+            <span className="block whitespace-pre-wrap">{note.text}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex gap-2">
+        <Textarea
+          rows={2}
+          value={text}
+          placeholder={mine && notes.length === 0 ? "Rationale" : "Reply"}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void submit();
+          }}
+        />
+        <Button size="sm" disabled={busy || !text.trim()} onClick={submit}>
+          {busy ? "Sending…" : "Post"}
+        </Button>
+      </div>
     </div>
   );
 }

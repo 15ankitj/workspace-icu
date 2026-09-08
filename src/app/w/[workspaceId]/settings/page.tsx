@@ -25,6 +25,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DeleteAccountForm } from "./delete-account-form";
+import { setEmailDigest } from "@/app/actions/suggestions";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export default async function WorkspaceSettings({
     { data: members },
     { data: membership },
     { data: invites },
+    { data: me },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -79,7 +81,13 @@ export default async function WorkspaceSettings({
       .eq("workspace_id", workspaceId)
       .is("accepted_at", null)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("users")
+      .select("email_digest")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
+  const emailDigest = me?.email_digest ?? true;
   if (!workspace || !membership) notFound();
 
   const isOwner = membership.role === "owner";
@@ -304,6 +312,28 @@ export default async function WorkspaceSettings({
 
       <section className="space-y-3">
         <SectionHeading>Your account</SectionHeading>
+        <form
+          action={setEmailDigest}
+          className="flex flex-wrap items-center gap-3"
+        >
+          <input type="hidden" name="workspaceId" value={workspaceId} />
+          <input
+            type="hidden"
+            name="enabled"
+            value={emailDigest ? "false" : "true"}
+          />
+          <p className="text-sm">
+            <span className="font-medium">Daily email digest</span>
+            <span className="block text-muted-foreground">
+              One email a day, only when suggestions on your pages were made,
+              resolved or replied to. Currently{" "}
+              <strong>{emailDigest ? "on" : "off"}</strong>.
+            </span>
+          </p>
+          <SubmitButton size="sm" variant="secondary" pendingLabel="Saving…">
+            {emailDigest ? "Switch off" : "Switch on"}
+          </SubmitButton>
+        </form>
         <p className="text-sm text-muted-foreground">
           Deleting your account removes your personal workspace and every
           workspace where you are the only member, including their files.

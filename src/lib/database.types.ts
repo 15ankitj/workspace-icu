@@ -26,6 +26,7 @@ export type UserRow = {
   accepted_terms_at: string | null;
   accepted_aup_version: string | null;
   created_at: string;
+  email_digest: boolean;
 };
 
 export type OrganisationRow = {
@@ -161,6 +162,7 @@ export type CommentRow = {
   body: { text: string };
   resolved: boolean;
   created_at: string;
+  suggestion_id: string | null;
 };
 
 export type PageLinkRow = {
@@ -252,6 +254,24 @@ export type PageSuggestionRow = {
   resolved_by: string | null;
   resolution_reason: string | null;
   owner_override: boolean;
+};
+
+export type NotificationRow = {
+  id: string;
+  user_id: string;
+  workspace_id: string;
+  page_id: string;
+  suggestion_id: string | null;
+  kind:
+    | "suggestion_created"
+    | "suggestion_accepted"
+    | "suggestion_rejected"
+    | "suggestion_withdrawn"
+    | "suggestion_reply";
+  actor_id: string | null;
+  created_at: string;
+  read_at: string | null;
+  emailed_at: string | null;
 };
 
 export type SyncedEmbedRow = {
@@ -451,7 +471,54 @@ export type Database = {
         Insert: Partial<PageSuggestionRow> &
           Pick<PageSuggestionRow, "page_id" | "id" | "suggester_id">;
         Update: Partial<PageSuggestionRow>;
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "page_suggestions_page_id_fkey";
+            columns: ["page_id"];
+            isOneToOne: false;
+            referencedRelation: "pages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      notifications: {
+        Row: NotificationRow;
+        Insert: Partial<NotificationRow> &
+          Pick<
+            NotificationRow,
+            "user_id" | "workspace_id" | "page_id" | "kind"
+          >;
+        Update: Partial<NotificationRow>;
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_page_id_fkey";
+            columns: ["page_id"];
+            isOneToOne: false;
+            referencedRelation: "pages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_workspace_id_fkey";
+            columns: ["workspace_id"];
+            isOneToOne: false;
+            referencedRelation: "workspaces";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       synced_embeds: {
         Row: SyncedEmbedRow;
@@ -594,6 +661,14 @@ export type Database = {
       page_is_author: {
         Args: { p_page_id: string };
         Returns: boolean;
+      };
+      mark_notifications_read: {
+        Args: { p_workspace_id?: string };
+        Returns: number;
+      };
+      set_email_digest: {
+        Args: { p_enabled: boolean };
+        Returns: undefined;
       };
       search_pages: {
         Args: { p_query: string };
