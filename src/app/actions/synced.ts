@@ -53,6 +53,10 @@ export interface SyncedBlockView {
   /** The source page is authored content: only its author edits it,
    *  through any placement (Appendix A §2.5). */
   sourceAuthored: boolean;
+  /** This user authors the source page. */
+  sourceIsAuthor: boolean;
+  /** Authored source, editor rights, not an author: suggest instead. */
+  canSuggest: boolean;
   tombstone: boolean;
   deletedAt: string | null;
   canEdit: boolean;
@@ -109,6 +113,8 @@ export async function loadSyncedBlock(
     sourceIcon: row.source_icon === null ? null : String(row.source_icon),
     sourceDeleted: row.source_deleted === true,
     sourceAuthored: row.source_authored === true,
+    sourceIsAuthor: row.source_is_author === true,
+    canSuggest: row.can_suggest === true,
     tombstone: row.tombstone === true,
     deletedAt: row.deleted_at ? String(row.deleted_at) : null,
     canEdit: row.can_edit === true,

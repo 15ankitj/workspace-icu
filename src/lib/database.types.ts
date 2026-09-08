@@ -248,7 +248,7 @@ export type PageSuggestionRow = {
   suggester_id: string;
   kind: string;
   excerpt: string;
-  status: "open" | "accepted" | "rejected" | "withdrawn";
+  status: "open" | "accepted" | "rejected" | "withdrawn" | "stale";
   created_at: string;
   resolved_at: string | null;
   resolved_by: string | null;
@@ -267,7 +267,8 @@ export type NotificationRow = {
     | "suggestion_accepted"
     | "suggestion_rejected"
     | "suggestion_withdrawn"
-    | "suggestion_reply";
+    | "suggestion_reply"
+    | "suggestion_stale";
   actor_id: string | null;
   created_at: string;
   read_at: string | null;
@@ -661,6 +662,10 @@ export type Database = {
       page_is_author: {
         Args: { p_page_id: string };
         Returns: boolean;
+      };
+      mark_suggestions_stale: {
+        Args: { p_page_id: string; p_ids: string[] };
+        Returns: number;
       };
       mark_notifications_read: {
         Args: { p_workspace_id?: string };

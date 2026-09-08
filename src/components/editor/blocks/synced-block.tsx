@@ -23,7 +23,19 @@ import {
 } from "@/app/actions/synced";
 import { Blocks } from "@/components/render/blocks-renderer";
 import { innerSchema } from "@/components/editor/inner-schema";
-import { SuggestionsExtension } from "@/components/editor/suggestions";
+import {
+  SuggestionsExtension,
+  cleanDocument,
+  coordsOf,
+  installSuggestDispatch,
+  listSuggestions,
+  setSuggesting,
+  suggestionAtSelection,
+  type SuggestionSpan,
+} from "@/components/editor/suggestions";
+import { SuggestionPopover } from "@/components/editor/suggestions-ui";
+import { registerSuggestions } from "@/app/actions/suggestions";
+import { excerptOf, isOwnSuggestion } from "@/lib/suggestions";
 import {
   acquireRoom,
   releaseRoom,
@@ -172,14 +184,30 @@ function LiveContent({
   view,
   hostPageId,
   editable,
+  suggesting,
   collab,
 }: {
   view: SyncedBlockView;
   hostPageId: string;
+  /** Direct editing (author of an authored source, or any editor of a
+   *  plain one). */
   editable: boolean;
+  /** Authored source, this user is not its author: edits become
+   *  suggestions on the source page (Appendix A §2.5). */
+  suggesting: boolean;
   collab: { userName: string; userColour: string };
 }) {
+  const host = useSyncedHost();
+  const canType = editable || suggesting;
   const roomId = roomIdForSyncedBlock(view.id);
+  const [spans, setSpans] = useState<SuggestionSpan[]>([]);
+  const [active, setActive] = useState<{
+    span: SuggestionSpan;
+    position: { left: number; top: number };
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const knownSuggestions = useRef<Set<string> | null>(null);
+  const registerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [room] = useState<CollabRoom>(() =>
     acquireRoom(roomId, view.storedStateBase64),
   );
@@ -216,7 +244,7 @@ function LiveContent({
   // was ever opened), once, by an editor who may write.
   const seeded = useRef(false);
   useEffect(() => {
-    if (!editable || seeded.current) return;
+    if (!canType || seeded.current) return;
     let cancelled = false;
     void room.synced.then(() => {
       if (cancelled || seeded.current) return;
@@ -231,23 +259,61 @@ function LiveContent({
     return () => {
       cancelled = true;
     };
-  }, [room, editor, editable, view.blocks]);
+  }, [room, editor, canType, view.blocks]);
+
+  // Suggest mode inside the placement: this user's transactions become
+  // marks in the synced document, indexed under the *source* page.
+  const actor = host.actor;
+  useEffect(() => {
+    if (!suggesting || !actor) return;
+    let uninstall: (() => void) | null = null;
+    try {
+      uninstall = installSuggestDispatch(editor, actor.userId);
+      setSuggesting(editor, true);
+    } catch (error) {
+      console.error("Suggest mode unavailable in placement:", error);
+    }
+    return () => {
+      try {
+        uninstall?.();
+      } catch {
+        // View already gone.
+      }
+    };
+  }, [editor, suggesting, actor]);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
   useEffect(() => {
-    if (!editable) return;
+    if (!canType) return;
     const flush = () => {
       if (!dirty.current) return;
       dirty.current = false;
+      let blocks: EditorBlock[];
+      try {
+        blocks = cleanDocument(editor);
+      } catch {
+        return;
+      }
       saveSyncedBlock(
         view.id,
         bytesToBase64(Y.encodeStateAsUpdate(room.doc)),
-        editor.document as unknown as EditorBlock[],
+        blocks,
         hostPageId,
       ).catch((error) => {
-        console.error("Failed to save synced block:", error);
         dirty.current = true;
+        // A suggester's save may carry the author's unsaved edits; the
+        // author's client lands them shortly, so retry quietly.
+        if (
+          suggesting &&
+          error instanceof Error &&
+          error.message.includes("authored_content")
+        ) {
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          saveTimer.current = setTimeout(flush, 4000);
+          return;
+        }
+        console.error("Failed to save synced block:", error);
         toast({
           title: "Synced block not saved",
           description:
@@ -256,10 +322,49 @@ function LiveContent({
         });
       });
     };
+    const trackSuggestions = () => {
+      let current: SuggestionSpan[];
+      try {
+        current = listSuggestions(editor.prosemirrorState.doc);
+      } catch {
+        return;
+      }
+      setSpans(current);
+      if (!knownSuggestions.current) {
+        knownSuggestions.current = new Set(current.map((s) => s.id));
+        return;
+      }
+      if (!actor || !view.sourcePageId) return;
+      const fresh = current.filter(
+        (s) =>
+          !knownSuggestions.current!.has(s.id) &&
+          isOwnSuggestion(s.id, actor.userId),
+      );
+      if (fresh.length === 0) return;
+      if (registerTimer.current) clearTimeout(registerTimer.current);
+      registerTimer.current = setTimeout(() => {
+        const latest = listSuggestions(editor.prosemirrorState.doc);
+        const items = latest
+          .filter(
+            (s) =>
+              !knownSuggestions.current!.has(s.id) &&
+              isOwnSuggestion(s.id, actor.userId),
+          )
+          .map((s) => ({ id: s.id, kind: s.kind, excerpt: excerptOf(s.text) }));
+        for (const item of items) knownSuggestions.current!.add(item.id);
+        if (items.length > 0 && view.sourcePageId) {
+          registerSuggestions(view.sourcePageId, items).catch((error) =>
+            console.error("Failed to record suggestions:", error),
+          );
+        }
+      }, 2000);
+    };
+    trackSuggestions();
     const unsubscribe = editor.onChange(() => {
       dirty.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
+      trackSuggestions();
     });
     const onHide = () => {
       if (document.visibilityState === "hidden") flush();
@@ -269,18 +374,68 @@ function LiveContent({
       unsubscribe?.();
       document.removeEventListener("visibilitychange", onHide);
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      flush();
+      if (registerTimer.current) clearTimeout(registerTimer.current);
+      try {
+        flush();
+      } catch (error) {
+        console.warn("Final synced save skipped:", error);
+      }
     };
-  }, [editor, room, editable, view.id, hostPageId]);
+  }, [
+    editor,
+    room,
+    canType,
+    suggesting,
+    actor,
+    view.id,
+    view.sourcePageId,
+    hostPageId,
+  ]);
+
+  // Accept / reject / withdraw for the suggestion under the caret, with
+  // the source page's authorship deciding who may.
+  useEffect(() => {
+    if (!actor) return;
+    const unsubscribe = editor.onSelectionChange(() => {
+      const span = suggestionAtSelection(editor, spans);
+      const container = containerRef.current;
+      const coords = span ? coordsOf(editor, span.from) : null;
+      if (!span || !container || !coords) {
+        setActive(null);
+        return;
+      }
+      const box = container.getBoundingClientRect();
+      setActive({
+        span,
+        position: {
+          left: Math.max(0, coords.left - box.left),
+          top: Math.max(0, coords.top - box.top - 34),
+        },
+      });
+    }, true);
+    return () => unsubscribe?.();
+  }, [editor, spans, actor]);
 
   return (
-    <BlockNoteView
-      editor={editor}
-      editable={editable}
-      sideMenu={false}
-      slashMenu={editable}
-      formattingToolbar={editable}
-    />
+    <div ref={containerRef} className="relative">
+      {active && actor && view.sourcePageId && (
+        <SuggestionPopover
+          key={active.span.id}
+          editor={editor}
+          pageId={view.sourcePageId}
+          actor={{ ...actor, isAuthor: view.sourceIsAuthor }}
+          span={active.span}
+          position={active.position}
+        />
+      )}
+      <BlockNoteView
+        editor={editor}
+        editable={canType}
+        sideMenu={false}
+        slashMenu={canType}
+        formattingToolbar={canType}
+      />
+    </div>
   );
 }
 
@@ -399,15 +554,23 @@ function SyncedPlacement({
 
   const isSource = view.sourcePageId === host.hostPageId;
   const editable = host.editable && view.canEdit && !readOnly;
+  const suggesting =
+    host.editable &&
+    !editable &&
+    view.canSuggest &&
+    !readOnly &&
+    Boolean(host.actor);
   const cannotEditBecause = !host.editable
     ? null
     : readOnly
       ? "Read-only placement"
-      : !view.canEdit
-        ? view.sourceAuthored
-          ? "Authored content: only its author edits it"
-          : "You can't edit the source page"
-        : null;
+      : suggesting
+        ? "Authored content: your edits here are suggestions"
+        : !view.canEdit
+          ? view.sourceAuthored
+            ? "Authored content: only its author edits it"
+            : "You can't edit the source page"
+          : null;
   const sourceHref = view.sourcePageId
     ? `/w/${workspaceId}/p/${view.sourcePageId}`
     : null;
@@ -512,6 +675,7 @@ function SyncedPlacement({
           view={view}
           hostPageId={host.hostPageId}
           editable={editable}
+          suggesting={suggesting}
           collab={host.collab}
         />
       ) : (

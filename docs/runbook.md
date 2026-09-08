@@ -285,6 +285,21 @@ says until the author accepts (brief §2.4).
   one email per person for unread, not-yet-emailed rows through Resend
   (titles, names and counts only) and closes them out. Settings → Your
   account switches the digest off (`users.email_digest`).
-- Not yet: block-level suggestions (3), "with markup" export and the
-  GMC-bundle warning (4), `authored_content` defaults in the CESR pack
-  (5).
+- **Block-level suggestions**: inserting, deleting or dragging whole
+  blocks in Suggest mode marks the blocks themselves (a left rule in the
+  suggestion colour); a drag-move is one suggestion, "Move block". Accept
+  and reject work as for inline changes.
+- **Context changed** (§2.4, migration 0021): when an author's own edit
+  removes the text under an open suggestion, the page reports it after a
+  short grace period; the suggestion becomes `stale`, the suggester is
+  notified, and the review bar lists it under "Context changed" with
+  _Withdraw_ (suggester) or _Dismiss_ (author). Stale suggestions can
+  never be accepted. Remote edits and page loads never trigger this.
+- **Placements of authored synced blocks**: an editor who is not the
+  source page's author gets Suggest mode inside the placement ("your
+  edits here are suggestions"); suggestions are indexed under the source
+  page, the source's authors accept or reject from the caret popover in
+  any placement, and `save_synced_block` refuses a non-author's change
+  to the block's clean text.
+- Not yet: "with markup" export and the GMC-bundle warning (4),
+  `authored_content` defaults in the CESR pack (5).

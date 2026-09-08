@@ -4,6 +4,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import * as Y from "yjs";
 import type { Awareness } from "y-protocols/awareness";
 import { filterSuggestionItems } from "@blocknote/core";
@@ -45,12 +46,16 @@ import {
 import {
   SuggestionPopover,
   SuggestionsBar,
+  type StaleSuggestion,
   type SuggestionActor,
   type SuggestionThreads,
 } from "@/components/editor/suggestions-ui";
-import { registerSuggestions } from "@/app/actions/suggestions";
+import {
+  markSuggestionsStale,
+  registerSuggestions,
+} from "@/app/actions/suggestions";
 import { usePageMode } from "@/components/page/page-mode";
-import { excerptOf, isOwnSuggestion } from "@/lib/suggestions";
+import { excerptOf, isOwnSuggestion, staleCandidates } from "@/lib/suggestions";
 import {
   SourceRemovalDialog,
   type SourceRemovalTarget,
@@ -63,6 +68,7 @@ import {
 } from "@/components/editor/synced-host-context";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
+import { toast } from "@/components/ui/toast";
 import {
   acquireRoom,
   releaseRoom,
@@ -81,6 +87,9 @@ const SAVE_DEBOUNCE_MS = 1500;
 const AUTHORED_RETRY_MS = 4000;
 /** New suggestions are indexed once typing pauses. */
 const REGISTER_DEBOUNCE_MS = 2000;
+/** Marks removed by this user's edit are reported as "context changed"
+ *  once it is clear they are not coming back (cut and paste, undo). */
+const STALE_GRACE_MS = 1500;
 /** A cut placement may be about to be pasted back; wait before asking. */
 const REMOVAL_GRACE_MS = 1200;
 
@@ -124,6 +133,8 @@ export function PageEditor({
   detachedSources,
   actor: actorProp,
   suggestionThreads = {},
+  openSuggestionIds = [],
+  staleSuggestions = [],
 }: {
   pageId: string;
   workspaceId: string;
@@ -141,6 +152,11 @@ export function PageEditor({
   actor?: SuggestionActor;
   /** Rationale threads on the page's open suggestions, by suggestion id. */
   suggestionThreads?: SuggestionThreads;
+  /** Suggestions the server still holds open, for context-changed
+   *  detection (§2.4). */
+  openSuggestionIds?: string[];
+  /** Suggestions whose context changed, awaiting withdrawal or dismissal. */
+  staleSuggestions?: StaleSuggestion[];
 }) {
   const actor = useMemo<SuggestionActor>(
     () =>
@@ -152,6 +168,7 @@ export function PageEditor({
     initialUploadCount,
   });
   const { report } = useSaveStatus();
+  const router = useRouter();
   const roomId = roomIdForPage(pageId);
   const { mode, setPending } = usePageMode();
   const modeRef = useRef(mode);
@@ -166,6 +183,10 @@ export function PageEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const knownSuggestions = useRef<Set<string> | null>(null);
   const registerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openIds = useRef(new Set(openSuggestionIds));
+  const previousIds = useRef<Set<string> | null>(null);
+  const staleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [stale, setStale] = useState<StaleSuggestion[]>(staleSuggestions);
 
   // Source placements on this page (Appendix A §1.3 rule 6): removing one
   // is not like removing any other block, so the editor asks what should
@@ -318,7 +339,7 @@ export function PageEditor({
     // Suggestions present in the document (mine or anyone's): feed the
     // review bar and the header badge, and index the ones this user just
     // made (brief §2.3) once typing pauses.
-    const trackSuggestions = () => {
+    const trackSuggestions = (local = false) => {
       let current: SuggestionSpan[];
       try {
         current = listSuggestions(editor.prosemirrorState.doc);
@@ -328,6 +349,45 @@ export function PageEditor({
       }
       setSpans(current);
       setPending(current.length);
+      const currentIds = current.map((s) => s.id);
+      // Context changed (§2.4): marks this user's own edit removed, for
+      // suggestions the server still holds open. Checked again after a
+      // grace period so a cut about to be pasted back is not reported.
+      if (local && previousIds.current) {
+        const candidates = staleCandidates(
+          previousIds.current,
+          currentIds,
+          openIds.current,
+        ).filter((id) => !isOwnSuggestion(id, actor.userId));
+        if (candidates.length > 0) {
+          if (staleTimer.current) clearTimeout(staleTimer.current);
+          staleTimer.current = setTimeout(() => {
+            const present = new Set(
+              listSuggestions(editor.prosemirrorState.doc).map((s) => s.id),
+            );
+            const gone = candidates.filter(
+              (id) => !present.has(id) && openIds.current.has(id),
+            );
+            if (gone.length === 0) return;
+            for (const id of gone) openIds.current.delete(id);
+            markSuggestionsStale(pageId, gone)
+              .then((n) => {
+                if (n > 0) {
+                  toast({
+                    title: `${n} suggestion${n === 1 ? "" : "s"} no longer appl${n === 1 ? "ies" : "y"}`,
+                    description:
+                      "Your edit changed the text it proposed to alter; the suggester has been told.",
+                  });
+                  router.refresh();
+                }
+              })
+              .catch((error) =>
+                console.error("Failed to mark suggestions stale:", error),
+              );
+          }, STALE_GRACE_MS);
+        }
+      }
+      previousIds.current = new Set(currentIds);
       if (!knownSuggestions.current) {
         knownSuggestions.current = new Set(current.map((s) => s.id));
         return;
@@ -352,7 +412,10 @@ export function PageEditor({
             kind: s.kind,
             excerpt: excerptOf(s.text),
           }));
-        for (const item of items) knownSuggestions.current!.add(item.id);
+        for (const item of items) {
+          knownSuggestions.current!.add(item.id);
+          openIds.current.add(item.id);
+        }
         if (items.length > 0) {
           registerSuggestions(pageId, items).catch((error) =>
             console.error("Failed to record suggestions:", error),
@@ -366,7 +429,8 @@ export function PageEditor({
       dirty.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(flush, SAVE_DEBOUNCE_MS);
-      trackSuggestions();
+      const changes = getChanges() as unknown as PlacementChange[];
+      trackSuggestions(changes.some((c) => c.source.type !== "yjs-remote"));
 
       // Did this user just remove a source placement? Ask once it is clear
       // the block is not coming straight back (cut and paste, undo).
@@ -401,6 +465,7 @@ export function PageEditor({
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (removalCheck.current) clearTimeout(removalCheck.current);
       if (registerTimer.current) clearTimeout(registerTimer.current);
+      if (staleTimer.current) clearTimeout(staleTimer.current);
       try {
         flush();
       } catch (error) {
@@ -409,7 +474,16 @@ export function PageEditor({
         console.warn("Final save skipped:", error);
       }
     };
-  }, [editor, pageId, room, editable, report, setPending, actor.userId]);
+  }, [
+    editor,
+    pageId,
+    room,
+    editable,
+    report,
+    setPending,
+    actor.userId,
+    router,
+  ]);
 
   // Suggest mode: route this user's transactions through the suggestion
   // transform while it is on; the view is mounted by the time effects run.
@@ -500,8 +574,18 @@ export function PageEditor({
       noteSource: (id, info) => {
         sourcesRef.current.set(id, info);
       },
+      actor: actorProp ? actor : null,
     }),
-    [pageId, workspaceId, editable, isPrivate, collab, allocator],
+    [
+      pageId,
+      workspaceId,
+      editable,
+      isPrivate,
+      collab,
+      allocator,
+      actorProp,
+      actor,
+    ],
   );
 
   return (
@@ -573,6 +657,12 @@ export function PageEditor({
             actor={actor}
             spans={spans}
             threads={suggestionThreads}
+            stale={stale}
+            onResolved={(id) => openIds.current.delete(id)}
+            onStaleResolved={(id) => {
+              setStale((list) => list.filter((item) => item.id !== id));
+              router.refresh();
+            }}
           />
         )}
         <div
@@ -588,6 +678,7 @@ export function PageEditor({
               span={active.span}
               position={active.position}
               noteCount={suggestionThreads[active.span.id]?.length ?? 0}
+              onResolved={(id) => openIds.current.delete(id)}
             />
           )}
           <BlockNoteView

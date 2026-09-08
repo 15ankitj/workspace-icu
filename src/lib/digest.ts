@@ -9,7 +9,8 @@ export type NotificationKind =
   | "suggestion_accepted"
   | "suggestion_rejected"
   | "suggestion_withdrawn"
-  | "suggestion_reply";
+  | "suggestion_reply"
+  | "suggestion_stale";
 
 export interface DigestRow {
   workspaceId: string;
@@ -83,6 +84,10 @@ const LABELS: Record<NotificationKind, [string, string]> = {
   suggestion_rejected: ["suggestion rejected", "suggestions rejected"],
   suggestion_withdrawn: ["suggestion withdrawn", "suggestions withdrawn"],
   suggestion_reply: ["reply", "replies"],
+  suggestion_stale: [
+    "suggestion no longer applies",
+    "suggestions no longer apply",
+  ],
 };
 
 const ORDER: NotificationKind[] = [
@@ -91,6 +96,7 @@ const ORDER: NotificationKind[] = [
   "suggestion_accepted",
   "suggestion_rejected",
   "suggestion_withdrawn",
+  "suggestion_stale",
 ];
 
 /** "2 new suggestions, 1 reply" */
@@ -122,6 +128,8 @@ export function describeNotification(
       return `${who} withdrew a suggestion`;
     case "suggestion_reply":
       return `${who} replied on a suggestion`;
+    case "suggestion_stale":
+      return `${who} changed the text under your suggestion — it no longer applies`;
   }
 }
 
