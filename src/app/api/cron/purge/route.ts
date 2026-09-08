@@ -45,6 +45,7 @@ export async function GET(request: Request) {
     versions: 0,
     syncedRooms: 0,
     syncedTombstones: 0,
+    suggestions: 0,
   };
 
   async function removeObjects(paths: string[]) {
@@ -138,6 +139,19 @@ export async function GET(request: Request) {
       .eq("id", workspace.id);
     if (!error) summary.workspaces += 1;
   }
+
+  // Resolved-suggestion detail (Appendix A §2.3): the audit pair stays,
+  // the excerpt and reason go with page history at 90 days.
+  const suggestionCutoff = new Date(
+    Date.now() - VERSION_DAYS * 86_400_000,
+  ).toISOString();
+  const { data: resolvedSuggestions } = await admin
+    .from("page_suggestions")
+    .delete()
+    .neq("status", "open")
+    .lt("resolved_at", suggestionCutoff)
+    .select("id");
+  summary.suggestions = resolvedSuggestions?.length ?? 0;
 
   // Page history retention (brief §8: 90 days).
   const versionCutoff = new Date(

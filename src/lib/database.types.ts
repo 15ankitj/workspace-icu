@@ -77,6 +77,8 @@ export type PageRow = {
   description: string;
   updated_by: string | null;
   properties: Json;
+  authored_content: boolean;
+  co_authors: string[];
 };
 
 export type FavouriteRow = {
@@ -236,6 +238,20 @@ export type SyncedBlockRow = {
   updated_at: string;
   deleted_at: string | null;
   content_purged_at: string | null;
+};
+
+export type PageSuggestionRow = {
+  page_id: string;
+  id: string;
+  suggester_id: string;
+  kind: string;
+  excerpt: string;
+  status: "open" | "accepted" | "rejected" | "withdrawn";
+  created_at: string;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_reason: string | null;
+  owner_override: boolean;
 };
 
 export type SyncedEmbedRow = {
@@ -430,6 +446,13 @@ export type Database = {
         Update: Partial<SyncedBlockRow>;
         Relationships: [];
       };
+      page_suggestions: {
+        Row: PageSuggestionRow;
+        Insert: Partial<PageSuggestionRow> &
+          Pick<PageSuggestionRow, "page_id" | "id" | "suggester_id">;
+        Update: Partial<PageSuggestionRow>;
+        Relationships: [];
+      };
       synced_embeds: {
         Row: SyncedEmbedRow;
         Insert: SyncedEmbedRow;
@@ -546,6 +569,31 @@ export type Database = {
       purge_synced_tombstones: {
         Args: { p_cutoff: string };
         Returns: number;
+      };
+      register_suggestions: {
+        Args: { p_page_id: string; p_items: Json };
+        Returns: number;
+      };
+      resolve_suggestion: {
+        Args: {
+          p_page_id: string;
+          p_id: string;
+          p_outcome: string;
+          p_reason?: string;
+        };
+        Returns: undefined;
+      };
+      set_page_authorship: {
+        Args: {
+          p_page_id: string;
+          p_authored: boolean;
+          p_co_authors: string[];
+        };
+        Returns: undefined;
+      };
+      page_is_author: {
+        Args: { p_page_id: string };
+        Returns: boolean;
       };
       search_pages: {
         Args: { p_query: string };

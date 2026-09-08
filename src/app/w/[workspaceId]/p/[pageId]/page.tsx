@@ -15,6 +15,7 @@ import { CommentsPanel } from "@/components/page/comments-panel";
 import { BacklinksPanel } from "@/components/page/backlinks-panel";
 import { TemplateUpdateBanner } from "@/components/page/template-update-banner";
 import { SaveStatusProvider } from "@/components/page/save-status";
+import { PageModeProvider, PageModeToggle } from "@/components/page/page-mode";
 import { PageShell } from "@/components/ui/page-shell";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function PageView({
   const { data: page } = await supabase
     .from("pages")
     .select(
-      "id, workspace_id, parent_page_id, title, icon, cover_url, description, properties, is_private, full_width, small_text, created_by, created_at, updated_by, updated_at, deleted_at, template_id, template_version",
+      "id, workspace_id, parent_page_id, title, icon, cover_url, description, properties, is_private, full_width, small_text, created_by, created_at, updated_by, updated_at, deleted_at, template_id, template_version, authored_content, co_authors",
     )
     .eq("id", pageId)
     .eq("workspace_id", workspaceId)
@@ -149,6 +150,10 @@ export default async function PageView({
   const canEdit = isOwner || membership?.role === "editor";
   const canEditThisPage =
     canEdit && (!page.is_private || page.created_by === user.id);
+  // Suggestion mode (Appendix A §2.2): authors edit authored pages, others
+  // suggest; owners may resolve with a reason.
+  const isAuthor =
+    page.created_by === user.id || (page.co_authors ?? []).includes(user.id);
   const initialContent = buildDocument(blockRows ?? []);
   const allPages = workspacePages ?? [];
   const linkablePages = allPages
@@ -301,6 +306,16 @@ export default async function PageView({
       smallText={page.small_text}
       canEdit={canEditThisPage}
       isPlatformOwner={Boolean(platformOwner)}
+      authorship={
+        canEditThisPage && (isAuthor || isOwner)
+          ? {
+              creatorId: page.created_by,
+              authored: page.authored_content,
+              coAuthors: page.co_authors ?? [],
+              members,
+            }
+          : null
+      }
       share={
         canEditThisPage
           ? {
@@ -314,128 +329,137 @@ export default async function PageView({
 
   return (
     <SaveStatusProvider>
-      <PageShell
-        width={page.full_width ? "full" : "wide"}
-        className="min-h-screen gap-6 pt-0 md:pt-0"
+      <PageModeProvider
+        canEdit={canEditThisPage}
+        authored={page.authored_content}
+        isAuthor={isAuthor}
+        suggestionsAvailable={Boolean(collab)}
       >
-        <PageTopBar
-          workspaceId={workspaceId}
-          workspaceName={workspace?.name ?? "Workspace"}
-          pageId={page.id}
-          title={page.title}
-          icon={page.icon}
-          crumbs={crumbs}
-          edited={{
-            at: page.updated_at,
-            name: nameOf(page.updated_by),
-            isYou: page.updated_by === user.id,
-          }}
-          created={{ at: page.created_at, name: nameOf(page.created_by) }}
-          commentCount={comments.filter((c) => !c.resolved).length}
-          isFavourite={Boolean(favourite)}
-          canEdit={canEditThisPage}
-          collab={
-            collab
-              ? {
-                  storedStateBase64: collab.storedStateBase64,
-                  userName: collab.userName,
-                }
-              : null
-          }
-          actions={menu}
-        />
-
-        {templateUpdate && canEditThisPage && (
-          <TemplateUpdateBanner
+        <PageShell
+          width={page.full_width ? "full" : "wide"}
+          className="min-h-screen gap-6 pt-0 md:pt-0"
+        >
+          <PageTopBar
             workspaceId={workspaceId}
+            workspaceName={workspace?.name ?? "Workspace"}
             pageId={page.id}
-            parentPageId={page.parent_page_id}
-            templateId={templateUpdate.templateId}
-            templateName={templateUpdate.templateName}
-            currentVersion={page.template_version ?? 0}
-            latestVersion={templateUpdate.latestVersion}
-            changes={templateUpdate.changes}
+            title={page.title}
+            icon={page.icon}
+            crumbs={crumbs}
+            edited={{
+              at: page.updated_at,
+              name: nameOf(page.updated_by),
+              isYou: page.updated_by === user.id,
+            }}
+            created={{ at: page.created_at, name: nameOf(page.created_by) }}
+            commentCount={comments.filter((c) => !c.resolved).length}
+            isFavourite={Boolean(favourite)}
+            canEdit={canEditThisPage}
+            modeToggle={<PageModeToggle />}
+            collab={
+              collab
+                ? {
+                    storedStateBase64: collab.storedStateBase64,
+                    userName: collab.userName,
+                  }
+                : null
+            }
+            actions={menu}
           />
-        )}
 
-        <div className="space-y-4">
-          {page.cover_url && (
-            <PageCover
+          {templateUpdate && canEditThisPage && (
+            <TemplateUpdateBanner
+              workspaceId={workspaceId}
               pageId={page.id}
-              cover={page.cover_url}
+              parentPageId={page.parent_page_id}
+              templateId={templateUpdate.templateId}
+              templateName={templateUpdate.templateName}
+              currentVersion={page.template_version ?? 0}
+              latestVersion={templateUpdate.latestVersion}
+              changes={templateUpdate.changes}
+            />
+          )}
+
+          <div className="space-y-4">
+            {page.cover_url && (
+              <PageCover
+                pageId={page.id}
+                cover={page.cover_url}
+                canEdit={canEditThisPage}
+              />
+            )}
+            <PageHeader
+              pageId={page.id}
+              initialTitle={page.title}
+              initialIcon={page.icon}
+              initialDescription={page.description}
+              isPrivate={page.is_private}
+              canEdit={canEditThisPage}
+              addCover={
+                !page.cover_url && canEditThisPage ? (
+                  <AddCoverButton pageId={page.id} />
+                ) : undefined
+              }
+            />
+            <PageDetails
+              pageId={page.id}
+              initial={properties}
+              created={{
+                id: page.created_by,
+                name: nameOf(page.created_by),
+                at: page.created_at,
+              }}
+              edited={{
+                id: page.updated_by,
+                name: nameOf(page.updated_by),
+                at: page.updated_at,
+              }}
+              members={people}
+              siblingSelectValues={[...selectValues].sort()}
+              canEdit={canEditThisPage}
+            />
+          </div>
+
+          {(subPages.length > 0 || canEditThisPage) && subPages.length > 0 && (
+            <SubPages
+              workspaceId={workspaceId}
+              pageId={page.id}
+              pages={subPages}
+              currentUserId={user.id}
               canEdit={canEditThisPage}
             />
           )}
-          <PageHeader
+
+          <PageEditorLoader
+            key={page.id}
             pageId={page.id}
-            initialTitle={page.title}
-            initialIcon={page.icon}
-            initialDescription={page.description}
+            workspaceId={workspaceId}
+            linkablePages={linkablePages}
+            members={members}
+            initialContent={initialContent}
+            editable={canEditThisPage}
             isPrivate={page.is_private}
-            canEdit={canEditThisPage}
-            addCover={
-              !page.cover_url && canEditThisPage ? (
-                <AddCoverButton pageId={page.id} />
-              ) : undefined
-            }
+            smallText={page.small_text}
+            initialUploadCount={uploadCount ?? 0}
+            collab={collab}
+            detachedSources={detachedSources}
+            actor={{ userId: user.id, isAuthor, isOwner, members }}
           />
-          <PageDetails
-            pageId={page.id}
-            initial={properties}
-            created={{
-              id: page.created_by,
-              name: nameOf(page.created_by),
-              at: page.created_at,
-            }}
-            edited={{
-              id: page.updated_by,
-              name: nameOf(page.updated_by),
-              at: page.updated_at,
-            }}
-            members={people}
-            siblingSelectValues={[...selectValues].sort()}
-            canEdit={canEditThisPage}
-          />
-        </div>
 
-        {(subPages.length > 0 || canEditThisPage) && subPages.length > 0 && (
-          <SubPages
-            workspaceId={workspaceId}
-            pageId={page.id}
-            pages={subPages}
-            currentUserId={user.id}
-            canEdit={canEditThisPage}
-          />
-        )}
+          <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />
 
-        <PageEditorLoader
-          key={page.id}
-          pageId={page.id}
-          workspaceId={workspaceId}
-          linkablePages={linkablePages}
-          members={members}
-          initialContent={initialContent}
-          editable={canEditThisPage}
-          isPrivate={page.is_private}
-          smallText={page.small_text}
-          initialUploadCount={uploadCount ?? 0}
-          collab={collab}
-          detachedSources={detachedSources}
-        />
-
-        <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />
-
-        <div id="comments">
-          <CommentsPanel
-            workspaceId={workspaceId}
-            pageId={page.id}
-            comments={comments}
-            currentUserId={user.id}
-            canComment={canEditThisPage}
-            isOwner={isOwner}
-          />
-        </div>
-      </PageShell>
+          <div id="comments">
+            <CommentsPanel
+              workspaceId={workspaceId}
+              pageId={page.id}
+              comments={comments}
+              currentUserId={user.id}
+              canComment={canEditThisPage}
+              isOwner={isOwner}
+            />
+          </div>
+        </PageShell>
+      </PageModeProvider>
     </SaveStatusProvider>
   );
 }

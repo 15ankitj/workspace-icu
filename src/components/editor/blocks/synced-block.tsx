@@ -23,6 +23,7 @@ import {
 } from "@/app/actions/synced";
 import { Blocks } from "@/components/render/blocks-renderer";
 import { innerSchema } from "@/components/editor/inner-schema";
+import { SuggestionsExtension } from "@/components/editor/suggestions";
 import {
   acquireRoom,
   releaseRoom,
@@ -196,6 +197,7 @@ function LiveContent({
     {
       schema: innerSchema,
       extensions: [
+        SuggestionsExtension(),
         CollaborationExtension({
           fragment: room.fragment,
           user: { name: collab.userName, color: collab.userColour },
@@ -402,7 +404,9 @@ function SyncedPlacement({
     : readOnly
       ? "Read-only placement"
       : !view.canEdit
-        ? "You can't edit the source page"
+        ? view.sourceAuthored
+          ? "Authored content: only its author edits it"
+          : "You can't edit the source page"
         : null;
   const sourceHref = view.sourcePageId
     ? `/w/${workspaceId}/p/${view.sourcePageId}`
