@@ -22,8 +22,15 @@ anywhere.
 ### Building and installing
 
 ```
-npx tsx scripts/build-cesr-pack.ts > content/cesr-journey.snapshots.json
+npx tsx scripts/build-cesr-pack.ts > /tmp/pack.json \
+  && mv /tmp/pack.json content/cesr-journey.snapshots.json \
+  && npx prettier --write content/cesr-journey.snapshots.json
 ```
+
+Build to a temporary file: redirecting straight onto the snapshots file
+truncates it before the script has read the previous page keys, and
+every page would get a fresh key (which "Add the new pages" would then
+treat as new).
 
 The snapshots file is committed and bundled with the app. The platform
 owner installs a pack from the gallery ("Platform packs" section, owner
@@ -51,3 +58,17 @@ key; a placement whose key already exists in the workspace resolves to
 that block; otherwise the placement is copied as ordinary content. That
 is how the meeting notes' HiLLO review tables bind to the tables the
 CESR Journey pages own.
+
+### Authored content (v3)
+
+A pack page can carry `authored: true` (Appendix A §2.2). Its copies are
+authored content: the person who starts from the template is the
+creator and so the author; other editors open the page in Suggest mode
+and propose changes for the author to accept or reject. The CESR Journey
+marks **Reflections** and the **Application narrative** (gap statement
+and the narrative for the form); the **Reflection** page template is
+authored too. Meeting records, HiLLO checklists and evidence logs stay
+direct-edit. The flag travels in snapshot format 3 as
+`authored_content` on the page and is set by `insert_template_pages`
+(migration 0022); a workspace template saved from an authored page
+carries it as well.

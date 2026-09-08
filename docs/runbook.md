@@ -320,4 +320,13 @@ says until the author accepts (brief §2.4).
   those marks into a `suggestion` attribute on every block-level node (a
   JSON string, not rendered) and restores the marks from it on documents
   that arrive from Yjs; the markup export reads the same attribute.
-- Not yet: `authored_content` defaults in the CESR pack (5).
+- **Pack defaults** (§2.2, slice 5, migration 0022): template snapshots
+  (format 3) carry `authored_content` per page and
+  `insert_template_pages` sets it, with the instantiating user as
+  creator and therefore author. CESR Journey v3 marks Reflections and
+  the new Application narrative page (gap statement and the narrative
+  for the form); the Reflection page template (v2) is authored as well.
+  Meeting records, HiLLO checklists and evidence logs stay direct-edit.
+  Existing copies are untouched: _Add the new pages_ brings the
+  Application narrative, and an existing Reflections page is made
+  authored from its page menu → Authorship.

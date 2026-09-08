@@ -9,6 +9,7 @@ import {
   divider,
   fill,
   h2,
+  h3,
   i,
   p,
   pageLink,
@@ -34,6 +35,11 @@ export interface PackPage {
   parentId: string | null;
   title: string;
   icon: string;
+  /** Authored content (Appendix A §2.2): the candidate's own voice. A
+   *  copy opens non-authors in Suggest mode; the candidate, as creator,
+   *  accepts or rejects. Reflections and application narrative only —
+   *  meeting records, HiLLO checklists and evidence logs stay direct-edit. */
+  authored?: boolean;
   /** Blocks, or groups of blocks from `bullets`/`todos`; flattened on build. */
   blocks: (EditorBlock | EditorBlock[])[];
 }
@@ -147,6 +153,7 @@ export function cesrJourney(): PackTemplate {
     picu: randomUUID(),
     neuro: randomUUID(),
     reflections: randomUUID(),
+    narrative: randomUUID(),
     evidence: randomUUID(),
     resources: randomUUID(),
   };
@@ -189,7 +196,15 @@ export function cesrJourney(): PackTemplate {
       ]),
       bullet([
         b("Reflections"),
-        t(" — quick capture with the reflection template."),
+        t(
+          " — quick capture with the reflection template. Yours to write: supervisors suggest changes, you accept them.",
+        ),
+      ]),
+      bullet([
+        b("Application narrative"),
+        t(
+          " — your gap statement and the narrative for the application form, in your own voice.",
+        ),
       ]),
       bullet([
         b("Evidence index"),
@@ -202,6 +217,7 @@ export function cesrJourney(): PackTemplate {
       h2("What to share with your supervisor"),
       bullets([
         "Invite your supervisor as an Editor so they can write in the Supervisor comments callouts and co-edit meeting pages live.",
+        "Reflections and the Application narrative are authored content: your supervisor opens them in Suggest mode and proposes changes; you accept or reject each one, so the submission stays your voice. Page menu → Authorship shows who counts as an author.",
         "Keep drafts and personal notes as Private pages (page menu) — they stay yours even in a shared workspace.",
         "Before each meeting, tick the KCs you believe you have evidenced and link the evidence; the meeting page then writes itself.",
       ]),
@@ -479,6 +495,7 @@ export function cesrJourney(): PackTemplate {
     parentId: null,
     title: "Reflections",
     icon: "💭",
+    authored: true,
     blocks: [
       howTo(
         "capture quickly, reflect properly later. Start each reflection from the Reflection template in the gallery as a sub-page here, then link it from the HiLLO it evidences.",
@@ -496,6 +513,64 @@ export function cesrJourney(): PackTemplate {
           [fill("e.g. 3 / 3.2")],
           [fill("link")],
         ],
+      ]),
+    ],
+  };
+
+  const narrative: PackPage = {
+    id: ids.narrative,
+    parentId: null,
+    title: "Application narrative",
+    icon: "📝",
+    authored: true,
+    blocks: [
+      howTo(
+        "this page is your voice for the application: the gap statement and the narrative the form asks for. Your supervisor opens it in Suggest mode — accept what improves it, reject what changes what you mean. Build it from the HiLLO pages and the Evidence index; write in general terms with no patient details.",
+      ),
+      noPhi(),
+      h2("Summary of experience"),
+      p([
+        fill(
+          "your career in ICM so far — posts, settings, duration, level of responsibility — in a few paragraphs",
+        ),
+      ]),
+      h2("How my experience meets each HiLLO"),
+      p([
+        i(
+          "One short paragraph per outcome: what you did, where the evidence is (Evidence index numbers), and how it shows the capability. Draft here, then paste into the application form.",
+        ),
+      ]),
+      ...Array.from({ length: HILLO_COUNT }, (_, index) => [
+        h3(`HiLLO ${index + 1}`),
+        p([fill("narrative"), t(" — evidence: "), fill("index numbers")]),
+      ]).flat(),
+      h2("Gap statement"),
+      p([
+        i(
+          "Where your evidence is thinner than the curriculum expects, say so, and say what you did or will do about it. Assessors read honesty as insight.",
+        ),
+      ]),
+      table([
+        ["Gap", "Why it exists", "What I did / will do", "Evidence"],
+        [
+          [fill("HiLLO / KC")],
+          [fill("e.g. no PICU placement in this post")],
+          [fill("placement, course, secondment, supervised cases")],
+          [fill("index numbers")],
+        ],
+      ]),
+      h2("Statement for the application form"),
+      p([
+        fill(
+          "the final narrative, assembled from the sections above, in the word limit the form sets",
+        ),
+      ]),
+      h2("Checks before you paste it in"),
+      ...todos([
+        "Every claim points at an item in the Evidence index",
+        "No patient-identifiable information anywhere",
+        "All suggestions on this page accepted or rejected (exports are the clean state)",
+        "Read aloud once: it sounds like you",
       ]),
     ],
   };
@@ -634,9 +709,9 @@ export function cesrJourney(): PackTemplate {
     category: "Training & Portfolio",
     audience: "ICM CESR / Portfolio Pathway candidates and their supervisors",
     kind: "workspace",
-    version: 2,
+    version: 3,
     changelog:
-      "Each HiLLO page gains a synced “Progress at a glance” table; the HiLLOs overview shows all fourteen live (read-only). Existing copies keep their pages as they are — the synced tables come with new installs.",
+      "Reflections and the new Application narrative page (gap statement and the narrative for the form) are authored content: supervisors suggest, the candidate accepts. Add the new pages brings the Application narrative to existing copies; to make an existing Reflections page authored, use its page menu → Authorship.",
     pages: [
       start,
       plan,
@@ -647,6 +722,7 @@ export function cesrJourney(): PackTemplate {
       placementPage(ids.picu, "PICU guidance", "🧸"),
       placementPage(ids.neuro, "Neuro ICU guidance", "🧠"),
       reflections,
+      narrative,
       evidence,
       resources,
     ],
@@ -826,12 +902,13 @@ export function supportingTemplates(): PackTemplate[] {
     ),
     {
       name: "Reflection",
-      version: 1,
-      changelog: "Initial version",
+      version: 2,
+      changelog:
+        "Authored content: a new reflection opens supervisors in Suggest mode, so the reflection stays the writer's own voice.",
       purpose:
         "A structured reflective entry mapped to a HiLLO and Key Capability",
       description:
-        "What happened, so what, now what — with learning and actions, and the outcome it evidences. Anonymised by design.",
+        "What happened, so what, now what — with learning and actions, and the outcome it evidences. Anonymised by design, and authored content: supervisors suggest, you accept.",
       category: "Training & Portfolio",
       audience: "Anyone building a portfolio",
       kind: "page",
@@ -841,6 +918,7 @@ export function supportingTemplates(): PackTemplate[] {
           parentId: null,
           title: "Reflection",
           icon: "💭",
+          authored: true,
           blocks: [
             howTo(
               "write it within a week of the event, anonymised, and link it from the HiLLO page it evidences.",
