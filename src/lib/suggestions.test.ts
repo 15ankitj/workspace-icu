@@ -5,8 +5,10 @@ import {
   excerptOf,
   isOwnSuggestion,
   makeSuggestionId,
+  staleCandidates,
   suggesterName,
   suggesterPrefix,
+  suggestionLabel,
 } from "@/lib/suggestions";
 
 const ME = "dece6abe-368d-4b07-be5a-df0607190847";
@@ -106,5 +108,29 @@ describe("page modes", () => {
         suggestionsAvailable: true,
       }),
     ).toBe("view");
+  });
+});
+
+describe("block-level suggestions", () => {
+  it("labels inline and block-level shapes", () => {
+    const shape = (kinds: string[], blockLevel: boolean) => ({
+      kinds: new Set(kinds as ("insertion" | "deletion" | "modification")[]),
+      blockLevel,
+    });
+    expect(suggestionLabel(shape(["insertion"], false))).toBe("Insert");
+    expect(suggestionLabel(shape(["insertion", "deletion"], false))).toBe(
+      "Replace",
+    );
+    expect(suggestionLabel(shape(["modification"], false))).toBe("Change");
+    expect(suggestionLabel(shape(["deletion"], true))).toBe("Delete block");
+    expect(suggestionLabel(shape(["insertion", "deletion"], true))).toBe(
+      "Move block",
+    );
+  });
+
+  it("finds suggestions removed by a local edit and still open", () => {
+    expect(staleCandidates(["a", "b", "c"], ["b"], ["a", "b"])).toEqual(["a"]);
+    expect(staleCandidates([], ["b"], ["b"])).toEqual([]);
+    expect(staleCandidates(["a"], [], [])).toEqual([]);
   });
 });

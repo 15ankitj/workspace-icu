@@ -152,9 +152,9 @@ export default async function PageView({
     // editor and the rest stay with the page's comments (Appendix A §2.3).
     supabase
       .from("page_suggestions")
-      .select("id")
+      .select("id, suggester_id, excerpt, status")
       .eq("page_id", pageId)
-      .eq("status", "open"),
+      .in("status", ["open", "stale"]),
   ]);
   const isOwner = membership?.role === "owner";
   const canEdit = isOwner || membership?.role === "editor";
@@ -198,8 +198,17 @@ export default async function PageView({
     suggestionId: c.suggestion_id,
   }));
   const openSuggestionIds = new Set(
-    (openSuggestionRows ?? []).map((row) => row.id),
+    (openSuggestionRows ?? [])
+      .filter((row) => row.status === "open")
+      .map((row) => row.id),
   );
+  const staleSuggestions = (openSuggestionRows ?? [])
+    .filter((row) => row.status === "stale")
+    .map((row) => ({
+      id: row.id,
+      suggesterId: row.suggester_id,
+      excerpt: row.excerpt,
+    }));
   const suggestionThreads: Record<string, typeof allComments> = {};
   const comments: typeof allComments = [];
   for (const comment of allComments) {
@@ -467,6 +476,9 @@ export default async function PageView({
             collab={collab}
             detachedSources={detachedSources}
             actor={{ userId: user.id, isAuthor, isOwner, members }}
+            suggestionThreads={suggestionThreads}
+            openSuggestionIds={[...openSuggestionIds]}
+            staleSuggestions={staleSuggestions}
           />
 
           <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />

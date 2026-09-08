@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react";
 import { MAX_LIVE_SYNCED_SOURCES } from "@/lib/synced";
+import type { SuggestionActor } from "@/components/editor/suggestions-ui";
 
 export interface SyncedHostCollab {
   userName: string;
@@ -30,6 +31,9 @@ export interface SyncedHostValue {
   /** Placements whose source is this page register here, so the editor
    *  can tell a source placement being deleted from any other (rule 6). */
   noteSource: (syncedBlockId: string, info: SyncedSourceInfo) => void;
+  /** Who is editing, so placements of authored synced blocks can run
+   *  suggest mode and resolve suggestions (Appendix A §2.5). */
+  actor: SuggestionActor | null;
 }
 
 export interface SyncedSourceInfo {
@@ -49,6 +53,7 @@ export const SyncedHostContext = createContext<SyncedHostValue>({
   subscribe: () => () => {},
   isLive: () => false,
   noteSource: () => {},
+  actor: null,
 });
 
 export function useSyncedHost() {

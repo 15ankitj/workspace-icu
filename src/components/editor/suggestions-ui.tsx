@@ -10,6 +10,7 @@ import { resolveSuggestion } from "@/app/actions/suggestions";
 import {
   resolveAllInDocument,
   resolveInDocument,
+  spanLabel,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
 import { Button } from "@/components/ui/button";
@@ -50,12 +51,15 @@ export interface SuggestionActor {
 
 type Outcome = "accepted" | "rejected" | "withdrawn";
 
+/** A suggestion whose context an author's edit removed (§2.4). */
+export interface StaleSuggestion {
+  id: string;
+  suggesterId: string;
+  excerpt: string;
+}
+
 function kindLabel(span: SuggestionSpan) {
-  return span.kind === "insertion"
-    ? "Insert"
-    : span.kind === "deletion"
-      ? "Delete"
-      : "Change";
+  return spanLabel(span);
 }
 
 /**
@@ -64,7 +68,12 @@ function kindLabel(span: SuggestionSpan) {
  * then the document applies it, which every open client sees through
  * Yjs. A workspace owner who is not the author is asked for a reason.
  */
-function useResolve(editor: AnyEditor, pageId: string, actor: SuggestionActor) {
+function useResolve(
+  editor: AnyEditor,
+  pageId: string,
+  actor: SuggestionActor,
+  onResolved?: (id: string) => void,
+) {
   const [askReason, setAskReason] = useState<{
     ids: string[];
     outcome: "accepted" | "rejected";
@@ -78,6 +87,7 @@ function useResolve(editor: AnyEditor, pageId: string, actor: SuggestionActor) {
     for (const id of ids) {
       try {
         await resolveSuggestion(pageId, id, outcome, why);
+        onResolved?.(id);
         const ok = resolveInDocument(
           editor,
           id,
@@ -172,6 +182,7 @@ export function SuggestionPopover({
   span,
   position,
   noteCount = 0,
+  onResolved,
 }: {
   editor: AnyEditor;
   pageId: string;
@@ -180,8 +191,14 @@ export function SuggestionPopover({
   /** Container-relative pixel position of the span's start. */
   position: { left: number; top: number };
   noteCount?: number;
+  onResolved?: (id: string) => void;
 }) {
-  const { resolve, busy, reasonDialog } = useResolve(editor, pageId, actor);
+  const { resolve, busy, reasonDialog } = useResolve(
+    editor,
+    pageId,
+    actor,
+    onResolved,
+  );
   const name = suggesterName(span.id, actor.members);
   const mine = isOwnSuggestion(span.id, actor.userId);
   const canResolve = actor.isAuthor || actor.isOwner;
@@ -246,6 +263,9 @@ export function SuggestionsBar({
   actor,
   spans,
   threads,
+  stale = [],
+  onResolved,
+  onStaleResolved,
 }: {
   editor: AnyEditor;
   workspaceId: string;
@@ -253,11 +273,20 @@ export function SuggestionsBar({
   actor: SuggestionActor;
   spans: SuggestionSpan[];
   threads: SuggestionThreads;
+  stale?: StaleSuggestion[];
+  onResolved?: (id: string) => void;
+  onStaleResolved?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [openThread, setOpenThread] = useState<string | null>(null);
-  const { resolve, busy, reasonDialog } = useResolve(editor, pageId, actor);
-  if (spans.length === 0) return null;
+  const [staleBusy, setStaleBusy] = useState<string | null>(null);
+  const { resolve, busy, reasonDialog } = useResolve(
+    editor,
+    pageId,
+    actor,
+    onResolved,
+  );
+  if (spans.length === 0 && stale.length === 0) return null;
   const canResolve = actor.isAuthor || actor.isOwner;
   const count = spans.length;
 
@@ -274,6 +303,7 @@ export function SuggestionsBar({
     for (const span of spans) {
       try {
         await resolveSuggestion(pageId, span.id, outcome);
+        onResolved?.(span.id);
       } catch (error) {
         toast({
           title: "Could not resolve every suggestion",
@@ -289,52 +319,126 @@ export function SuggestionsBar({
     });
   };
 
+  const resolveStale = async (
+    item: StaleSuggestion,
+    outcome: "withdrawn" | "rejected",
+  ) => {
+    setStaleBusy(item.id);
+    try {
+      await resolveSuggestion(pageId, item.id, outcome);
+      onStaleResolved?.(item.id);
+    } catch (error) {
+      toast({
+        title: "Could not resolve suggestion",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setStaleBusy(null);
+    }
+  };
+
   return (
     <div className="mb-3 rounded-md border bg-card text-sm">
-      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-        <ListChecks className="size-4 text-muted-foreground" aria-hidden />
-        <span>
-          {count} open suggestion{count === 1 ? "" : "s"}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7"
-          aria-expanded={open}
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "Hide" : "Review"}
-        </Button>
-        {canResolve && (
-          <span className="ml-auto flex gap-1">
-            <ConfirmButton
-              size="sm"
-              variant="secondary"
-              className="h-7"
-              title={`Accept all ${count} suggestion${count === 1 ? "" : "s"}?`}
-              description="Every proposed insertion is kept and every proposed deletion is applied. This is recorded per suggestion."
-              confirmLabel={`Accept ${count}`}
-              onConfirm={() => void resolveAll("accepted")}
-              disabled={busy}
-            >
-              Accept all
-            </ConfirmButton>
-            <ConfirmButton
-              size="sm"
-              variant="outline"
-              className="h-7"
-              title={`Reject all ${count} suggestion${count === 1 ? "" : "s"}?`}
-              description="Every proposed change is discarded and the page returns to its current text. This is recorded per suggestion."
-              confirmLabel={`Reject ${count}`}
-              onConfirm={() => void resolveAll("rejected")}
-              disabled={busy}
-            >
-              Reject all
-            </ConfirmButton>
+      {stale.length > 0 && (
+        <div className="border-b px-3 py-2">
+          <p className="font-medium">
+            Context changed · {stale.length} suggestion
+            {stale.length === 1 ? "" : "s"} no longer appl
+            {stale.length === 1 ? "ies" : "y"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            The text they proposed to change was edited. They cannot be applied;
+            the suggester can withdraw, an author can dismiss.
+          </p>
+          <ul className="mt-1 space-y-1">
+            {stale.map((item) => {
+              const mine = item.suggesterId === actor.userId;
+              const name =
+                actor.members.find((m) => m.id === item.suggesterId)
+                  ?.displayName ?? "a colleague";
+              return (
+                <li key={item.id} className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="mr-2 text-xs text-muted-foreground">
+                      {mine ? "you" : name}
+                    </span>
+                    {item.excerpt || <em>formatting</em>}
+                  </span>
+                  {mine && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      disabled={staleBusy === item.id}
+                      onClick={() => resolveStale(item, "withdrawn")}
+                    >
+                      Withdraw
+                    </Button>
+                  )}
+                  {canResolve && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2"
+                      disabled={staleBusy === item.id}
+                      onClick={() => resolveStale(item, "rejected")}
+                    >
+                      Dismiss
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+      {count > 0 && (
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+          <ListChecks className="size-4 text-muted-foreground" aria-hidden />
+          <span>
+            {count} open suggestion{count === 1 ? "" : "s"}
           </span>
-        )}
-      </div>
-      {open && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "Hide" : "Review"}
+          </Button>
+          {canResolve && (
+            <span className="ml-auto flex gap-1">
+              <ConfirmButton
+                size="sm"
+                variant="secondary"
+                className="h-7"
+                title={`Accept all ${count} suggestion${count === 1 ? "" : "s"}?`}
+                description="Every proposed insertion is kept and every proposed deletion is applied. This is recorded per suggestion."
+                confirmLabel={`Accept ${count}`}
+                onConfirm={() => void resolveAll("accepted")}
+                disabled={busy}
+              >
+                Accept all
+              </ConfirmButton>
+              <ConfirmButton
+                size="sm"
+                variant="outline"
+                className="h-7"
+                title={`Reject all ${count} suggestion${count === 1 ? "" : "s"}?`}
+                description="Every proposed change is discarded and the page returns to its current text. This is recorded per suggestion."
+                confirmLabel={`Reject ${count}`}
+                onConfirm={() => void resolveAll("rejected")}
+                disabled={busy}
+              >
+                Reject all
+              </ConfirmButton>
+            </span>
+          )}
+        </div>
+      )}
+      {open && count > 0 && (
         <ul className="divide-y border-t">
           {spans.map((span) => {
             const mine = isOwnSuggestion(span.id, actor.userId);

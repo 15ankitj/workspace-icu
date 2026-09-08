@@ -23,7 +23,11 @@ import type { MarkSpec, Node as PMNode } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import type { EditorBlock } from "@/lib/blocks";
-import { makeSuggestionId, type SuggestionKind } from "@/lib/suggestions";
+import {
+  makeSuggestionId,
+  suggestionLabel,
+  type SuggestionKind,
+} from "@/lib/suggestions";
 
 /**
  * Suggestion mode in the editor (Appendix A, Part 2). Suggestions are the
@@ -224,36 +228,62 @@ export function cleanDocument(editor: AnyEditor): EditorBlock[] {
 
 export interface SuggestionSpan {
   id: string;
+  /** The dominant kind (insertion wins over deletion over modification). */
   kind: SuggestionKind;
+  kinds: Set<SuggestionKind>;
+  /** At least one mark sits on a whole block (insert / delete / move). */
+  blockLevel: boolean;
   from: number;
   to: number;
   /** Inserted or deleted text, for the excerpt. */
   text: string;
 }
 
-/** Every suggestion in the document, first occurrence first. */
+const ZERO_WIDTH = /\u200b/g;
+
+/** Every suggestion in the document, first occurrence first. Block-level
+ *  marks (a whole block inserted, deleted or moved) count too. */
 export function listSuggestions(doc: PMNode): SuggestionSpan[] {
   const byId = new Map<string, SuggestionSpan>();
   const note = (
     id: unknown,
     kind: SuggestionKind,
-    from: number,
-    to: number,
-    text: string,
+    node: PMNode,
+    pos: number,
   ) => {
     if (id === null || id === undefined) return;
     const key = String(id);
+    const blockLevel = !node.isInline;
+    const raw = node.isText
+      ? (node.text ?? "")
+      : blockLevel
+        ? node.textContent
+        : "";
+    const text = raw.replace(ZERO_WIDTH, "");
     const existing = byId.get(key);
     if (existing) {
-      existing.from = Math.min(existing.from, from);
-      existing.to = Math.max(existing.to, to);
+      existing.from = Math.min(existing.from, pos);
+      existing.to = Math.max(existing.to, pos + node.nodeSize);
+      existing.kinds.add(kind);
+      existing.blockLevel = existing.blockLevel || blockLevel;
       if (kind === "insertion" && existing.kind !== "insertion") {
         existing.kind = "insertion";
       }
-      if (text) existing.text += text;
+      // A block-level mark already carries its whole text.
+      if (text && !(blockLevel && existing.text.includes(text))) {
+        existing.text += existing.text ? " " + text : text;
+      }
       return;
     }
-    byId.set(key, { id: key, kind, from, to, text });
+    byId.set(key, {
+      id: key,
+      kind,
+      kinds: new Set([kind]),
+      blockLevel,
+      from: pos,
+      to: pos + node.nodeSize,
+      text,
+    });
   };
   doc.descendants((node, pos) => {
     for (const mark of node.marks) {
@@ -265,17 +295,15 @@ export function listSuggestions(doc: PMNode): SuggestionSpan[] {
       ) {
         continue;
       }
-      note(
-        mark.attrs["id"],
-        kind,
-        pos,
-        pos + node.nodeSize,
-        node.isText ? (node.text ?? "") : "",
-      );
+      note(mark.attrs["id"], kind, node, pos);
     }
     return true;
   });
   return [...byId.values()];
+}
+
+export function spanLabel(span: SuggestionSpan): string {
+  return suggestionLabel({ kinds: span.kinds, blockLevel: span.blockLevel });
 }
 
 /** The suggestion under the selection, if any. */

@@ -100,3 +100,47 @@ export function allowedPageModes(input: {
   modes.push("view");
   return modes;
 }
+
+/** What a suggestion proposes, from the marks it carries (slice 3). */
+export interface SuggestionShape {
+  kinds: Set<SuggestionKind>;
+  /** True when at least one mark sits on a whole block. */
+  blockLevel: boolean;
+}
+
+/** "Insert", "Delete", "Replace", "Change"; block-level variants say so,
+ *  and delete+insert on whole blocks reads as a move. */
+export function suggestionLabel(shape: SuggestionShape): string {
+  const ins = shape.kinds.has("insertion");
+  const del = shape.kinds.has("deletion");
+  if (shape.blockLevel) {
+    if (ins && del) return "Move block";
+    if (ins) return "Insert block";
+    if (del) return "Delete block";
+    return "Change block";
+  }
+  if (ins && del) return "Replace";
+  if (ins) return "Insert";
+  if (del) return "Delete";
+  return "Change";
+}
+
+/**
+ * Open suggestions whose marks this user's own edit just removed from
+ * the document (§2.4 "context changed"): present before the change,
+ * absent after it, and still open on the server. Never derived from a
+ * remote change or from the document before it has loaded.
+ */
+export function staleCandidates(
+  before: Iterable<string>,
+  after: Iterable<string>,
+  open: Iterable<string>,
+): string[] {
+  const now = new Set(after);
+  const wasOpen = new Set(open);
+  const out: string[] = [];
+  for (const id of before) {
+    if (!now.has(id) && wasOpen.has(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}

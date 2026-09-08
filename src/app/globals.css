@@ -158,3 +158,18 @@ del.wi-suggest-del {
   outline: 2px solid color-mix(in oklab, var(--color-ring, #999) 60%, transparent);
   outline-offset: 1px;
 }
+
+/* Block-level suggestions: the wrapper is display:contents, so the
+   blocks inside carry the colour as a rule down their left edge. */
+ins.wi-suggest-ins[data-inline="false"] > * {
+  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-emerald-600, #059669) 60%, transparent);
+  background-color: color-mix(in oklab, var(--color-emerald-600, #059669) 8%, transparent);
+  border-radius: 2px;
+}
+del.wi-suggest-del[data-inline="false"] > * {
+  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-rose-600, #e11d48) 60%, transparent);
+  background-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 8%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 70%, transparent);
+  border-radius: 2px;
+}

@@ -65,6 +65,19 @@ export async function setPageAuthorship(
   revalidatePath(`/w/${workspaceId}/p/${pageId}`);
 }
 
+/** An editor's own change removed the marks of these open suggestions:
+ *  they become "context changed" and the suggester is told (§2.4). */
+export async function markSuggestionsStale(pageId: string, ids: string[]) {
+  if (!Array.isArray(ids) || ids.length === 0) return 0;
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("mark_suggestions_stale", {
+    p_page_id: pageId,
+    p_ids: ids.slice(0, 200),
+  });
+  if (error) throw new Error(`Could not update suggestions: ${error.message}`);
+  return data ?? 0;
+}
+
 /** Mark this user's unread notifications read (one workspace, or all). */
 export async function markNotificationsRead(workspaceId?: string) {
   const { supabase } = await requireUser();
