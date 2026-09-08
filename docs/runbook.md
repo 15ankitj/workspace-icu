@@ -301,5 +301,23 @@ says until the author accepts (brief §2.4).
   page, the source's authors accept or reject from the caret popover in
   any placement, and `save_synced_block` refuses a non-author's change
   to the block's clean text.
-- Not yet: "with markup" export and the GMC-bundle warning (4),
-  `authored_content` defaults in the CESR pack (5).
+- **Exports** (§2.4, slice 4): every export is the clean state by
+  default — suggested insertions left out, suggested deletions kept as the
+  author's text — because the stored `blocks` projection is that state.
+  _Include suggestion markup_ in the page menu switches the Markdown and
+  print exports to `?markup=1`, which reads each page (and each synced
+  block placed on it) from its stored Yjs document and renders
+  insertions as `<ins>`, deletions as `<del>`, and a suggested block
+  behind a "Suggested insertion (name):" line, with a closing list of the
+  suggestions per page. Whichever variant, pages with suggestions still
+  waiting are named: a notice on the print view (not printed) and an
+  `EXPORT-NOTES.md` in the zip, including the whole-workspace export.
+  Template snapshots read the same clean projection, so a template never
+  captures an open suggestion.
+- **Whole-block suggestions and Yjs**: y-prosemirror syncs node
+  attributes but not node marks, so a block-level suggestion mark would
+  never reach a collaborator or the stored document. The editor mirrors
+  those marks into a `suggestion` attribute on every block-level node (a
+  JSON string, not rendered) and restores the marks from it on documents
+  that arrive from Yjs; the markup export reads the same attribute.
+- Not yet: `authored_content` defaults in the CESR pack (5).

@@ -13,6 +13,9 @@ export interface EditorBlock {
   props?: Record<string, unknown>;
   content?: unknown;
   children?: EditorBlock[];
+  /** Present only in "with markup" exports: this whole block is a
+   *  suggestion (Appendix A §2.4). Never stored. */
+  suggestion?: { kind: "insertion" | "deletion" | "modification"; id: string };
 }
 
 export interface BlockRowInput {

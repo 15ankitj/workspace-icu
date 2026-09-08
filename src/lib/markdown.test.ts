@@ -188,3 +188,79 @@ describe("synced blocks", () => {
     expect(out).toContain("(synced content unavailable)");
   });
 });
+
+describe("suggestion markup", () => {
+  const ctx = {
+    pageTitle: () => null,
+    pageHref: (id: string) => `#${id}`,
+    fileHref: (id: string) => `files/${id}`,
+    suggester: (id: string) => (id === "a:1" ? "Sam" : null),
+  };
+
+  it("renders inline suggestions as ins and del", () => {
+    const md = blocksToMarkdown(
+      [
+        {
+          id: "1",
+          type: "paragraph",
+          content: [
+            { type: "text", text: "keep ", styles: {} },
+            {
+              type: "text",
+              text: "old",
+              styles: { suggestion: "deletion", suggestionId: "a:1" },
+            },
+            {
+              type: "text",
+              text: "new",
+              styles: {
+                bold: true,
+                suggestion: "insertion",
+                suggestionId: "a:1",
+              },
+            },
+          ],
+        },
+      ],
+      ctx,
+    );
+    expect(md).toBe("keep <del>old</del><ins>**new**</ins>\n");
+  });
+
+  it("labels a suggested block with its author", () => {
+    const md = blocksToMarkdown(
+      [
+        {
+          id: "1",
+          type: "bulletListItem",
+          content: [{ type: "text", text: "whole item", styles: {} }],
+          suggestion: { kind: "insertion", id: "a:1" },
+        },
+        {
+          id: "2",
+          type: "paragraph",
+          content: [{ type: "text", text: "gone", styles: {} }],
+          suggestion: { kind: "deletion", id: "b:2" },
+        },
+      ],
+      ctx,
+    );
+    expect(md).toBe(
+      "*Suggested insertion (Sam):*\n- whole item\n\n*Suggested deletion:*\ngone\n",
+    );
+  });
+
+  it("is silent in clean documents", () => {
+    const md = blocksToMarkdown(
+      [
+        {
+          id: "1",
+          type: "paragraph",
+          content: [{ type: "text", text: "plain", styles: {} }],
+        },
+      ],
+      ctx,
+    );
+    expect(md).toBe("plain\n");
+  });
+});

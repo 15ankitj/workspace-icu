@@ -129,7 +129,9 @@ export default async function WorkspaceSettings({
         <p className="text-sm text-muted-foreground">
           Everything you can see in this workspace as Markdown files with
           attachments, in a zip. Accounts belong to individuals: take your
-          content with you at any time.
+          content with you at any time. Pages export in their clean state;
+          if suggestions are still waiting anywhere, the zip says which
+          pages.
         </p>
         <Button variant="secondary" asChild>
           <a href={`/api/export/workspace/${workspace.id}`}>

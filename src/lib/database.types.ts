@@ -480,6 +480,13 @@ export type Database = {
             referencedRelation: "pages";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "page_suggestions_suggester_id_fkey";
+            columns: ["suggester_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
         ];
       };
       notifications: {

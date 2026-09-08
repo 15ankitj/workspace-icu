@@ -159,6 +159,36 @@ del.wi-suggest-del {
   outline-offset: 1px;
 }
 
+/* Suggested blocks in exports and print (Appendix A §2.4): a rule down
+   the left edge plus a small label; colours survive printing. */
+.wi-suggest-block {
+  padding-left: 0.75rem;
+  border-radius: 2px;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+.wi-suggest-block-ins {
+  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-emerald-600, #059669) 60%, transparent);
+  background-color: color-mix(in oklab, var(--color-emerald-600, #059669) 8%, transparent);
+}
+.wi-suggest-block-del {
+  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-rose-600, #e11d48) 60%, transparent);
+  background-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 8%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 70%, transparent);
+}
+.wi-suggest-block-mod {
+  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-amber-600, #d97706) 60%, transparent);
+}
+.wi-suggest-block .wi-suggest-label {
+  text-decoration: none;
+}
+ins.wi-suggest-ins,
+del.wi-suggest-del {
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
 /* Block-level suggestions: the wrapper is display:contents, so the
    blocks inside carry the colour as a rule down their left edge. */
 ins.wi-suggest-ins[data-inline="false"] > * {

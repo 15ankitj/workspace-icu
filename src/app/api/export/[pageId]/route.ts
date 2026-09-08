@@ -16,6 +16,8 @@ export async function GET(
 ) {
   const { pageId } = await ctx.params;
   const tree = request.nextUrl.searchParams.get("tree") === "1";
+  // Clean state by default (Appendix A §2.4); markup on request.
+  const markup = request.nextUrl.searchParams.get("markup") === "1";
 
   const supabase = await createClient();
   const {
@@ -49,17 +51,19 @@ export async function GET(
       parent_page_id: p.id === root.id ? null : p.parent_page_id,
     }));
 
-  const zip = await buildArchive(supabase, selected, root.id, pages);
+  const zip = await buildArchive(supabase, selected, root.id, pages, {
+    markup,
+  });
   await supabase.from("audit_events").insert({
     actor_id: user.id,
     workspace_id: root.workspace_id,
     event_type: "page_exported",
     target_type: "page",
     target_id: root.id,
-    metadata: { tree, pages: selected.length },
+    metadata: { tree, markup, pages: selected.length },
   });
 
-  const name = `${safeFilename(root.title)}${tree ? "-tree" : ""}.zip`;
+  const name = `${safeFilename(root.title)}${tree ? "-tree" : ""}${markup ? "-with-markup" : ""}.zip`;
   return new Response(new Uint8Array(zip), {
     headers: {
       "content-type": "application/zip",

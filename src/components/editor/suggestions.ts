@@ -7,7 +7,7 @@ import {
   docToBlocks,
   type BlockNoteEditor,
 } from "@blocknote/core";
-import { Mark } from "@tiptap/core";
+import { Extension, Mark } from "@tiptap/core";
 import {
   applySuggestion,
   applySuggestions,
@@ -19,10 +19,21 @@ import {
   suggestChanges,
   withSuggestChanges,
 } from "@handlewithcare/prosemirror-suggest-changes";
-import type { MarkSpec, Node as PMNode } from "prosemirror-model";
-import { EditorState } from "prosemirror-state";
+import type {
+  Mark as PMMark,
+  MarkSpec,
+  Node as PMNode,
+} from "prosemirror-model";
+import { EditorState, Plugin, PluginKey } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
+import { ySyncPluginKey } from "y-prosemirror";
 import type { EditorBlock } from "@/lib/blocks";
+import {
+  decodeSuggestionAttr,
+  encodeSuggestionAttr,
+  isSuggestionKind,
+  SUGGESTION_ATTR,
+} from "@/lib/suggestion-markup";
 import {
   makeSuggestionId,
   suggestionLabel,
@@ -165,11 +176,147 @@ function suggestPlugin() {
   return plugin;
 }
 
+/**
+ * Whole-block suggestions are node marks, and y-prosemirror syncs node
+ * attributes but not node marks: left alone they would never reach a
+ * collaborator or the stored document. Every block-level node therefore
+ * gets a `suggestion` attribute (a JSON string, invisible in the DOM)
+ * that mirrors its suggestion marks, and {@link mirrorPlugin} keeps the
+ * two in step.
+ */
+const BLOCK_NODE_TYPES = [
+  "blockContainer",
+  "blockGroup",
+  "columnList",
+  "column",
+  "paragraph",
+  "heading",
+  "quote",
+  "bulletListItem",
+  "numberedListItem",
+  "checkListItem",
+  "toggleListItem",
+  "codeBlock",
+  "table",
+  "tableRow",
+  "tableCell",
+  "tableHeader",
+  "tableParagraph",
+  "divider",
+  "image",
+  "file",
+  "video",
+  "audio",
+  "callout",
+  "embed",
+  "bookmark",
+  "pageLink",
+  "tableOfContents",
+  "syncedBlock",
+];
+
+const SuggestionAttribute = Extension.create({
+  name: "suggestionAttribute",
+  addGlobalAttributes() {
+    return [
+      {
+        types: BLOCK_NODE_TYPES,
+        attributes: {
+          [SUGGESTION_ATTR]: {
+            default: null,
+            rendered: false,
+            keepOnSplit: false,
+          },
+        },
+      },
+    ];
+  },
+});
+
+const mirrorKey = new PluginKey<{ synced: boolean }>("wi-suggestion-mirror");
+
+function isSuggestionMark(mark: PMMark): boolean {
+  return isSuggestionKind(mark.type.name);
+}
+
+function marksAttr(node: PMNode): string | null {
+  return encodeSuggestionAttr(
+    node.marks.filter(isSuggestionMark).map((m) => ({
+      type: m.type.name as SuggestionKind,
+      attrs: m.attrs,
+    })),
+  );
+}
+
+/**
+ * Local edits: marks → attribute (the library adds and removes node marks;
+ * the attribute follows, and Yjs carries it). Documents arriving from Yjs
+ * — the initial render and every remote change — have attributes but no
+ * marks: attribute → marks, so the library's commands, the review bar and
+ * the clean projection see the block suggestion as if it were local.
+ */
+export function mirrorPlugin() {
+  return new Plugin<{ synced: boolean }>({
+    key: mirrorKey,
+    state: {
+      init: () => ({ synced: false }),
+      apply: (tr, value) => (tr.getMeta(mirrorKey) ? { synced: true } : value),
+    },
+    appendTransaction(transactions, _old, state) {
+      const fromYjs = transactions.some(
+        (tr) =>
+          (
+            tr.getMeta(ySyncPluginKey) as
+              { isChangeOrigin?: boolean } | undefined
+          )?.isChangeOrigin,
+      );
+      const synced = mirrorKey.getState(state)?.synced ?? false;
+      const docChanged = transactions.some((tr) => tr.docChanged);
+      if (synced && !fromYjs && !docChanged) return null;
+      const tr = state.tr;
+      let changed = false;
+      state.doc.descendants((node, pos) => {
+        if (node.isInline) return false;
+        if (!(SUGGESTION_ATTR in (node.type.spec.attrs ?? {}))) return true;
+        const fromMarks = marksAttr(node);
+        const attr = (node.attrs[SUGGESTION_ATTR] as string | null) ?? null;
+        if (fromMarks === attr) return true;
+        // From Yjs the attribute is authoritative. On the first pass over
+        // a document nothing has synced yet, so a node with an attribute
+        // and no marks is restored while a node with fresh local marks is
+        // mirrored; after that, local marks lead.
+        const restore = fromYjs || (!synced && fromMarks === null);
+        if (restore) {
+          const restored = decodeSuggestionAttr(attr).flatMap((m) => {
+            const type = state.schema.marks[m.type];
+            return type ? [type.create(m.attrs)] : [];
+          });
+          tr.setNodeMarkup(pos, null, node.attrs, [
+            ...node.marks.filter((m) => !isSuggestionMark(m)),
+            ...restored,
+          ]);
+        } else {
+          tr.setNodeAttribute(pos, SUGGESTION_ATTR, fromMarks);
+        }
+        changed = true;
+        return true;
+      });
+      if (!changed && synced) return null;
+      return tr.setMeta(mirrorKey, true);
+    },
+  });
+}
+
 /** Register on every editor that may hold or display suggestions. */
 export const SuggestionsExtension = createExtension(() => ({
   key: "suggestions",
-  tiptapExtensions: [InsertionMark, DeletionMark, ModificationMark],
-  prosemirrorPlugins: [suggestPlugin()],
+  tiptapExtensions: [
+    InsertionMark,
+    DeletionMark,
+    ModificationMark,
+    SuggestionAttribute,
+  ],
+  prosemirrorPlugins: [suggestPlugin(), mirrorPlugin()],
 }));
 
 /**
@@ -286,16 +433,20 @@ export function listSuggestions(doc: PMNode): SuggestionSpan[] {
     });
   };
   doc.descendants((node, pos) => {
+    const seen = new Set<string>();
     for (const mark of node.marks) {
-      const kind = mark.type.name as SuggestionKind;
-      if (
-        kind !== "insertion" &&
-        kind !== "deletion" &&
-        kind !== "modification"
-      ) {
-        continue;
-      }
+      const kind = mark.type.name;
+      if (!isSuggestionKind(kind)) continue;
+      seen.add(`${kind}:${String(mark.attrs["id"])}`);
       note(mark.attrs["id"], kind, node, pos);
+    }
+    // A block straight from Yjs carries its suggestion in the mirrored
+    // attribute until the marks are restored; count it either way.
+    if (!node.isInline && SUGGESTION_ATTR in (node.type.spec.attrs ?? {})) {
+      for (const m of decodeSuggestionAttr(node.attrs[SUGGESTION_ATTR])) {
+        if (seen.has(`${m.type}:${String(m.attrs["id"])}`)) continue;
+        note(m.attrs["id"], m.type, node, pos);
+      }
     }
     return true;
   });

@@ -338,6 +338,7 @@ export default async function PageView({
       smallText={page.small_text}
       canEdit={canEditThisPage}
       isPlatformOwner={Boolean(platformOwner)}
+      unresolvedSuggestions={openSuggestionIds.size + staleSuggestions.length}
       authorship={
         canEditThisPage && (isAuthor || isOwner)
           ? {
