@@ -268,8 +268,16 @@ export function PageEditor({
     const flush = () => {
       if (!dirty.current) return;
       dirty.current = false;
-      // The clean projection: open suggestions reverted (brief §2.4).
-      const blocks = cleanDocument(editor);
+      // The clean projection: open suggestions reverted (brief §2.4). On
+      // unmount the editor may already be torn down; then there is nothing
+      // newer to save than the last flush, so give up quietly.
+      let blocks: EditorBlock[];
+      try {
+        blocks = cleanDocument(editor);
+      } catch (error) {
+        console.warn("Skipping save: editor unavailable", error);
+        return;
+      }
       const save = room
         ? savePageDocument(
             pageId,
@@ -307,7 +315,13 @@ export function PageEditor({
     // review bar and the header badge, and index the ones this user just
     // made (brief §2.3) once typing pauses.
     const trackSuggestions = () => {
-      const current = listSuggestions(editor.prosemirrorState.doc);
+      let current: SuggestionSpan[];
+      try {
+        current = listSuggestions(editor.prosemirrorState.doc);
+      } catch {
+        // Editor not mounted yet or already torn down: nothing to track.
+        return;
+      }
       setSpans(current);
       setPending(current.length);
       if (!knownSuggestions.current) {
@@ -383,7 +397,13 @@ export function PageEditor({
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (removalCheck.current) clearTimeout(removalCheck.current);
       if (registerTimer.current) clearTimeout(registerTimer.current);
-      flush();
+      try {
+        flush();
+      } catch (error) {
+        // Never let a final save throw during unmount: that would take
+        // the whole route down with an error boundary.
+        console.warn("Final save skipped:", error);
+      }
     };
   }, [editor, pageId, room, editable, report, setPending, actor.userId]);
 
@@ -397,7 +417,13 @@ export function PageEditor({
     } catch (error) {
       console.error("Suggest mode unavailable:", error);
     }
-    return () => uninstall?.();
+    return () => {
+      try {
+        uninstall?.();
+      } catch (error) {
+        console.warn("Suggest mode teardown skipped:", error);
+      }
+    };
   }, [editor, editable, actor.userId]);
 
   useEffect(() => {
