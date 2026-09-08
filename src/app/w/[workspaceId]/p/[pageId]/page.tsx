@@ -56,6 +56,7 @@ export default async function PageView({
     ,
     { data: sourceRows },
     { data: embedRows },
+    { data: openSuggestionRows },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -103,7 +104,9 @@ export default async function PageView({
     // Page-level discussion thread.
     supabase
       .from("comments")
-      .select("id, author_id, body, resolved, created_at, users (display_name)")
+      .select(
+        "id, author_id, body, resolved, created_at, suggestion_id, users (display_name)",
+      )
       .eq("page_id", pageId)
       .order("created_at", { ascending: true }),
     // Backlinks: pages that link to or mention this one.
@@ -145,6 +148,13 @@ export default async function PageView({
       .from("synced_embeds")
       .select("synced_block_id")
       .eq("host_page_id", pageId),
+    // Open suggestions, so their rationale threads sit with them in the
+    // editor and the rest stay with the page's comments (Appendix A §2.3).
+    supabase
+      .from("page_suggestions")
+      .select("id")
+      .eq("page_id", pageId)
+      .eq("status", "open"),
   ]);
   const isOwner = membership?.role === "owner";
   const canEdit = isOwner || membership?.role === "editor";
@@ -178,14 +188,27 @@ export default async function PageView({
       }
     : null;
 
-  const comments = (commentRows ?? []).map((c) => ({
+  const allComments = (commentRows ?? []).map((c) => ({
     id: c.id,
     authorId: c.author_id,
     authorName: c.users?.display_name ?? "Unknown",
     text: (c.body as { text?: string })?.text ?? "",
     resolved: c.resolved,
     createdAt: c.created_at,
+    suggestionId: c.suggestion_id,
   }));
+  const openSuggestionIds = new Set(
+    (openSuggestionRows ?? []).map((row) => row.id),
+  );
+  const suggestionThreads: Record<string, typeof allComments> = {};
+  const comments: typeof allComments = [];
+  for (const comment of allComments) {
+    if (comment.suggestionId && openSuggestionIds.has(comment.suggestionId)) {
+      (suggestionThreads[comment.suggestionId] ??= []).push(comment);
+    } else {
+      comments.push(comment);
+    }
+  }
 
   // Template provenance: is there a newer version than this page came from?
   let templateUpdate: {

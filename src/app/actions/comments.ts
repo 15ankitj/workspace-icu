@@ -13,11 +13,14 @@ async function requireUser() {
   return { supabase, user };
 }
 
-/** Page-level discussion thread (brief §5). Plain text bodies in v1. */
+/** Page-level discussion thread (brief §5), or — with a suggestion id —
+ *  the rationale thread anchored to a suggestion (Appendix A §2.3).
+ *  Plain text bodies in v1. */
 export async function addComment(
   workspaceId: string,
   pageId: string,
   text: string,
+  suggestionId?: string | null,
 ) {
   const trimmed = text.trim().slice(0, 5000);
   if (!trimmed) return;
@@ -26,6 +29,7 @@ export async function addComment(
     page_id: pageId,
     author_id: user.id,
     body: { text: trimmed },
+    suggestion_id: suggestionId?.slice(0, 80) ?? null,
   });
   if (error) throw new Error(`Could not add comment: ${error.message}`);
   revalidatePath(`/w/${workspaceId}/p/${pageId}`);

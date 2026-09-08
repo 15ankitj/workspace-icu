@@ -24,6 +24,8 @@ export interface PageComment {
   text: string;
   resolved: boolean;
   createdAt: string;
+  /** Set when the comment was a rationale or reply on a suggestion. */
+  suggestionId?: string | null;
 }
 
 /** Page-level discussion thread (brief §5). */
@@ -103,6 +105,9 @@ export function CommentsPanel({
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="flex items-center gap-2">
                   <span className="font-medium">{comment.authorName}</span>
+                  {comment.suggestionId && (
+                    <Badge variant="outline">On a suggestion</Badge>
+                  )}
                   {comment.resolved && (
                     <Badge variant="outline">Resolved</Badge>
                   )}

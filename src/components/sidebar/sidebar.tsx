@@ -22,6 +22,10 @@ import { PageTree } from "@/components/sidebar/page-tree";
 import { SearchDialog } from "@/components/sidebar/search-dialog";
 import { ImportDialog } from "@/components/sidebar/import-dialog";
 import { WorkspaceSwitcher } from "@/components/sidebar/workspace-switcher";
+import {
+  UpdatesDialog,
+  type UpdateItem,
+} from "@/components/sidebar/updates-dialog";
 import { useSidebarCollapse } from "@/components/sidebar/app-shell";
 import { formatRelativeShort } from "@/lib/time";
 import { cn } from "@/lib/utils";
@@ -52,6 +56,8 @@ export function Sidebar({
   pages,
   favourites,
   recents,
+  updates = [],
+  pendingByPage = {},
 }: {
   userId: string;
   workspaces: SidebarWorkspace[];
@@ -60,6 +66,10 @@ export function Sidebar({
   pages: TreePage[];
   favourites: TreePage[];
   recents: RecentPage[];
+  /** Suggestion activity for this user (Appendix A §2.5). */
+  updates?: UpdateItem[];
+  /** Open suggestions per page id, for the tree badge. */
+  pendingByPage?: Record<string, number>;
 }) {
   const params = useParams<{ pageId?: string }>();
   const pathname = usePathname();
@@ -176,12 +186,14 @@ export function Sidebar({
             pages={pages}
             activePageId={activePageId}
             canEdit={canEdit}
+            pendingByPage={pendingByPage}
           />
         </section>
       </nav>
 
       <Separator />
       <div className="flex flex-col gap-0.5 p-2">
+        <UpdatesDialog workspaceId={currentWorkspace.id} updates={updates} />
         <Link href={`${base}/trash`} className={navLink(`${base}/trash`)}>
           <Trash2 /> Trash
         </Link>

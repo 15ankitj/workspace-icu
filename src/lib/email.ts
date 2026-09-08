@@ -5,6 +5,8 @@
  * (`onboarding@resend.dev`) only delivers to the account owner's address.
  */
 
+import { describeCounts, digestSubject, type DigestWorkspace } from "./digest";
+
 const RESEND_API = "https://api.resend.com/emails";
 
 export interface EmailMessage {
@@ -72,4 +74,59 @@ export function inviteEmail(input: {
     email address. WorkspaceICU is not a clinical record — please never add
     patient-identifiable information.</p>`;
   return { to: input.to, subject, text, html };
+}
+
+/**
+ * The daily suggestion digest (Appendix A §2.5). Titles and names only —
+ * never page content.
+ */
+export function digestEmail(input: {
+  to: string;
+  recipientName: string;
+  workspaces: DigestWorkspace[];
+  appUrl: string;
+}): EmailMessage {
+  const total = input.workspaces.reduce((n, w) => n + w.total, 0);
+  const subject = digestSubject(total);
+  const textLines: string[] = [
+    `Hello ${input.recipientName},`,
+    "",
+    `Since your last digest there ${total === 1 ? "is" : "are"} ${total} update${total === 1 ? "" : "s"} on suggestions:`,
+    "",
+  ];
+  const htmlParts: string[] = [
+    `<p>Hello ${escapeHtml(input.recipientName)},</p>`,
+    `<p>Since your last digest there ${total === 1 ? "is" : "are"} ${total} update${total === 1 ? "" : "s"} on suggestions:</p>`,
+  ];
+  for (const ws of input.workspaces) {
+    textLines.push(ws.workspaceName);
+    htmlParts.push(
+      `<p><strong>${escapeHtml(ws.workspaceName)}</strong></p><ul>`,
+    );
+    for (const page of ws.pages) {
+      const url = `${input.appUrl}/w/${ws.workspaceId}/p/${page.pageId}`;
+      const who = page.actors.length ? ` (${page.actors.join(", ")})` : "";
+      textLines.push(
+        `  - ${page.pageTitle || "Untitled"}: ${describeCounts(page.counts)}${who}`,
+      );
+      textLines.push(`    ${url}`);
+      htmlParts.push(
+        `<li><a href="${escapeHtml(url)}">${escapeHtml(page.pageTitle || "Untitled")}</a>: ${escapeHtml(describeCounts(page.counts))}${escapeHtml(who)}</li>`,
+      );
+    }
+    htmlParts.push("</ul>");
+    textLines.push("");
+  }
+  textLines.push(
+    "You receive this daily digest because suggestion activity touched pages you author or suggested on. Switch it off under Settings → Your account.",
+  );
+  htmlParts.push(
+    `<p style="color:#666;font-size:12px">You receive this daily digest because suggestion activity touched pages you author or suggested on. Switch it off under Settings → Your account. WorkspaceICU is not a clinical record — never add patient-identifiable information.</p>`,
+  );
+  return {
+    to: input.to,
+    subject,
+    text: textLines.join("\n"),
+    html: htmlParts.join(""),
+  };
 }

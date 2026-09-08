@@ -46,6 +46,7 @@ export async function GET(request: Request) {
     syncedRooms: 0,
     syncedTombstones: 0,
     suggestions: 0,
+    notifications: 0,
   };
 
   async function removeObjects(paths: string[]) {
@@ -152,6 +153,13 @@ export async function GET(request: Request) {
     .lt("resolved_at", suggestionCutoff)
     .select("id");
   summary.suggestions = resolvedSuggestions?.length ?? 0;
+
+  const { data: oldNotifications } = await admin
+    .from("notifications")
+    .delete()
+    .lt("created_at", suggestionCutoff)
+    .select("id");
+  summary.notifications = oldNotifications?.length ?? 0;
 
   // Page history retention (brief §8: 90 days).
   const versionCutoff = new Date(
