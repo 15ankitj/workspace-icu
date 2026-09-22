@@ -463,3 +463,45 @@ describe("authored content in templates (Appendix A §2.2)", () => {
     expect(plan.pages[0].authored_content).toBe(false);
   });
 });
+
+describe("adding pages to an existing copy (review batch 5)", () => {
+  const v2 = buildSnapshot(
+    [
+      page(A, null, "a0", "Root"),
+      page(B, A, "a0", "Old child"),
+      page(C, A, "a1", "New child"),
+      page(OUTSIDE, null, "a1", "New top-level"),
+    ],
+    new Map(),
+    new Map(),
+  );
+
+  it("appends new children after the parent's current children and new roots beside existing ones", () => {
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot: v2,
+      templateId: "t",
+      version: 2,
+      workspaceId: "w",
+      parentPageId: "copy-parent",
+      lastSiblingPosition: "a5",
+      lastPositionByParentId: new Map([["existing-root", "a7"]]),
+      existingByKey: new Map([
+        [A, "existing-root"],
+        [B, "existing-child"],
+      ]),
+      newId: () => `id-${++n}`,
+    });
+    const byTitle = new Map(plan.pages.map((p) => [p.title, p]));
+    expect(plan.pages.map((p) => p.title).sort()).toEqual([
+      "New child",
+      "New top-level",
+    ]);
+    const child = byTitle.get("New child")!;
+    expect(child.parent_page_id).toBe("existing-root");
+    expect(child.position > "a7").toBe(true);
+    const top = byTitle.get("New top-level")!;
+    expect(top.parent_page_id).toBe("copy-parent");
+    expect(top.position > "a5").toBe(true);
+  });
+});

@@ -249,3 +249,17 @@ describe("ydocToBlocks", () => {
     expect(ydocToBlocks(bytes, "other")).toEqual([]);
   });
 });
+
+describe("code blocks", () => {
+  it("keeps angle brackets and comparisons verbatim", () => {
+    const { fragment } = docWith([
+      block("c", "codeBlock", { language: "ts" }, [
+        text([{ insert: "if (a < b && c > d) { x<T>() }" }]),
+      ]),
+    ]);
+    const [code] = fragmentToBlocks(fragment);
+    expect(code.content).toEqual([
+      { type: "text", text: "if (a < b && c > d) { x<T>() }", styles: {} },
+    ]);
+  });
+});

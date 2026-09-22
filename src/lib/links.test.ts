@@ -58,3 +58,31 @@ describe("extractPageLinks", () => {
     expect(extractPageLinks(doc)).toEqual([]);
   });
 });
+
+describe("table cells in the current format", () => {
+  it("finds page mentions inside { type: 'tableCell', content } cells", () => {
+    const target = "11111111-1111-4111-8111-111111111111";
+    expect(
+      extractPageLinks([
+        {
+          id: "t",
+          type: "table",
+          content: {
+            rows: [
+              {
+                cells: [
+                  {
+                    type: "tableCell",
+                    content: [
+                      { type: "pageMention", props: { pageId: target } },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]),
+    ).toEqual([target]);
+  });
+});

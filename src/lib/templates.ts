@@ -405,6 +405,9 @@ export function planInstantiation(input: {
   workspaceId: string;
   parentPageId: string | null;
   lastSiblingPosition: string | null;
+  /** Last sibling position under each existing page (by id), so pages
+   *  added under an existing parent land after its current children. */
+  lastPositionByParentId?: Map<string, string>;
   existingByKey?: Map<string, string>;
   /** Synced blocks already in the workspace, by stable key (rule 8). */
   existingSyncedByKey?: Map<string, string>;
@@ -510,6 +513,7 @@ export function planInstantiation(input: {
   };
 
   let topPosition = input.lastSiblingPosition;
+  const lastUnder = new Map(input.lastPositionByParentId ?? []);
   const pages: PlannedPage[] = [];
   let rootPageId: string | null = null;
 
@@ -525,11 +529,17 @@ export function planInstantiation(input: {
     let position: string;
     if (page.parent_key && parentExists) {
       parent_page_id = keyToId.get(page.parent_key)!;
-      // Under a freshly created parent the snapshot's own sibling order is
-      // valid; under an existing page, append (its siblings are unknown
-      // here, so the caller passes positions for existing parents via
-      // lastSiblingPosition semantics only at the top level).
-      position = parentIsCreated ? page.position : positionAfter(page.position);
+      if (parentIsCreated) {
+        // Under a freshly created parent the snapshot's sibling order holds.
+        position = page.position;
+      } else {
+        // Under an existing page, append after its current last child (the
+        // caller supplies those positions); snapshot positions of an older
+        // version could collide with children already there.
+        const last = lastUnder.get(parent_page_id) ?? null;
+        position = last ? positionAfter(last) : firstPosition();
+        lastUnder.set(parent_page_id, position);
+      }
     } else {
       parent_page_id = input.parentPageId;
       topPosition = topPosition ? positionAfter(topPosition) : firstPosition();

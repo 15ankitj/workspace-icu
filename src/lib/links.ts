@@ -44,7 +44,14 @@ export function extractPageLinks(document: EditorBlock[]): string[] {
         visitInline(content);
       } else if (content && typeof content === "object" && "rows" in content) {
         for (const row of content.rows ?? []) {
-          for (const cell of row.cells ?? []) visitInline(cell);
+          for (const cell of row.cells ?? []) {
+            // Cells are inline arrays (legacy) or { content: inline[] }.
+            visitInline(
+              cell && typeof cell === "object" && !Array.isArray(cell)
+                ? (cell as { content?: unknown }).content
+                : cell,
+            );
+          }
         }
       }
       if (block.children?.length) visit(block.children);
