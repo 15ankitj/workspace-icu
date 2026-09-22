@@ -157,17 +157,26 @@ export function PageTopBar({
         )}
 
       <header className="sticky top-0 z-30 -mx-6 hidden items-center justify-between gap-4 border-b bg-background/95 px-6 py-1.5 backdrop-blur md:-mx-12 md:flex md:px-12">
+        {/*
+          Flex items refuse to shrink below their content unless told
+          otherwise, so every crumb sets min-w-0; without it the trail
+          overflows underneath the controls once the page column is
+          narrower than trail plus controls (the "wide" setting). Ancestor
+          crumbs shrink three times as readily as the current page so the
+          title stays legible and the trail truncates first, down to a
+          floor that keeps each ancestor's icon and separator visible.
+        */}
         <nav
           aria-label="Breadcrumb"
           className="min-w-0 text-sm text-muted-foreground"
         >
           <ol className="flex min-w-0 items-center gap-1">
-            <li className="flex items-center gap-1">
+            <li className="flex min-w-12 shrink-[3] items-center gap-1">
               <Link
                 href={`/w/${workspaceId}`}
-                className="flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 hover:bg-accent hover:text-foreground"
+                className="flex h-7 min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 hover:bg-accent hover:text-foreground"
               >
-                <Home className="size-4" aria-hidden />
+                <Home className="size-4 shrink-0" aria-hidden />
                 <span className="max-w-40 truncate">{workspaceName}</span>
               </Link>
               <span aria-hidden className="text-border">
@@ -192,12 +201,17 @@ export function PageTopBar({
               }
               if (collapsed) return null;
               return (
-                <li key={crumb.id} className="flex min-w-0 items-center gap-1">
+                <li
+                  key={crumb.id}
+                  className="flex min-w-12 shrink-[3] items-center gap-1"
+                >
                   <Link
                     href={`/w/${workspaceId}/p/${crumb.id}`}
                     className="flex h-7 min-w-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 hover:bg-accent hover:text-foreground"
                   >
-                    <span aria-hidden>{crumb.icon ?? "📄"}</span>
+                    <span className="shrink-0" aria-hidden>
+                      {crumb.icon ?? "📄"}
+                    </span>
                     <span className="max-w-40 truncate">
                       {crumb.title || "Untitled"}
                     </span>
@@ -212,7 +226,9 @@ export function PageTopBar({
               className="flex h-7 min-w-0 items-center gap-1.5 px-1.5 text-foreground"
               aria-current="page"
             >
-              <span aria-hidden>{icon ?? "📄"}</span>
+              <span className="shrink-0" aria-hidden>
+                {icon ?? "📄"}
+              </span>
               <span className="max-w-64 truncate">{title || "Untitled"}</span>
             </li>
           </ol>
