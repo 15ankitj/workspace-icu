@@ -30,6 +30,7 @@ import {
   installSuggestDispatch,
   listSuggestions,
   setSuggesting,
+  withoutSuggesting,
   suggestionAtSelection,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
@@ -250,9 +251,12 @@ function LiveContent({
       if (cancelled || seeded.current) return;
       seeded.current = true;
       if (room.fragment.length === 0 && view.blocks.length > 0) {
-        editor.replaceBlocks(
-          editor.document,
-          view.blocks as unknown as (typeof innerSchema)["PartialBlock"][],
+        // Stored content, not this user's edit: never a suggestion.
+        withoutSuggesting(editor, () =>
+          editor.replaceBlocks(
+            editor.document,
+            view.blocks as unknown as (typeof innerSchema)["PartialBlock"][],
+          ),
         );
       }
     });

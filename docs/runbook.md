@@ -321,7 +321,15 @@ says until the author accepts (brief §2.4).
   edits here are suggestions"); suggestions are indexed under the source
   page, the source's authors accept or reject from the caret popover in
   any placement, and `save_synced_block` refuses a non-author's change
-  to the block's clean text.
+  to the block's clean text. The Liveblocks token for the block's room
+  is read-write for suggesters as well as editors (their marks must
+  reach the shared document); the clean text stays guarded server-side.
+- **Seeding and mode changes**: a room that is still empty on first
+  open is seeded from the stored content with the suggestion transform
+  off, whoever opens it — stored content is never anyone's suggestion.
+  BlockNote remounts its view when Edit/Suggest flips to View and back,
+  so the suggestion dispatch wrapper is reinstalled on every mode
+  change; Suggest after View is still Suggest.
 - **Exports** (§2.4, slice 4): every export is the clean state by
   default — suggested insertions left out, suggested deletions kept as the
   author's text — because the stored `blocks` projection is that state.

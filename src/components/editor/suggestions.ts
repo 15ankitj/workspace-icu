@@ -362,6 +362,20 @@ export function isSuggesting(editor: AnyEditor): boolean {
   return isSuggestChangesEnabled(editor.prosemirrorState);
 }
 
+/** Run a write that is not this user's edit (seeding a room from the
+ *  stored content) with the suggestion transform off, then restore the
+ *  mode. Without this, a non-author's first visit to an authored page
+ *  with an empty room would turn the whole page into one suggestion. */
+export function withoutSuggesting(editor: AnyEditor, write: () => void) {
+  const was = isSuggesting(editor);
+  if (was) setSuggesting(editor, false);
+  try {
+    write();
+  } finally {
+    if (was) setSuggesting(editor, true);
+  }
+}
+
 /** The document with every open suggestion reverted: what the page says
  *  until the author accepts (brief §2.4). This is what gets saved. */
 export function cleanDocument(editor: AnyEditor): EditorBlock[] {

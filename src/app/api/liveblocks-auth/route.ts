@@ -70,12 +70,19 @@ export async function POST(request: NextRequest) {
     const { data } = await supabase.rpc("load_synced_block", {
       p_id: syncedId,
     });
-    const view = data as { can_edit?: boolean; tombstone?: boolean } | null;
+    const view = data as {
+      can_edit?: boolean;
+      can_suggest?: boolean;
+      tombstone?: boolean;
+    } | null;
     // A tombstone's content is gone; its room is not somewhere to be.
     if (!view || view.tombstone === true) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    canEdit = view.can_edit === true;
+    // A suggester writes marks into the shared document (Appendix A
+    // §2.5), so they need a write token too; the clean text is still
+    // guarded by save_synced_block.
+    canEdit = view.can_edit === true || view.can_suggest === true;
   }
 
   const { data: profile } = await supabase
