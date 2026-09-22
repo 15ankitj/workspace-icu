@@ -60,11 +60,10 @@ export async function createInvite(formData: FormData) {
 
   const { supabase, user } = await requireUser();
 
-  // Brief §12: rate-limit invitations (20 per hour per user).
+  // Brief §12: rate-limit invitations (20 per hour per user; the limit
+  // and window live in the database function).
   const { data: allowed } = await supabase.rpc("consume_rate_limit", {
     p_action: "invite_create",
-    p_limit: 20,
-    p_window_seconds: 3600,
   });
   if (allowed === false) {
     throw new Error("Too many invitations in the last hour — try again later");

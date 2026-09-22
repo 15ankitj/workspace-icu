@@ -124,8 +124,16 @@ Invitations are sent through Resend's REST API from server actions.
   Membership removals that happen by cascade (the workspace or the user
   is being deleted) are still audited, with the workspace id in the
   event's metadata rather than as a reference (migration 0019).
-- **Rate limits**: 20 invitations and 60 uploads per user per hour
-  (`consume_rate_limit`, migration 0011).
+- **Rate limits**: 20 invitations and 60 uploads per user per hour.
+  The limit and window per action are fixed inside `consume_rate_limit`
+  (migration 0023); callers name the action only.
+- **Page identity** (migration 0023): a page never changes workspace, and
+  only its creator can hand `created_by` on (account deletion does this).
+  Editors cannot make themselves the author of someone else's page.
+- **Storage** (migration 0023): reading an object in the `files` bucket
+  requires its `files` row to be visible (so the page is), and a template
+  asset requires a template the caller can see. Listing a workspace's
+  folder no longer reveals other members' private attachments.
 - **Security headers**: `next.config.ts` sets a Content Security Policy
   whose `frame-src` is the embed whitelist (YouTube, Google Drive/Docs)
   plus our own file storage; `frame-ancestors 'none'`, `nosniff`, HSTS,
@@ -294,7 +302,10 @@ says until the author accepts (brief §2.4).
   short grace period; the suggestion becomes `stale`, the suggester is
   notified, and the review bar lists it under "Context changed" with
   _Withdraw_ (suggester) or _Dismiss_ (author). Stale suggestions can
-  never be accepted. Remote edits and page loads never trigger this.
+  never be accepted. Remote edits and page loads never trigger this, and
+  on an authored page only an author can report it (migration 0023):
+  a suggester cannot void other people's suggestions. A stale marking
+  does not open the owner's ten-minute editing window.
 - **Placements of authored synced blocks**: an editor who is not the
   source page's author gets Suggest mode inside the placement ("your
   edits here are suggestions"); suggestions are indexed under the source

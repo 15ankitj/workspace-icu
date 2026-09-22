@@ -578,7 +578,7 @@ export type Database = {
         Returns: string;
       };
       consume_rate_limit: {
-        Args: { p_action: string; p_limit: number; p_window_seconds: number };
+        Args: { p_action: string };
         Returns: boolean;
       };
       delete_my_account: {
