@@ -170,7 +170,14 @@ export function PageEditor({
   const { report } = useSaveStatus();
   const router = useRouter();
   const roomId = roomIdForPage(pageId);
-  const { mode, setPending } = usePageMode();
+  const { mode, setPending, allowed } = usePageMode();
+  // Only someone who may change the page's text directly can change the
+  // context under a suggestion (§2.4): a non-author of an authored page
+  // never has Edit, and the server refuses their stale reports.
+  const mayChangeContext = useRef(allowed.includes("edit"));
+  useEffect(() => {
+    mayChangeContext.current = allowed.includes("edit");
+  }, [allowed]);
   const modeRef = useRef(mode);
   useEffect(() => {
     modeRef.current = mode;
@@ -353,7 +360,7 @@ export function PageEditor({
       // Context changed (§2.4): marks this user's own edit removed, for
       // suggestions the server still holds open. Checked again after a
       // grace period so a cut about to be pasted back is not reported.
-      if (local && previousIds.current) {
+      if (local && previousIds.current && mayChangeContext.current) {
         const candidates = staleCandidates(
           previousIds.current,
           currentIds,
