@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     syncedTombstones: 0,
     suggestions: 0,
     notifications: 0,
+    queuedObjects: 0,
   };
 
   async function removeObjects(paths: string[]) {
@@ -160,6 +161,23 @@ export async function GET(request: Request) {
     .lt("created_at", suggestionCutoff)
     .select("id");
   summary.notifications = oldNotifications?.length ?? 0;
+
+  // Attachments of workspaces purged by account deletion (migration
+  // 0024): the rows are long gone, the objects are removed here.
+  const { data: queued } = await admin
+    .from("storage_purge_queue")
+    .select("path")
+    .order("queued_at")
+    .limit(500);
+  const queuedPaths = (queued ?? []).map((q: { path: string }) => q.path);
+  if (queuedPaths.length > 0) {
+    await removeObjects(queuedPaths);
+    const { error } = await admin
+      .from("storage_purge_queue")
+      .delete()
+      .in("path", queuedPaths);
+    if (!error) summary.queuedObjects = queuedPaths.length;
+  }
 
   // Page history retention (brief §8: 90 days).
   const versionCutoff = new Date(
