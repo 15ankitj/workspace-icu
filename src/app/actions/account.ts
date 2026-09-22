@@ -7,12 +7,12 @@ import { createClient } from "@/lib/supabase/server";
 const DELETE_CONFIRMATION = "delete my account";
 
 /**
- * Account deletion with full erasure (brief §5, §9). Content in workspaces
- * that will be purged (personal, or where this user is the only member)
- * has its Storage objects removed here under the user's own rights; the
- * database function then purges those workspaces, reassigns anything
- * authored in shared workspaces to a workspace owner, and deletes the
- * user from auth.
+ * Account deletion with full erasure (brief §5, §9). One database
+ * function purges the user's personal and sole-member workspaces,
+ * queues their attachments for the nightly purge job to remove from
+ * Storage, reassigns anything authored in shared workspaces to a
+ * workspace owner, and deletes the user from auth — all in one
+ * transaction, so a refusal (platform owners) changes nothing.
  */
 export async function deleteMyAccount(formData: FormData) {
   const confirmation = String(formData.get("confirm") ?? "")
@@ -27,29 +27,6 @@ export async function deleteMyAccount(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/sign-in");
-
-  const [{ data: workspaces }, { data: members }] = await Promise.all([
-    supabase.from("workspaces").select("id, is_personal"),
-    supabase.from("workspace_members").select("workspace_id"),
-  ]);
-  const memberCount = new Map<string, number>();
-  for (const m of members ?? []) {
-    memberCount.set(m.workspace_id, (memberCount.get(m.workspace_id) ?? 0) + 1);
-  }
-  const purged = (workspaces ?? [])
-    .filter((w) => w.is_personal || (memberCount.get(w.id) ?? 0) <= 1)
-    .map((w) => w.id);
-
-  if (purged.length > 0) {
-    const { data: files } = await supabase
-      .from("files")
-      .select("storage_path")
-      .in("workspace_id", purged);
-    const paths = (files ?? []).map((f) => f.storage_path);
-    for (let i = 0; i < paths.length; i += 100) {
-      await supabase.storage.from("files").remove(paths.slice(i, i + 100));
-    }
-  }
 
   const { error } = await supabase.rpc("delete_my_account");
   if (error) throw new Error(`Could not delete account: ${error.message}`);

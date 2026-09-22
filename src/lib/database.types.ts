@@ -489,6 +489,12 @@ export type Database = {
           },
         ];
       };
+      storage_purge_queue: {
+        Row: { path: string; queued_at: string };
+        Insert: { path: string; queued_at?: string };
+        Update: { path?: string; queued_at?: string };
+        Relationships: [];
+      };
       notifications: {
         Row: NotificationRow;
         Insert: Partial<NotificationRow> &

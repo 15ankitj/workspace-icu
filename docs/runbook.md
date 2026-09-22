@@ -117,10 +117,20 @@ Invitations are sent through Resend's REST API from server actions.
   Project settings → API keys) and `CRON_SECRET` (any long random string;
   Vercel sends it as the bearer token). Without them the job answers 503
   and nothing is purged.
-- **Account deletion**: workspace settings → "Your account". Personal
-  workspaces and workspaces with no other member are erased (files
-  included); content in shared workspaces is reassigned to a workspace
-  owner. Platform owners must hand over ownership before deleting.
+- **Account deletion**: workspace settings → "Your account". The user's
+  own personal workspace and workspaces with no other member are erased
+  (someone else's personal workspace they were invited into is treated
+  as shared); content in
+  shared workspaces (pages, blocks, files, comments, public links,
+  synced blocks, invites, templates), including content left in
+  workspaces the user has since left, is reassigned to a workspace
+  owner. All of it is one transaction (`delete_my_account`, migration
+  0024): a refusal changes nothing. The attachments of erased
+  workspaces are queued in `storage_purge_queue` and removed from
+  Storage by the nightly purge job. Reassignment does not count as an
+  edit: pages keep their edit time, and the departing user's "last
+  edited by" becomes unknown. Platform owners must hand over ownership
+  before deleting.
   Membership removals that happen by cascade (the workspace or the user
   is being deleted) are still audited, with the workspace id in the
   event's metadata rather than as a reference (migration 0019).
