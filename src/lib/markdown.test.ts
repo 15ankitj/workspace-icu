@@ -264,3 +264,93 @@ describe("suggestion markup", () => {
     expect(md).toBe("plain\n");
   });
 });
+
+describe("serialiser edge cases (review batch 5)", () => {
+  const ctx = {
+    pageTitle: () => null,
+    pageHref: (id: string) => `#${id}`,
+    fileHref: (id: string) => `files/${id}`,
+  };
+  const li = (
+    id: string,
+    text: string,
+    children: EditorBlock[] = [],
+  ): EditorBlock => ({
+    id,
+    type: "bulletListItem",
+    content: [{ type: "text", text, styles: {} }],
+    children,
+  });
+
+  it("indents nested lists by exactly two spaces per level", () => {
+    const md = blocksToMarkdown(
+      [li("1", "one", [li("2", "two", [li("3", "three", [li("4", "four")])])])],
+      ctx,
+    );
+    expect(md).toBe("- one\n  - two\n    - three\n      - four\n");
+  });
+
+  it("keeps table rows on one line and escapes pipes inside code", () => {
+    const md = blocksToMarkdown(
+      [
+        {
+          id: "t",
+          type: "table",
+          content: {
+            rows: [
+              {
+                cells: [
+                  {
+                    type: "tableCell",
+                    content: [
+                      { type: "text", text: "a|b", styles: { code: true } },
+                    ],
+                  },
+                  {
+                    type: "tableCell",
+                    content: [
+                      { type: "text", text: "line1\nline2", styles: {} },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      ctx,
+    );
+    expect(md).toBe("| `a\\|b` | line1<br>line2 |\n| --- | --- |\n");
+  });
+
+  it("keeps emphasis delimiters against the text", () => {
+    const md = blocksToMarkdown(
+      [
+        {
+          id: "p",
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Hello ", styles: { bold: true } },
+            { type: "text", text: "world", styles: {} },
+          ],
+        },
+      ],
+      ctx,
+    );
+    expect(md).toBe("**Hello** world\n");
+  });
+
+  it("fences code spans longer than any backtick run inside", () => {
+    const md = blocksToMarkdown(
+      [
+        {
+          id: "p",
+          type: "paragraph",
+          content: [{ type: "text", text: "a`b", styles: { code: true } }],
+        },
+      ],
+      ctx,
+    );
+    expect(md).toBe("``a`b``\n");
+  });
+});

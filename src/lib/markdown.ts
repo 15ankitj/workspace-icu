@@ -59,11 +59,30 @@ interface StyledText {
   styles?: Record<string, unknown>;
 }
 
+/** A code span whose fence is longer than any backtick run inside it,
+ *  padded when the text starts or ends with a backtick (CommonMark). */
+function codeSpan(text: string): string {
+  const longest = Math.max(
+    0,
+    ...[...text.matchAll(/`+/g)].map((m) => m[0].length),
+  );
+  const fence = "`".repeat(longest + 1);
+  const pad = text.startsWith("`") || text.endsWith("`") ? " " : "";
+  return `${fence}${pad}${text}${pad}${fence}`;
+}
+
 function styledText(node: StyledText): string {
-  let out = escapeText(node.text);
-  if (!out.trim()) return node.text; // keep pure whitespace verbatim
+  if (!node.text.trim()) return node.text; // keep pure whitespace verbatim
   const s = node.styles ?? {};
-  if (s.code) out = `\`${node.text}\``;
+  // Emphasis delimiters must hug non-whitespace, so a run like "Hello "
+  // keeps its padding outside the markers: "**Hello** ".
+  const leading = node.text.match(/^\s*/)?.[0] ?? "";
+  const trailing = node.text.match(/\s*$/)?.[0] ?? "";
+  const core = node.text.slice(
+    leading.length,
+    node.text.length - trailing.length,
+  );
+  let out = s.code ? codeSpan(core) : escapeText(core);
   if (s.bold) out = `**${out}**`;
   if (s.italic) out = `*${out}*`;
   if (s.strike) out = `~~${out}~~`;
@@ -71,7 +90,7 @@ function styledText(node: StyledText): string {
   const suggestion = inlineSuggestionOf(s);
   if (suggestion?.kind === "insertion") out = `<ins>${out}</ins>`;
   else if (suggestion?.kind === "deletion") out = `<del>${out}</del>`;
-  return out;
+  return `${leading}${out}${trailing}`;
 }
 
 export function inlineToMarkdown(
@@ -123,8 +142,14 @@ function tableToMarkdown(content: unknown, ctx: MarkdownContext): string {
             cell && typeof cell === "object" && !Array.isArray(cell)
               ? (cell as { content?: unknown }).content
               : cell;
-          // Pipes are already escaped by the inline serializer.
-          return inlineToMarkdown(inline, ctx) || " ";
+          // A table row is one line: hard breaks become <br>, and a pipe
+          // inside a code span (the one place the inline serializer leaves
+          // it raw) is escaped the way GFM tables expect.
+          return (
+            inlineToMarkdown(inline, ctx)
+              .replace(/\n/g, "<br>")
+              .replace(/(?<!\\)\|/g, "\\|") || " "
+          );
         })
         .join(" | ")} |`,
   );
@@ -149,8 +174,11 @@ function blockToMarkdown(
 ): string {
   const props = (block.props ?? {}) as Record<string, unknown>;
   const inline = inlineToMarkdown(block.content, ctx);
+  // Children are rendered unindented and stepped in once here; each
+  // level adds exactly two spaces, which keeps deep lists as lists (four
+  // or more extra spaces would turn an item into a code block).
   const children = block.children?.length
-    ? "\n" + blocksToMarkdownInner(block.children, ctx, depth + 1)
+    ? "\n" + indent(blocksToMarkdownInner(block.children, ctx, depth + 1), 1)
     : "";
 
   switch (block.type) {
@@ -228,10 +256,10 @@ function blocksToMarkdownInner(
   let listIndex = 0;
   for (const block of blocks) {
     listIndex = block.type === "numberedListItem" ? listIndex + 1 : 0;
-    const md =
+    parts.push(
       blockSuggestionLine(block, ctx) +
-      blockToMarkdown(block, ctx, depth, listIndex);
-    parts.push(depth > 0 ? indent(md, depth) : md);
+        blockToMarkdown(block, ctx, depth, listIndex),
+    );
   }
   // List items are separated by single newlines; other blocks by blank lines.
   let out = "";

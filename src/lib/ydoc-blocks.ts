@@ -144,9 +144,13 @@ function blockContent(type: string, node: Y.XmlElement): unknown {
 function plainText(node: Y.XmlElement): string {
   let text = "";
   for (const child of node.toArray()) {
-    if (child instanceof Y.XmlText)
-      text += child.toString().replace(/<[^>]*>/g, "");
-    else if (child instanceof Y.XmlElement) text += plainText(child);
+    if (child instanceof Y.XmlText) {
+      // toString() renders marks as tags and leaves the text unescaped,
+      // so stripping tags would also strip literal "<...>" in code.
+      for (const delta of child.toDelta() as { insert: unknown }[]) {
+        if (typeof delta.insert === "string") text += delta.insert;
+      }
+    } else if (child instanceof Y.XmlElement) text += plainText(child);
   }
   return text;
 }

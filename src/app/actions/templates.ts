@@ -291,17 +291,38 @@ export async function instantiateTemplate(input: {
     .select("id, position, parent_page_id, template_id, template_page_key")
     .eq("workspace_id", input.workspaceId)
     .is("deleted_at", null);
-  const lastSibling = (siblings ?? [])
-    .filter((p) => p.parent_page_id === input.parentPageId)
-    .sort((a, b) => comparePositions(a.position, b.position))
-    .at(-1);
-
   const existingByKey = new Map<string, string>();
   if (input.onlyMissing) {
     for (const p of siblings ?? []) {
       if (p.template_id === template.id && p.template_page_key) {
         existingByKey.set(p.template_page_key, p.id);
       }
+    }
+  }
+
+  // New top-level pages of a later version go beside the copy's existing
+  // top-level pages, not under whichever page the banner was clicked on.
+  let parentPageId = input.parentPageId;
+  if (input.onlyMissing) {
+    const byId = new Map((siblings ?? []).map((p) => [p.id, p]));
+    const existingTop = snapshot.pages.find(
+      (p) => p.parent_key === null && existingByKey.has(p.key),
+    );
+    const existingTopPage = existingTop
+      ? byId.get(existingByKey.get(existingTop.key)!)
+      : undefined;
+    if (existingTopPage) parentPageId = existingTopPage.parent_page_id;
+  }
+  const topSibling = (siblings ?? [])
+    .filter((p) => p.parent_page_id === parentPageId)
+    .sort((a, b) => comparePositions(a.position, b.position))
+    .at(-1);
+  const lastPositionByParentId = new Map<string, string>();
+  for (const p of siblings ?? []) {
+    if (!p.parent_page_id) continue;
+    const current = lastPositionByParentId.get(p.parent_page_id);
+    if (!current || comparePositions(p.position, current) > 0) {
+      lastPositionByParentId.set(p.parent_page_id, p.position);
     }
   }
 
@@ -326,20 +347,33 @@ export async function instantiateTemplate(input: {
     templateId: template.id,
     version: versionRow.version,
     workspaceId: input.workspaceId,
-    parentPageId: input.parentPageId,
-    lastSiblingPosition: lastSibling?.position ?? null,
+    parentPageId,
+    lastSiblingPosition: topSibling?.position ?? null,
+    lastPositionByParentId,
     existingByKey: input.onlyMissing ? existingByKey : undefined,
     existingSyncedByKey,
     newId: () => randomUUID(),
   });
 
-  if (plan.pages.length === 0) return { pageId: null, created: 0 };
+  if (plan.pages.length > 0) {
+    const { error } = await supabase.rpc("insert_template_pages", {
+      p_pages: plan.pages as unknown as Json,
+      p_synced: plan.synced as unknown as Json,
+    });
+    if (error) throw new Error(`Could not create pages: ${error.message}`);
+  }
 
-  const { error } = await supabase.rpc("insert_template_pages", {
-    p_pages: plan.pages as unknown as Json,
-    p_synced: plan.synced as unknown as Json,
-  });
-  if (error) throw new Error(`Could not create pages: ${error.message}`);
+  // The copy is now at this version: existing pages record it so the
+  // update banner clears (their content is never changed).
+  if (input.onlyMissing && existingByKey.size > 0) {
+    await supabase
+      .from("pages")
+      .update({ template_version: versionRow.version })
+      .in("id", [...existingByKey.values()])
+      .lt("template_version", versionRow.version);
+  }
+
+  if (plan.pages.length === 0) return { pageId: null, created: 0 };
 
   for (const file of plan.files) {
     const dest = `${input.workspaceId}/${file.pageId}/${file.newId}`;

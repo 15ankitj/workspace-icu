@@ -85,7 +85,10 @@ Invitations are sent through Resend's REST API from server actions.
   templates and publish/deprecate them in the gallery for everyone.
 - Republishing from the source page creates a new version with a changelog;
   existing copies are never modified. Pages carrying an older version show
-  a banner offering "Add the new pages" (matched by `template_page_key`).
+  a banner offering "Add the new pages" (matched by `template_page_key`):
+  new top-level pages go beside the copy's existing top-level pages, new
+  children go after their parent's current children, and the copy's
+  existing pages then record the new version so the banner clears.
 - Assets referenced by template pages are copied to the private
   `template-assets` bucket under `{template}/{version}/{file}` and copied
   again into the target workspace on instantiation.
