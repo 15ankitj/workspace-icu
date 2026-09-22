@@ -40,6 +40,7 @@ import {
   installSuggestDispatch,
   listSuggestions,
   setSuggesting,
+  withoutSuggesting,
   suggestionAtSelection,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
@@ -191,6 +192,11 @@ export function PageEditor({
   const knownSuggestions = useRef<Set<string> | null>(null);
   const registerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openIds = useRef(new Set(openSuggestionIds));
+  // Suggestions made by others while this page was open arrive with the
+  // next refresh; without this they could never be reported as stale.
+  useEffect(() => {
+    for (const id of openSuggestionIds) openIds.current.add(id);
+  }, [openSuggestionIds]);
   const previousIds = useRef<Set<string> | null>(null);
   const staleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stale, setStale] = useState<StaleSuggestion[]>(staleSuggestions);
@@ -280,9 +286,12 @@ export function PageEditor({
       if (cancelled || seeded.current) return;
       seeded.current = true;
       if (room.fragment.length === 0 && initialContent.length > 0) {
-        editor.replaceBlocks(
-          editor.document,
-          initialContent as unknown as (typeof editorSchema)["PartialBlock"][],
+        // Stored content, not this user's edit: never a suggestion.
+        withoutSuggesting(editor, () =>
+          editor.replaceBlocks(
+            editor.document,
+            initialContent as unknown as (typeof editorSchema)["PartialBlock"][],
+          ),
         );
       }
     });
@@ -494,8 +503,11 @@ export function PageEditor({
 
   // Suggest mode: route this user's transactions through the suggestion
   // transform while it is on; the view is mounted by the time effects run.
+  // BlockNote remounts the view whenever its `editable` prop flips (View
+  // and back), which drops anything installed on the old view, so this
+  // re-runs on every mode change and installs on whichever view is live.
   useEffect(() => {
-    if (!editable) return;
+    if (!editable || mode === "view") return;
     let uninstall: (() => void) | null = null;
     try {
       uninstall = installSuggestDispatch(editor, actor.userId);
@@ -509,7 +521,7 @@ export function PageEditor({
         console.warn("Suggest mode teardown skipped:", error);
       }
     };
-  }, [editor, editable, actor.userId]);
+  }, [editor, editable, actor.userId, mode]);
 
   useEffect(() => {
     if (!editable) return;

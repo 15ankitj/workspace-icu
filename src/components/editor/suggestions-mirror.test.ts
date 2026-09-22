@@ -92,3 +92,22 @@ describe("suggestion mirror plugin", () => {
     expect(container(state).attrs[SUGGESTION_ATTR]).toBeNull();
   });
 });
+
+describe("withoutSuggesting", () => {
+  it("runs the write once with the transform off", async () => {
+    const { BlockNoteEditor } = await import("@blocknote/core");
+    const { withoutSuggesting, isSuggesting } =
+      await import("@/components/editor/suggestions");
+    const editor = BlockNoteEditor.create({
+      _headless: true,
+      extensions: [SuggestionsExtension()],
+    } as unknown as Parameters<typeof BlockNoteEditor.create>[0]);
+    let calls = 0;
+    expect(isSuggesting(editor)).toBe(false);
+    withoutSuggesting(editor, () => {
+      calls += 1;
+      expect(isSuggesting(editor)).toBe(false);
+    });
+    expect(calls).toBe(1);
+  });
+});
