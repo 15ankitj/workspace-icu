@@ -97,7 +97,14 @@ export async function createSyncedBlock(
 export async function loadSyncedBlock(
   id: string,
 ): Promise<SyncedBlockView | null> {
-  const { supabase } = await requireUser();
+  // Public share pages render placements too (Appendix A §1.3 rule 6):
+  // a visitor without a session gets the neutral placeholder, never a
+  // bounce to sign-in.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
   const { data, error } = await supabase.rpc("load_synced_block", {
     p_id: id,
   });

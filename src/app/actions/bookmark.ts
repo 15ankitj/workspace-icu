@@ -5,11 +5,32 @@ import { createClient } from "@/lib/supabase/server";
 import {
   isFetchableUrl,
   parseBookmarkMetadata,
+  redirectTarget,
   type BookmarkMetadata,
 } from "@/lib/bookmark";
 
 const FETCH_TIMEOUT_MS = 5000;
 const MAX_BODY_BYTES = 500_000;
+const MAX_REDIRECTS = 3;
+
+/** Fetch, following redirects only to URLs that pass the same check as
+ *  the first one (a redirect to a private address is a classic SSRF). */
+async function fetchPublic(url: string): Promise<Response | null> {
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const response = await fetch(current, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      redirect: "manual",
+      headers: { accept: "text/html" },
+    });
+    if (response.status < 300 || response.status >= 400) return response;
+    const next = redirectTarget(current, response.headers.get("location"));
+    await response.body?.cancel().catch(() => {});
+    if (!next) return null;
+    current = next;
+  }
+  return null;
+}
 
 /**
  * Best-effort title/description for a bookmark block. Signed-in users
@@ -28,11 +49,8 @@ export async function fetchBookmarkMetadata(
   if (!isFetchableUrl(url)) return { title: null, description: null };
 
   try {
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      redirect: "follow",
-      headers: { accept: "text/html" },
-    });
+    const response = await fetchPublic(url);
+    if (!response) return { title: null, description: null };
     const contentType = response.headers.get("content-type") ?? "";
     if (!response.ok || !contentType.includes("text/html")) {
       return { title: null, description: null };

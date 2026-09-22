@@ -144,7 +144,12 @@ export function PurgeButton({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="destructive" disabled={submitting}>
+            <Button
+              type="submit"
+              form={formId}
+              variant="destructive"
+              disabled={submitting}
+            >
               {submitting
                 ? "Deleting…"
                 : deleting > 0
