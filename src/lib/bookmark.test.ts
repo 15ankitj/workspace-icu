@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isFetchableUrl, parseBookmarkMetadata } from "@/lib/bookmark";
+import {
+  isFetchableUrl,
+  parseBookmarkMetadata,
+  redirectTarget,
+} from "@/lib/bookmark";
 
 describe("isFetchableUrl", () => {
   it("accepts public https URLs", () => {
@@ -57,5 +61,32 @@ describe("parseBookmarkMetadata", () => {
       title: null,
       description: null,
     });
+  });
+});
+
+describe("redirectTarget", () => {
+  it("follows public redirects, relative or absolute", () => {
+    expect(
+      redirectTarget("https://example.org/a", "https://example.com/b"),
+    ).toBe("https://example.com/b");
+    expect(redirectTarget("https://example.org/a/b", "../c")).toBe(
+      "https://example.org/c",
+    );
+  });
+
+  it("refuses redirects to private, local, plain-http or malformed targets", () => {
+    for (const bad of [
+      "http://example.org/",
+      "https://10.0.0.5/",
+      "https://169.254.169.254/latest",
+      "https://localhost/",
+      "https://internal.service.local/",
+      "https://[::1]/",
+      "https://user:pw@example.org/",
+      null,
+      "",
+    ]) {
+      expect(redirectTarget("https://example.org/a", bad)).toBeNull();
+    }
   });
 });

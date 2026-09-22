@@ -107,6 +107,13 @@ Invitations are sent through Resend's REST API from server actions.
 
 ## Hardening (Phase 9)
 
+- **Sign-in destinations**: the `next` query parameter after sign-in
+  must be a site-relative path (`src/lib/safe-next.ts`); protocol-
+  relative and absolute values fall back to the home page.
+- **Bookmark metadata**: fetched server-side over https only, following
+  at most three redirects, each re-checked against the same public-host
+  rule as the first request (hostname-based, not a substitute for
+  network policy).
 - **Trash and purge**: deleted pages sit in the workspace Trash (sidebar)
   for 30 days with Restore / Delete permanently. The nightly job
   `/api/cron/purge` (scheduled in `vercel.json`, 03:00 UTC) removes pages,
@@ -235,7 +242,9 @@ read-only unless they can edit the source page.
 - **Trash**: while the source page is in the Trash, placements show a
   "source in trash" placeholder with _Check again_; they recover on
   restore. _Delete permanently_ in the Trash prompts per synced block that
-  still appears elsewhere (delete everywhere / make a host the source). A
+  still appears elsewhere (delete everywhere / make a host the source).
+  On a public share page a placement shows the neutral placeholder: the
+  visitor has no session, so the content is not loaded. A
   page removed by the nightly job takes its sources to tombstones by
   trigger (`pages_tombstone_synced_sources`, migration 0016).
 - **Cleanup**: the nightly purge deletes the Liveblocks rooms of

@@ -37,6 +37,26 @@ export function isFetchableUrl(raw: string): boolean {
   return true;
 }
 
+/**
+ * Where a redirect points, or null when the hop must not be followed:
+ * the target is resolved against the current URL and then held to the
+ * same rule as the first request, so a public page cannot bounce the
+ * fetch onto a private address.
+ */
+export function redirectTarget(
+  current: string,
+  location: string | null,
+): string | null {
+  if (!location) return null;
+  let next: URL;
+  try {
+    next = new URL(location, current);
+  } catch {
+    return null;
+  }
+  return isFetchableUrl(next.toString()) ? next.toString() : null;
+}
+
 export interface BookmarkMetadata {
   title: string | null;
   description: string | null;

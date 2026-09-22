@@ -3,6 +3,7 @@
 import { Suspense, useId, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { safeNextPath } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/client";
 import { AUP_STATEMENT, AUP_VERSION } from "@/lib/aup";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,7 @@ import { Separator } from "@/components/ui/separator";
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const requestedNext = searchParams.get("next") ?? "/";
-  const next = requestedNext.startsWith("/") ? requestedNext : "/";
+  const next = safeNextPath(searchParams.get("next"));
   const authError = searchParams.get("error");
 
   const [email, setEmail] = useState("");
