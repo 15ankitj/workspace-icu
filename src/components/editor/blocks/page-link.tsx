@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { createReactBlockSpec } from "@blocknote/react";
 import { FileText } from "lucide-react";
 import { usePageLinkContext } from "@/components/editor/page-link-context";
-import { Input } from "@/components/ui/input";
+import { PagePicker as SharedPagePicker } from "@/components/page/page-picker";
 
 function PagePicker({
   onSelect,
@@ -13,43 +12,12 @@ function PagePicker({
   onSelect: (page: { id: string; title: string; icon: string | null }) => void;
 }) {
   const { pages } = usePageLinkContext();
-  const [query, setQuery] = useState("");
-  const matches = pages
-    .filter((p) =>
-      (p.title || "Untitled").toLowerCase().includes(query.toLowerCase()),
-    )
-    .slice(0, 8);
-
   return (
     <div
       contentEditable={false}
       className="rounded-md border border-dashed p-2"
     >
-      <Input
-        autoFocus
-        value={query}
-        placeholder="Link to page…"
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      <ul className="mt-1 max-h-56 overflow-y-auto">
-        {matches.map((page) => (
-          <li key={page.id}>
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-accent"
-              onClick={() => onSelect(page)}
-            >
-              <span className="w-4 text-center">{page.icon ?? "📄"}</span>
-              <span className="truncate">{page.title || "Untitled"}</span>
-            </button>
-          </li>
-        ))}
-        {matches.length === 0 && (
-          <li className="px-2 py-1 text-xs text-muted-foreground">
-            No matching pages.
-          </li>
-        )}
-      </ul>
+      <SharedPagePicker pages={pages} onPick={onSelect} />
     </div>
   );
 }

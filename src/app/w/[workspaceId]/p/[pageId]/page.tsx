@@ -5,10 +5,17 @@ import { cursorColourFor } from "@/lib/collab";
 import { flags } from "@/lib/flags";
 import { normalizeProperties } from "@/lib/page-properties";
 import { comparePositions } from "@/lib/position";
+import {
+  groupReverseLinks,
+  sortLinks,
+  type RelationLinks,
+  type ReverseLinkRow,
+} from "@/lib/relations";
 import { PageHeader } from "@/components/page/page-header";
 import { PageMenu } from "@/components/page/page-menu";
 import { AddCoverButton, PageCover } from "@/components/page/page-cover";
 import { PageDetails } from "@/components/page/page-details";
+import { RelationReversePanel } from "@/components/page/relation-reverse-panel";
 import { PageTopBar } from "@/components/page/page-top-bar";
 import { SubPages } from "@/components/page/sub-pages";
 import { PageEditorLoader } from "@/components/page/page-editor-loader";
@@ -58,6 +65,8 @@ export default async function PageView({
     { data: sourceRows },
     { data: embedRows },
     { data: openSuggestionRows },
+    { data: forwardRelationRows },
+    { data: reverseRelationRows },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -156,6 +165,25 @@ export default async function PageView({
       .select("id, suggester_id, excerpt, status")
       .eq("page_id", pageId)
       .in("status", ["open", "stale"]),
+    // Relations (Appendix B): the links this page's relation rows hold,
+    // and the links other pages hold to it. RLS shows a link only when
+    // both pages are visible; a trashed page is, so its chip can say so.
+    flags.relations
+      ? supabase
+          .from("page_relations")
+          .select(
+            "id, source_property_id, position, target:pages!page_relations_target_page_id_fkey(id, title, icon, deleted_at)",
+          )
+          .eq("source_page_id", pageId)
+      : Promise.resolve({ data: null }),
+    flags.relations
+      ? supabase
+          .from("page_relations")
+          .select(
+            "id, source_property_id, source:pages!page_relations_source_page_id_fkey(id, title, icon, deleted_at, properties)",
+          )
+          .eq("target_page_id", pageId)
+      : Promise.resolve({ data: null }),
   ]);
   const isOwner = membership?.role === "owner";
   const canEdit = isOwner || membership?.role === "editor";
@@ -331,6 +359,49 @@ export default async function PageView({
       };
     });
 
+  // Relation links by row, in stored order, and the reverse side grouped
+  // by what the connection is called.
+  const one = <T,>(value: T | T[] | null | undefined): T | null =>
+    Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+  const relationLinks: RelationLinks = {};
+  for (const row of forwardRelationRows ?? []) {
+    const target = one(row.target);
+    if (!target) continue;
+    (relationLinks[row.source_property_id] ??= []).push({
+      id: row.id,
+      position: row.position,
+      page: {
+        id: target.id,
+        title: target.title,
+        icon: target.icon,
+        trashed: target.deleted_at !== null,
+      },
+    });
+  }
+  for (const key of Object.keys(relationLinks)) {
+    relationLinks[key] = sortLinks(relationLinks[key]);
+  }
+  const reverseGroups = groupReverseLinks(
+    (reverseRelationRows ?? []).flatMap((row): ReverseLinkRow[] => {
+      const source = one(row.source);
+      return source
+        ? [
+            {
+              id: row.id,
+              sourcePropertyId: row.source_property_id,
+              source: {
+                id: source.id,
+                title: source.title,
+                icon: source.icon,
+                trashed: source.deleted_at !== null,
+                properties: source.properties,
+              },
+            },
+          ]
+        : [];
+    }),
+  );
+
   const menu = (
     <PageMenu
       pageId={page.id}
@@ -437,6 +508,7 @@ export default async function PageView({
             />
             <PageDetails
               pageId={page.id}
+              workspaceId={workspaceId}
               initial={properties}
               created={{
                 id: page.created_by,
@@ -452,7 +524,18 @@ export default async function PageView({
               siblingSelectValues={[...selectValues].sort()}
               canEdit={canEditThisPage}
               relationsEnabled={flags.relations}
+              linkablePages={linkablePages}
+              relations={relationLinks}
             />
+            {flags.relations && reverseGroups.length > 0 && (
+              <RelationReversePanel
+                workspaceId={workspaceId}
+                pageId={page.id}
+                groups={reverseGroups}
+                pages={linkablePages}
+                canEdit={canEditThisPage}
+              />
+            )}
           </div>
 
           {(subPages.length > 0 || canEditThisPage) && subPages.length > 0 && (

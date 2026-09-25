@@ -12,6 +12,7 @@ import {
   History,
   Link as LinkIcon,
   MoreHorizontal,
+  Pencil,
   Plus,
   Tag,
   Trash2,
@@ -19,6 +20,20 @@ import {
   X,
 } from "lucide-react";
 import { setPageProperties } from "@/app/actions/pages";
+import type { PickablePage } from "@/components/page/page-picker";
+import {
+  RelationLabelsDialog,
+  RelationValue,
+} from "@/components/page/relation-value";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +61,11 @@ import {
   type PropertyType,
   type SystemProperty,
 } from "@/lib/page-properties";
+import {
+  relationSummary,
+  type RelationLinks,
+  type RelationRow,
+} from "@/lib/relations";
 import { formatDate, formatPropertyDate, formatRelative } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -75,6 +95,7 @@ const labelClass =
  */
 export function PageDetails({
   pageId,
+  workspaceId,
   initial,
   created,
   edited,
@@ -82,8 +103,11 @@ export function PageDetails({
   siblingSelectValues,
   canEdit,
   relationsEnabled,
+  linkablePages,
+  relations,
 }: {
   pageId: string;
+  workspaceId: string;
   initial: PageProperties;
   created: { id: string; name: string; at: string };
   edited: { id: string | null; name: string; at: string };
@@ -93,9 +117,19 @@ export function PageDetails({
   canEdit: boolean;
   /** Feature flag `relations` (Appendix B): offers the Relation type. */
   relationsEnabled: boolean;
+  /** Pages the viewer can see, for the relation picker (trashed excluded). */
+  linkablePages: PickablePage[];
+  /** Links held by this page's relation rows, in stored order. */
+  relations: RelationLinks;
 }) {
   const [props, setProps] = useState<PageProperties>(initial);
+  const [links, setLinks] = useState<RelationLinks>(relations);
   const [open, setOpen] = useState(false);
+  /** The relation being named: null row id means a new one. */
+  const [labelsFor, setLabelsFor] = useState<{ rowId: string | null } | null>(
+    null,
+  );
+  const [confirmRemove, setConfirmRemove] = useState<RelationRow | null>(null);
   const [, startTransition] = useTransition();
   const lastGood = useRef<PageProperties>(initial);
 
@@ -147,6 +181,30 @@ export function PageDetails({
       ...props,
       rows: [...props.rows, newPropertyRow(type, propertyId())],
     });
+  const addRelation = (labels: { label: string; reverseLabel: string }) =>
+    commit({
+      ...props,
+      rows: [
+        ...props.rows,
+        {
+          id: propertyId(),
+          type: "relation",
+          label: labels.label,
+          reverse_label: labels.reverseLabel,
+        },
+      ],
+    });
+  const renameRelation = (
+    id: string,
+    labels: { label: string; reverseLabel: string },
+  ) =>
+    updateRow(id, { label: labels.label, reverse_label: labels.reverseLabel });
+  const labelsDialogRow = labelsFor?.rowId
+    ? props.rows.find(
+        (r): r is RelationRow =>
+          r.id === labelsFor.rowId && r.type === "relation",
+      )
+    : undefined;
 
   const memberById = new Map(members.map((m) => [m.id, m.name]));
   const showCreated = !props.hidden.includes("created_by");
@@ -172,6 +230,7 @@ export function PageDetails({
       .map((r) =>
         r.type === "date" && r.value ? formatPropertyDate(r.value) : r.value,
       ),
+    ...relationSummary(props.rows, links),
     showEdited ? `edited ${formatRelative(edited.at)}` : null,
   ].filter(Boolean);
 
@@ -250,14 +309,31 @@ export function PageDetails({
                 <span className="truncate">{row.label}</span>
               </span>
               <div className="flex min-w-0 flex-1 items-center">
-                <PropertyValue
-                  row={row}
-                  members={members}
-                  memberById={memberById}
-                  siblingSelectValues={siblingSelectValues}
-                  canEdit={canEdit}
-                  onChange={(patch) => updateRow(row.id, patch)}
-                />
+                {row.type === "relation" ? (
+                  <RelationValue
+                    row={row}
+                    links={links[row.id] ?? []}
+                    pages={linkablePages}
+                    pageId={pageId}
+                    workspaceId={workspaceId}
+                    canEdit={canEdit && relationsEnabled}
+                    onChange={(update) =>
+                      setLinks((current) => ({
+                        ...current,
+                        [row.id]: update(current[row.id] ?? []),
+                      }))
+                    }
+                  />
+                ) : (
+                  <PropertyValue
+                    row={row}
+                    members={members}
+                    memberById={memberById}
+                    siblingSelectValues={siblingSelectValues}
+                    canEdit={canEdit}
+                    onChange={(patch) => updateRow(row.id, patch)}
+                  />
+                )}
               </div>
               {canEdit && (
                 <DropdownMenu>
@@ -285,9 +361,20 @@ export function PageDetails({
                       <ChevronDown /> Move down
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    {row.type === "relation" && (
+                      <DropdownMenuItem
+                        onSelect={() => setLabelsFor({ rowId: row.id })}
+                      >
+                        <Pencil /> Rename…
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       className="text-destructive focus:text-destructive"
-                      onSelect={() => removeRow(row.id)}
+                      onSelect={() =>
+                        row.type === "relation"
+                          ? setConfirmRemove(row)
+                          : removeRow(row.id)
+                      }
                     >
                       <Trash2 /> Remove from this page
                     </DropdownMenuItem>
@@ -318,7 +405,14 @@ export function PageDetails({
                 ).map((type) => {
                   const Icon = TYPE_ICONS[type];
                   return (
-                    <DropdownMenuItem key={type} onSelect={() => addRow(type)}>
+                    <DropdownMenuItem
+                      key={type}
+                      onSelect={() =>
+                        type === "relation"
+                          ? setLabelsFor({ rowId: null })
+                          : addRow(type)
+                      }
+                    >
                       <Icon /> {PROPERTY_LABELS[type]}
                       {PROPERTY_HINTS[type] && (
                         <span className="ml-auto text-xs text-muted-foreground">
@@ -364,6 +458,59 @@ export function PageDetails({
           </div>
         )}
       </div>
+
+      {labelsFor && (
+        <RelationLabelsDialog
+          key={labelsFor.rowId ?? "new"}
+          open
+          initial={
+            labelsDialogRow
+              ? {
+                  label: labelsDialogRow.label,
+                  reverseLabel: labelsDialogRow.reverse_label,
+                }
+              : null
+          }
+          onSave={(labels) => {
+            if (labelsDialogRow) renameRelation(labelsDialogRow.id, labels);
+            else addRelation(labels);
+            setLabelsFor(null);
+          }}
+          onClose={() => setLabelsFor(null)}
+        />
+      )}
+
+      <AlertDialog
+        open={confirmRemove !== null}
+        onOpenChange={(next) => !next && setConfirmRemove(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogTitle>
+            Remove “{confirmRemove?.label}” from this page?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {(() => {
+              const count = confirmRemove
+                ? (links[confirmRemove.id]?.length ?? 0)
+                : 0;
+              return count === 0
+                ? "The relation holds no pages yet."
+                : `Its ${count === 1 ? "link" : `${count} links`} ${count === 1 ? "is" : "are"} removed too: the linked ${count === 1 ? "page loses" : "pages lose"} the connection shown under “${confirmRemove?.reverse_label}”.`;
+            })()}
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmRemove) removeRow(confirmRemove.id);
+                setConfirmRemove(null);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
@@ -613,9 +760,8 @@ function PropertyValue({
         />
       );
     case "relation":
-      // The pages a relation holds live in `page_relations`; the picker,
-      // chips and reverse panel arrive with the next step of Appendix B.
-      return empty;
+      // Rendered by RelationValue from the row loop, never here.
+      return null;
   }
 }
 

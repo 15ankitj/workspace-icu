@@ -7,6 +7,7 @@ import { positionAfter, positionBetween, firstPosition } from "@/lib/position";
 import { canMove, descendantIds, siblingsOf, type TreePage } from "@/lib/tree";
 import { isValidCover } from "@/lib/cover";
 import { normalizeProperties } from "@/lib/page-properties";
+import { removedRelationRows } from "@/lib/relations";
 import type { Json } from "@/lib/database.types";
 
 async function requireUser() {
@@ -240,8 +241,44 @@ export async function setPageDescription(pageId: string, description: string) {
 
 /** Replace the page's property block; the shape is normalised first. */
 export async function setPageProperties(pageId: string, properties: unknown) {
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const next = normalizeProperties(properties);
+
+  // A relation row that is being removed takes its links with it
+  // (Appendix B §4.1 rule 5) — links first, so a refusal changes nothing.
+  const { data: current } = await supabase
+    .from("pages")
+    .select("workspace_id, properties")
+    .eq("id", pageId)
+    .maybeSingle();
+  if (!current) throw new Error("Page not found");
+  const removed = removedRelationRows(
+    normalizeProperties(current.properties),
+    next,
+  );
+  for (const row of removed) {
+    const { data: count, error: rpcError } = await supabase.rpc(
+      "delete_relation_property",
+      { p_page_id: pageId, p_property_id: row.id },
+    );
+    if (rpcError) {
+      throw new Error(`Could not remove the relation: ${rpcError.message}`);
+    }
+    await supabase.from("audit_events").insert({
+      actor_id: user.id,
+      workspace_id: current.workspace_id,
+      event_type: "relation.property_deleted",
+      target_type: "page",
+      target_id: pageId,
+      metadata: {
+        property_id: row.id,
+        label: row.label,
+        reverse_label: row.reverse_label,
+        links: count ?? 0,
+      },
+    });
+  }
+
   const { data, error } = await supabase
     .from("pages")
     .update({ properties: next as unknown as Json })
