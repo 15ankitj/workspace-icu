@@ -19,6 +19,11 @@ export default defineConfig({
     baseURL: process.env.STAGING_URL,
     browserName: "chromium",
     trace: "retain-on-failure",
+    // Behind a corporate or sandbox egress proxy the browser needs telling;
+    // Node's own fetch follows the same variable with NODE_USE_ENV_PROXY=1.
+    proxy: process.env.HTTPS_PROXY
+      ? { server: process.env.HTTPS_PROXY }
+      : undefined,
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
       : undefined,
