@@ -271,6 +271,22 @@ when a row is removed. `insert_template_pages` takes a third argument,
   name, dates formatted, links linked), relations both ways with trashed
   pages as "Title (in trash)". Exports carry only what the exporter can
   see: no placeholder, no count, for links to pages they cannot view.
+- **Staging scenarios** (Appendix B §6): `npm run e2e:staging` runs
+  `e2e/relations.spec.ts` against a Vercel Preview with two staging
+  accounts in one workspace (owner and editor). It signs in with
+  `signInWithPassword` against the staging anon key and writes the
+  session cookie itself (the sign-in page is magic-link only), creates
+  its pages under unique titles, makes the editor's private page for the
+  placeholder scenario, and removes all of it at the end, putting the
+  editor's role back. Environment: `STAGING_URL`,
+  `STAGING_SUPABASE_ANON_KEY`, `STAGING_OWNER_EMAIL`,
+  `STAGING_OWNER_PASSWORD`, `STAGING_EDITOR_EMAIL`,
+  `STAGING_EDITOR_PASSWORD`; `STAGING_SUPABASE_URL` is optional (the
+  preview's `/api/health` reports the host). Without them the spec
+  skips. The **E2E (staging)** workflow runs it from the Actions tab
+  with the preview URL as input and the rest from repository secrets;
+  the ordinary CI run ignores the spec. `FEATURE_RELATIONS` must be on
+  for the preview.
 - **Templates** (snapshot format 4): a relation row travels with its
   labels; links between pages of the same template travel as pairs of
   page keys and are recreated between the copies on instantiation

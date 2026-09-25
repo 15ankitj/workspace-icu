@@ -1,0 +1,40 @@
+# Relation-property scenarios against a Vercel Preview (Appendix B §6).
+# Run by hand from the Actions tab with the preview URL; the accounts and
+# the staging anon key come from repository secrets. The run's link goes
+# in the PR that waits on it.
+name: E2E (staging)
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_url:
+        description: Vercel Preview URL of the branch under test
+        required: true
+        type: string
+
+jobs:
+  relations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e:staging
+        env:
+          STAGING_URL: ${{ inputs.staging_url }}
+          STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+          STAGING_OWNER_EMAIL: ${{ secrets.STAGING_OWNER_EMAIL }}
+          STAGING_OWNER_PASSWORD: ${{ secrets.STAGING_OWNER_PASSWORD }}
+          STAGING_EDITOR_EMAIL: ${{ secrets.STAGING_EDITOR_EMAIL }}
+          STAGING_EDITOR_PASSWORD: ${{ secrets.STAGING_EDITOR_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
