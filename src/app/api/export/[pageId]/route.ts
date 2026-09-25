@@ -36,7 +36,7 @@ export async function GET(
   const { data: allPages } = await supabase
     .from("pages")
     .select(
-      "id, parent_page_id, position, title, icon, is_private, created_by, description",
+      "id, parent_page_id, position, title, icon, is_private, created_by, description, properties",
     )
     .eq("workspace_id", root.workspace_id)
     .is("deleted_at", null);
@@ -53,6 +53,7 @@ export async function GET(
 
   const zip = await buildArchive(supabase, selected, root.id, pages, {
     markup,
+    workspaceId: root.workspace_id,
   });
   await supabase.from("audit_events").insert({
     actor_id: user.id,

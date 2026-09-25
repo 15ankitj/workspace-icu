@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SectionHeading } from "@/components/ui/page-shell";
 import { SegmentedControl } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toast";
+import type { RelationPage } from "@/lib/relations";
 import { formatDate, formatPropertyDate, formatRelative } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,8 @@ export interface SubPage {
   type: string | null;
   date: string | null;
   people: { id: string; name: string }[];
+  /** Pages its relation rows hold (Appendix B §4.6): a few, then a count. */
+  relations: { shown: RelationPage[]; more: number };
 }
 
 type Filter = "all" | "mine" | "recent";
@@ -84,6 +87,7 @@ export function SubPages({
     });
 
   const showMeta = pages.some((p) => p.type || p.people.length || p.date);
+  const showRelations = pages.some((p) => p.relations.shown.length > 0);
 
   return (
     <section className="space-y-3" aria-label="Sub-pages">
@@ -163,6 +167,33 @@ export function SubPages({
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {page.title || "Untitled"}
                 </span>
+                {showRelations && page.relations.shown.length > 0 && (
+                  <span
+                    className="hidden max-w-[40%] items-center gap-1 md:flex"
+                    aria-label={`Linked pages: ${page.relations.shown.map((p) => p.title || "Untitled").join(", ")}${page.relations.more ? ` and ${page.relations.more} more` : ""}`}
+                  >
+                    {page.relations.shown.map((related) => (
+                      <span
+                        key={related.id}
+                        className={cn(
+                          "inline-flex h-6 min-w-0 items-center gap-1 rounded-full bg-muted px-2 text-xs",
+                          related.trashed && "italic text-muted-foreground",
+                        )}
+                      >
+                        <span aria-hidden>{related.icon ?? "📄"}</span>
+                        <span className="max-w-32 truncate">
+                          {related.title || "Untitled"}
+                          {related.trashed ? " (in trash)" : ""}
+                        </span>
+                      </span>
+                    ))}
+                    {page.relations.more > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        +{page.relations.more}
+                      </span>
+                    )}
+                  </span>
+                )}
                 {showMeta && (
                   <span className="hidden items-center gap-3 sm:flex">
                     {page.type && <Badge variant="muted">{page.type}</Badge>}

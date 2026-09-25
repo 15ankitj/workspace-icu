@@ -7,6 +7,8 @@ export interface Backlink {
   id: string;
   title: string;
   icon: string | null;
+  /** Relation labels this page is linked under (Appendix B §4.6), if any. */
+  via?: string[];
 }
 
 /** Pages that link to or mention this one (brief §5 backlinks panel). */
@@ -38,6 +40,11 @@ export function BacklinksPanel({
                   {page.icon ?? "📄"}
                 </span>
                 <span className="truncate">{page.title || "Untitled"}</span>
+                {page.via && page.via.length > 0 && (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    · {page.via.join(", ")}
+                  </span>
+                )}
               </Link>
             </li>
           ))}

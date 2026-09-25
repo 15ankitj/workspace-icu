@@ -9,9 +9,11 @@ import {
   groupReverseLinks,
   hiddenLinkCounts,
   sortLinks,
+  subPageChips,
   type RelationLinks,
   type ReverseLinkRow,
 } from "@/lib/relations";
+import { loadRelationsForPages } from "@/lib/relations-export";
 import { PageHeader } from "@/components/page/page-header";
 import { PageMenu } from "@/components/page/page-menu";
 import { AddCoverButton, PageCover } from "@/components/page/page-cover";
@@ -342,29 +344,38 @@ export default async function PageView({
       if (row.type === "select" && row.value) selectValues.add(row.value);
     }
   }
-  const subPages = allPages
+  const children = allPages
     .filter((p) => p.parent_page_id === pageId)
-    .sort((a, b) => comparePositions(a.position, b.position))
-    .map((p) => {
-      const props = propertiesOf.get(p.id);
-      const select = props?.rows.find((r) => r.type === "select" && r.value);
-      const date = props?.rows.find((r) => r.type === "date" && r.value);
-      const peopleRow = props?.rows.find((r) => r.type === "people");
-      const ids = peopleRow?.type === "people" ? peopleRow.value : [];
-      return {
-        id: p.id,
-        title: p.title,
-        icon: p.icon,
-        createdBy: p.created_by,
-        createdAt: p.created_at,
-        updatedAt: p.updated_at,
-        type: select?.type === "select" ? select.value : null,
-        date: date?.type === "date" ? date.value : null,
-        people: ids
-          .map((id) => people.find((m) => m.id === id))
-          .filter((m) => m !== undefined),
-      };
-    });
+    .sort((a, b) => comparePositions(a.position, b.position));
+  // Children's relation pages, a few chips each (Appendix B §4.6).
+  const childRelations = await loadRelationsForPages(
+    supabase,
+    children.map((p) => p.id),
+  );
+  const subPages = children.map((p) => {
+    const props = propertiesOf.get(p.id);
+    const select = props?.rows.find((r) => r.type === "select" && r.value);
+    const date = props?.rows.find((r) => r.type === "date" && r.value);
+    const peopleRow = props?.rows.find((r) => r.type === "people");
+    const ids = peopleRow?.type === "people" ? peopleRow.value : [];
+    return {
+      id: p.id,
+      title: p.title,
+      icon: p.icon,
+      createdBy: p.created_by,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+      type: select?.type === "select" ? select.value : null,
+      date: date?.type === "date" ? date.value : null,
+      people: ids
+        .map((id) => people.find((m) => m.id === id))
+        .filter((m) => m !== undefined),
+      relations: subPageChips(
+        props?.rows ?? [],
+        childRelations.forward.get(p.id) ?? {},
+      ),
+    };
+  });
 
   // Relation links by row, in stored order, and the reverse side grouped
   // by what the connection is called.
@@ -415,6 +426,27 @@ export default async function PageView({
         : [];
     }),
   );
+
+  // A relation link counts as a backlink too, labelled with the property
+  // name (Appendix B §4.6); a page already there from a mention keeps
+  // its place and gains the label. Trashed sources are not listed.
+  const backlinkById = new Map(
+    backlinkPages.map((p) => [p.id, { ...p, via: [] as string[] }]),
+  );
+  for (const group of reverseGroups) {
+    for (const link of group.links) {
+      if (link.page.trashed) continue;
+      const entry = backlinkById.get(link.page.id) ?? {
+        id: link.page.id,
+        title: link.page.title,
+        icon: link.page.icon,
+        via: [] as string[],
+      };
+      if (!entry.via.includes(group.label)) entry.via.push(group.label);
+      backlinkById.set(link.page.id, entry);
+    }
+  }
+  const backlinks = [...backlinkById.values()];
 
   const menu = (
     <PageMenu
@@ -582,7 +614,7 @@ export default async function PageView({
             staleSuggestions={staleSuggestions}
           />
 
-          <BacklinksPanel workspaceId={workspaceId} backlinks={backlinkPages} />
+          <BacklinksPanel workspaceId={workspaceId} backlinks={backlinks} />
 
           <div id="comments">
             <CommentsPanel
