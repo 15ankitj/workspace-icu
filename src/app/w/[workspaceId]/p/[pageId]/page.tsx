@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { buildDocument } from "@/lib/blocks";
 import { cursorColourFor } from "@/lib/collab";
+import { flags } from "@/lib/flags";
 import { normalizeProperties } from "@/lib/page-properties";
 import { comparePositions } from "@/lib/position";
 import { PageHeader } from "@/components/page/page-header";
@@ -450,6 +451,7 @@ export default async function PageView({
               members={people}
               siblingSelectValues={[...selectValues].sort()}
               canEdit={canEditThisPage}
+              relationsEnabled={flags.relations}
             />
           </div>
 

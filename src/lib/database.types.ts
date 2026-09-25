@@ -170,6 +170,18 @@ export type PageLinkRow = {
   target_page_id: string;
 };
 
+/** A link held by a relation property (Appendix B, migration 0025). */
+export type PageRelationRow = {
+  id: string;
+  workspace_id: string;
+  source_page_id: string;
+  source_property_id: string;
+  target_page_id: string;
+  position: string;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type TemplateScope = "platform" | "workspace";
 export type TemplateKind = "page" | "tree" | "workspace";
 
@@ -457,6 +469,36 @@ export type Database = {
           },
         ];
       };
+      page_relations: {
+        Row: PageRelationRow;
+        Insert: Partial<PageRelationRow> &
+          Pick<
+            PageRelationRow,
+            | "workspace_id"
+            | "source_page_id"
+            | "source_property_id"
+            | "target_page_id"
+            | "position"
+            | "created_by"
+          >;
+        Update: Partial<PageRelationRow>;
+        Relationships: [
+          {
+            foreignKeyName: "page_relations_source_page_id_fkey";
+            columns: ["source_page_id"];
+            isOneToOne: false;
+            referencedRelation: "pages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "page_relations_target_page_id_fkey";
+            columns: ["target_page_id"];
+            isOneToOne: false;
+            referencedRelation: "pages";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       synced_blocks: {
         Row: SyncedBlockRow;
         Insert: Partial<SyncedBlockRow> &
@@ -576,7 +618,7 @@ export type Database = {
         Returns: boolean;
       };
       insert_template_pages: {
-        Args: { p_pages: Json; p_synced?: Json };
+        Args: { p_pages: Json; p_synced?: Json; p_relations?: Json };
         Returns: undefined;
       };
       create_workspace: {

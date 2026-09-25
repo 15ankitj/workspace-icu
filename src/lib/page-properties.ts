@@ -1,9 +1,11 @@
 /**
  * Page details (migration 0014): the bounded set of properties a page can
- * show under its title. Deliberately not a database — five value types,
- * no relations, no views — but shaped so v2 databases can lift the rows.
- * Pure: the server action normalises through here before writing, and the
- * client renders from the same types.
+ * show under its title. Deliberately not a database — six value types,
+ * no rollups, no views — but shaped so v2 databases can lift the rows.
+ * The sixth, relation (Appendix B, migration 0025), declares a link to
+ * other pages: the row lives here, the pages it holds live in
+ * `page_relations`. Pure: the server action normalises through here
+ * before writing, and the client renders from the same types.
  */
 
 export const PROPERTY_TYPES = [
@@ -12,16 +14,36 @@ export const PROPERTY_TYPES = [
   "select",
   "link",
   "text",
+  "relation",
 ] as const;
 
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
+
+/**
+ * Appendix B §4.4, designed only: a relation row that is the reverse side
+ * of another page's relation row, so the reverse side can be a normal,
+ * positionable property. Nothing reads it yet; it is kept so no migration
+ * is needed when it is.
+ */
+export interface RelationReverseOf {
+  page_id?: string;
+  property_id: string;
+}
 
 export type PagePropertyRow =
   | { id: string; type: "people"; label: string; value: string[] }
   | { id: string; type: "date"; label: string; value: string | null }
   | { id: string; type: "select"; label: string; value: string | null }
   | { id: string; type: "link"; label: string; value: string }
-  | { id: string; type: "text"; label: string; value: string };
+  | { id: string; type: "text"; label: string; value: string }
+  | {
+      id: string;
+      type: "relation";
+      label: string;
+      /** What the target page calls the connection ("Evidence for"). */
+      reverse_label: string;
+      reverse_of?: RelationReverseOf;
+    };
 
 /** Rows every page has; they can be hidden per page but not deleted. */
 export const SYSTEM_PROPERTIES = ["created_by", "updated_by"] as const;
@@ -40,6 +62,7 @@ export const PROPERTY_LABELS: Record<PropertyType, string> = {
   select: "Type",
   link: "Link",
   text: "Text",
+  relation: "Relation",
 };
 
 export const PROPERTY_HINTS: Record<PropertyType, string> = {
@@ -48,9 +71,13 @@ export const PROPERTY_HINTS: Record<PropertyType, string> = {
   select: "one of a list",
   link: "",
   text: "",
+  relation: "pages in this workspace",
 };
 
 export const MAX_ROWS = 20;
+/** Pages one relation property can hold (Appendix B §7, proposed). The
+ *  database enforces the same number. */
+export const MAX_RELATION_LINKS = 200;
 const MAX_LABEL = 40;
 const MAX_TEXT = 500;
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,40}$/;
@@ -79,6 +106,22 @@ export function isValidLink(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** The reverse label a relation gets until someone names it. */
+export function defaultReverseLabel(label: string): string {
+  return `Related: ${label}`.slice(0, MAX_LABEL);
+}
+
+function normalizeReverseOf(input: unknown): RelationReverseOf | undefined {
+  if (!isRecord(input)) return undefined;
+  const propertyId =
+    typeof input.property_id === "string" ? input.property_id : "";
+  if (!ID_PATTERN.test(propertyId)) return undefined;
+  const pageId = input.page_id;
+  return typeof pageId === "string" && UUID_PATTERN.test(pageId)
+    ? { page_id: pageId.toLowerCase(), property_id: propertyId }
+    : { property_id: propertyId };
 }
 
 function normalizeRow(input: unknown): PagePropertyRow | null {
@@ -127,6 +170,21 @@ function normalizeRow(input: unknown): PagePropertyRow | null {
     }
     case "text":
       return { id, type: "text", label, value: cleanText(value) };
+    case "relation": {
+      // The row declares the relation; its pages are in `page_relations`,
+      // so any value supplied is dropped rather than stored twice.
+      const reverseOf = normalizeReverseOf(input.reverse_of);
+      return {
+        id,
+        type: "relation",
+        label,
+        reverse_label: cleanLabel(
+          input.reverse_label,
+          defaultReverseLabel(label),
+        ),
+        ...(reverseOf && { reverse_of: reverseOf }),
+      };
+    }
   }
 }
 
@@ -176,6 +234,8 @@ export function newPropertyRow(
       return { id, type, label, value: "" };
     case "text":
       return { id, type, label, value: "" };
+    case "relation":
+      return { id, type, label, reverse_label: defaultReverseLabel(label) };
   }
 }
 
@@ -183,7 +243,9 @@ export function newPropertyRow(
  * What a template carries: the rows and which system rows are hidden, with
  * people and dates cleared (they belong to the source page, not the copy).
  * Select, link and text values travel, since they are usually part of the
- * template's meaning ("Type: Supervision").
+ * template's meaning ("Type: Supervision"). A relation row travels with
+ * its labels; the links it holds are the snapshot's business (Appendix B
+ * §4.5), not the row's.
  */
 export function propertiesForTemplate(input: unknown): PageProperties {
   const props = normalizeProperties(input);
@@ -197,8 +259,13 @@ export function propertiesForTemplate(input: unknown): PageProperties {
   };
 }
 
-/** True when a row carries something worth showing in a summary. */
+/**
+ * True when a row carries something worth showing in a summary. A relation
+ * row never does on its own: how many pages it holds is known only to
+ * whoever loaded `page_relations`.
+ */
 export function hasValue(row: PagePropertyRow): boolean {
+  if (row.type === "relation") return false;
   if (row.type === "people") return row.value.length > 0;
   return Boolean(row.value);
 }
