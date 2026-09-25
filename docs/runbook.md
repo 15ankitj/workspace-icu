@@ -271,7 +271,14 @@ when a row is removed. `insert_template_pages` takes a third argument,
   name, dates formatted, links linked), relations both ways with trashed
   pages as "Title (in trash)". Exports carry only what the exporter can
   see: no placeholder, no count, for links to pages they cannot view.
-- Template remapping arrives in the next step.
+- **Templates** (snapshot format 4): a relation row travels with its
+  labels; links between pages of the same template travel as pairs of
+  page keys and are recreated between the copies on instantiation
+  (`insert_template_pages`, `p_relations`). Links to pages outside the
+  template are left out and noted in the changelog. _Add the new pages_
+  adds the new pages' links, to each other and to existing copies
+  matched by key, and never touches a link on an existing page. Older
+  snapshots read as having no links.
 
 ## Synced blocks (Appendix A, Part 1)
 
@@ -431,7 +438,7 @@ says until the author accepts (brief §2.4).
   JSON string, not rendered) and restores the marks from it on documents
   that arrive from Yjs; the markup export reads the same attribute.
 - **Pack defaults** (§2.2, slice 5, migration 0022): template snapshots
-  (format 3) carry `authored_content` per page and
+  (format 3; format 4 adds relation links, Appendix B) carry `authored_content` per page and
   `insert_template_pages` sets it, with the instantiating user as
   creator and therefore author. CESR Journey v3 marks Reflections and
   the new Application narrative page (gap statement and the narrative

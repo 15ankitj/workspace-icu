@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { flags } from "@/lib/flags";
 import { descendantIds } from "@/lib/tree";
 import { comparePositions } from "@/lib/position";
 import {
@@ -162,8 +163,18 @@ export async function saveAsTemplate(
       : []) as unknown as EditorBlock[],
   }));
 
+  // Relation links held by the pages (Appendix B §4.5): those inside the
+  // tree travel as key pairs; the builder notes the rest.
+  const { data: relationRows } = flags.relations
+    ? await supabase
+        .from("page_relations")
+        .select("source_page_id, source_property_id, target_page_id, position")
+        .in("source_page_id", [...treeIds])
+    : { data: [] };
+
   const snapshot = buildSnapshot(sourcePages, blocksByPage, filesById, {
     synced,
+    relations: relationRows ?? [],
     newId: () => randomUUID(),
   });
   const notes = snapshot.notes ?? [];
@@ -359,6 +370,7 @@ export async function instantiateTemplate(input: {
     const { error } = await supabase.rpc("insert_template_pages", {
       p_pages: plan.pages as unknown as Json,
       p_synced: plan.synced as unknown as Json,
+      p_relations: (flags.relations ? plan.relations : []) as unknown as Json,
     });
     if (error) throw new Error(`Could not create pages: ${error.message}`);
   }

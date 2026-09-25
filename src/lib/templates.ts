@@ -59,15 +59,37 @@ export interface SnapshotSynced {
   blocks: EditorBlock[];
 }
 
+/**
+ * A relation link between two pages of the snapshot (Appendix B §4.5),
+ * as a pair of page keys; recreated with the new ids on instantiation.
+ * Links to pages outside the snapshot are dropped at snapshot time.
+ */
+export interface SnapshotRelation {
+  source_key: string;
+  /** The relation row's id on the source page (it travels in `properties`). */
+  property_id: string;
+  target_key: string;
+  position: string;
+}
+
 export interface TemplateSnapshot {
-  /** 2 adds `synced`, 3 adds `authored_content` on pages; older formats
-   *  are read as having neither. */
-  format: 1 | 2 | 3;
+  /** 2 adds `synced`, 3 adds `authored_content` on pages, 4 adds
+   *  `relations`; older formats are read as having none of them. */
+  format: 1 | 2 | 3 | 4;
   pages: SnapshotPage[];
   files: SnapshotFile[];
   synced?: SnapshotSynced[];
+  relations?: SnapshotRelation[];
   /** What the snapshot builder had to change, for the changelog. */
   notes?: string[];
+}
+
+/** A relation link as the saver reads it (RLS-visible ones only). */
+export interface SourceRelation {
+  source_page_id: string;
+  source_property_id: string;
+  target_page_id: string;
+  position: string;
 }
 
 /** A synced block row as the saver sees it (RLS-visible ones only). */
@@ -254,7 +276,11 @@ export function buildSnapshot(
   pages: SourcePage[],
   blocksByPage: Map<string, BlockRowFromDb[]>,
   filesById: Map<string, Omit<SnapshotFile, "key">>,
-  options: { synced?: SourceSynced[]; newId?: () => string } = {},
+  options: {
+    synced?: SourceSynced[];
+    relations?: SourceRelation[];
+    newId?: () => string;
+  } = {},
 ): TemplateSnapshot {
   const ids = new Set(pages.map((p) => p.id.toLowerCase()));
   const fileKeys = new Set<string>();
@@ -318,11 +344,40 @@ export function buildSnapshot(
     if (meta) files.push({ key, ...meta });
   }
 
+  // Relation links between pages of the tree travel as key pairs; a link
+  // to a page outside it is left out and noted (Appendix B §4.5), as a
+  // synced source outside the tree is.
+  const relations: SnapshotRelation[] = [];
+  let outside = 0;
+  for (const link of options.relations ?? []) {
+    const source = link.source_page_id.toLowerCase();
+    const target = link.target_page_id.toLowerCase();
+    if (!ids.has(source)) continue;
+    if (!ids.has(target)) {
+      outside += 1;
+      continue;
+    }
+    relations.push({
+      source_key: source,
+      property_id: link.source_property_id,
+      target_key: target,
+      position: link.position,
+    });
+  }
+  if (outside > 0) {
+    notes.push(
+      outside === 1
+        ? "1 relation link to a page outside this template was left out."
+        : `${outside} relation links to pages outside this template were left out.`,
+    );
+  }
+
   return {
-    format: 3,
+    format: 4,
     pages: ordered,
     files,
     synced: [...entries.values()],
+    relations,
     notes,
   };
 }
@@ -366,11 +421,22 @@ export interface PlannedSynced {
   blocks: EditorBlock[];
 }
 
+/** A relation link to create, with the new page ids (insert_template_pages `p_relations`). */
+export interface PlannedRelation {
+  workspace_id: string;
+  source_page_id: string;
+  source_property_id: string;
+  target_page_id: string;
+  position: string;
+}
+
 export interface InstantiationPlan {
   pages: PlannedPage[];
   files: PlannedFile[];
   /** Synced blocks to create alongside the pages. */
   synced: PlannedSynced[];
+  /** Relation links between the copies (Appendix B §4.5). */
+  relations: PlannedRelation[];
   /** Placements that could not be resolved and were copied as content. */
   notes: string[];
   /** Id of the first top-level created page, to navigate to. */
@@ -591,7 +657,26 @@ export function planInstantiation(input: {
     });
   }
 
-  return { pages, files, synced, notes, rootPageId };
+  // Relation links: only those whose source page is created here, to a
+  // target created here or already present under its key. "Add the new
+  // pages" thus adds the new pages' links and never touches a link the
+  // user made on an existing page.
+  const relations: PlannedRelation[] = [];
+  for (const link of input.snapshot.relations ?? []) {
+    if (!created.has(link.source_key)) continue;
+    const source = keyToId.get(link.source_key);
+    const target = keyToId.get(link.target_key);
+    if (!source || !target || source === target) continue;
+    relations.push({
+      workspace_id: input.workspaceId,
+      source_page_id: source,
+      source_property_id: link.property_id,
+      target_page_id: target,
+      position: link.position,
+    });
+  }
+
+  return { pages, files, synced, relations, notes, rootPageId };
 }
 
 /** Keys present in the newer snapshot but absent from the user's copy. */
