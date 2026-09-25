@@ -226,10 +226,31 @@ workspace only; adding a link needs edit rights on both pages and both
 live; removing works while one side is in the Trash; a purge removes the
 link by cascade. Audit: `relation.link_added` and `relation.link_removed`
 (reason `removed` or `purge`) are written by trigger, so every path is
-covered once per link. `insert_template_pages` takes a third argument,
+covered once per link; `relation.property_deleted` (with the link count)
+when a row is removed. `insert_template_pages` takes a third argument,
 `p_relations`, for links between pages of one template. Behind the
-`relations` flag; the editor, reverse panel, exports and template
-remapping arrive in the following steps.
+`relations` flag.
+
+- **Adding**: page details → _Add a property_ → Relation asks for the
+  name on this page ("Evidence") and the name on the linked pages
+  ("Evidence for", pre-filled). _Rename…_ in the row menu changes both.
+- **Editing**: the row shows page chips (icon, title, link) in stored
+  order; _Add_ opens the same page search as `@` and page-link blocks
+  (multi-select: a ticked page is removed on a second pick); × removes;
+  drag or Alt+←/→ reorders. At most 200 pages per relation. A chip for a
+  page in the Trash reads "(in trash)", muted and not linked, and comes
+  back on restore.
+- **Reverse side**: directly under the properties, before Sub-pages,
+  each connection that holds this page is listed under its reverse
+  name with the same chips and _Add_. Adding there makes the picked
+  page the source: it gets a relation row with that name if it has
+  none (matched by label, case-insensitively).
+- **Removing a relation row** asks first, naming the links it holds;
+  `delete_relation_property` (migration 0026) removes them all for the
+  source page's editor, including links to pages they could not edit
+  one by one.
+- Exports, the sub-page list, backlinks, the permission placeholder and
+  template remapping arrive in the following steps.
 
 ## Synced blocks (Appendix A, Part 1)
 
