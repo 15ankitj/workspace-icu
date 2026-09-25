@@ -62,13 +62,20 @@ export default async function TrashPage({
     created_by: "",
   }));
   const atRiskByRoot = new Map<string, AtRiskSyncedBlock[]>();
+  // Relation links to pages outside the purge (Appendix B §4.3): the
+  // prompt names how many other pages lose a link.
+  const linkedByRoot = new Map<string, number>();
+  const subPagesByRoot = new Map<string, number>();
   if (canEdit && roots.length > 0) {
     await Promise.all(
       roots.map(async (root) => {
         const ids = [root.id, ...descendantIds(treeRows, root.id)];
-        const { data } = await supabase.rpc("synced_sources_at_risk", {
-          p_page_ids: ids,
-        });
+        subPagesByRoot.set(root.id, ids.length - 1);
+        const [{ data }, { data: linked }] = await Promise.all([
+          supabase.rpc("synced_sources_at_risk", { p_page_ids: ids }),
+          supabase.rpc("relation_pages_linked_outside", { p_page_ids: ids }),
+        ]);
+        linkedByRoot.set(root.id, Number(linked ?? 0));
         if (data && data.length > 0) {
           atRiskByRoot.set(
             root.id,
@@ -153,6 +160,8 @@ export default async function TrashPage({
                       pageId={page.id}
                       title={title}
                       atRisk={atRiskByRoot.get(page.id) ?? []}
+                      linkedPages={linkedByRoot.get(page.id) ?? 0}
+                      hasSubPages={(subPagesByRoot.get(page.id) ?? 0) > 0}
                     />
                   </span>
                 )}

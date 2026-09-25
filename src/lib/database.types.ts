@@ -625,6 +625,14 @@ export type Database = {
         Args: { p_page_id: string; p_property_id: string };
         Returns: number;
       };
+      relation_link_counts: {
+        Args: { p_page_id: string };
+        Returns: { source_property_id: string; total: number }[];
+      };
+      relation_pages_linked_outside: {
+        Args: { p_page_ids: string[] };
+        Returns: number;
+      };
       create_workspace: {
         Args: { p_name: string };
         Returns: string;

@@ -95,9 +95,12 @@ export async function purgePage(formData: FormData) {
   if (!target?.deleted_at) throw new Error("Page is not in the trash");
   const ids = [pageId, ...descendantIds(pages, pageId)];
 
-  const { data: atRisk } = await supabase.rpc("synced_sources_at_risk", {
-    p_page_ids: ids,
-  });
+  const [{ data: atRisk }, { data: linkedPages }] = await Promise.all([
+    supabase.rpc("synced_sources_at_risk", { p_page_ids: ids }),
+    // Relation links to pages outside the purge go by cascade, each
+    // audited by trigger; the count is kept here too (Appendix B §4.3).
+    supabase.rpc("relation_pages_linked_outside", { p_page_ids: ids }),
+  ]);
   const decisions = parsePurgeDecisions(
     formData.get("decisions")?.toString(),
     (atRisk ?? []).map((row) => row.id),
@@ -144,6 +147,7 @@ export async function purgePage(formData: FormData) {
       files: paths.length,
       synced_blocks: (atRisk ?? []).length,
       synced_reassigned: reassigned,
+      relation_pages_unlinked: Number(linkedPages ?? 0),
     },
   });
 

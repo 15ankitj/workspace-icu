@@ -249,8 +249,20 @@ when a row is removed. `insert_template_pages` takes a third argument,
   `delete_relation_property` (migration 0026) removes them all for the
   source page's editor, including links to pages they could not edit
   one by one.
-- Exports, the sub-page list, backlinks, the permission placeholder and
-  template remapping arrive in the following steps.
+- **Permissions**: a link is visible only when both pages are. On the
+  forward side a link to a page the viewer cannot see renders as "A page
+  you don't have access to" (the synced-block rule; never the title),
+  counted by `relation_link_counts` (migration 0027); it cannot be
+  removed from there. The reverse side says nothing about pages the
+  viewer cannot see. Adding a link needs edit rights on both pages.
+- **Trash**: a chip for a page in the Trash reads "(in trash)" and
+  recovers on restore; nothing else changes. _Delete permanently_ names
+  how many other pages lose a link (`relation_pages_linked_outside`);
+  the purge removes the links by cascade and the audit shows
+  `relation.link_removed` with reason `purge`, from the Trash and from
+  the nightly job alike.
+- Exports, the sub-page list, backlinks and template remapping arrive in
+  the following steps.
 
 ## Synced blocks (Appendix A, Part 1)
 

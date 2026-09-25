@@ -3,7 +3,9 @@ import { comparePositions } from "./position";
 import { normalizeProperties } from "./page-properties";
 import {
   groupReverseLinks,
+  hiddenLinkCounts,
   positionForMove,
+  purgeUnlinkSentence,
   relationRowByLabel,
   relationSummary,
   removedRelationRows,
@@ -182,5 +184,40 @@ describe("relationSummary", () => {
     expect(
       relationSummary(rows, { r1: [link("a", "a0"), link("b", "a1")] }),
     ).toEqual(["2 Evidence"]);
+    expect(
+      relationSummary(rows, { r1: [link("a", "a0")] }, { r1: 2, r2: 1 }),
+    ).toEqual(["3 Evidence", "1 Cases"]);
+  });
+});
+
+describe("hiddenLinkCounts", () => {
+  it("is the total minus what RLS returned, never negative, only when positive", () => {
+    expect(
+      hiddenLinkCounts(
+        [
+          { source_property_id: "r1", total: 3 },
+          { source_property_id: "r2", total: 1 },
+          { source_property_id: "r3", total: 2 },
+        ],
+        { r1: [link("a", "a0")], r2: [link("b", "a0")], r3: [] },
+      ),
+    ).toEqual({ r1: 2, r3: 2 });
+    expect(
+      hiddenLinkCounts([{ source_property_id: "r1", total: 1 }], {
+        r1: [link("a", "a0"), link("b", "a1")],
+      }),
+    ).toEqual({});
+  });
+});
+
+describe("purgeUnlinkSentence", () => {
+  it("names the count and the subject, and stays quiet at zero", () => {
+    expect(purgeUnlinkSentence(0, false)).toBeNull();
+    expect(purgeUnlinkSentence(1, false)).toBe(
+      "This page is linked from 1 other page; that link will be removed.",
+    );
+    expect(purgeUnlinkSentence(4, true)).toBe(
+      "This page and its sub-pages are linked from 4 other pages; those links will be removed.",
+    );
   });
 });
