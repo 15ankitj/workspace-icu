@@ -261,8 +261,17 @@ when a row is removed. `insert_template_pages` takes a third argument,
   the purge removes the links by cascade and the audit shows
   `relation.link_removed` with reason `purge`, from the Trash and from
   the nightly job alike.
-- Exports, the sub-page list, backlinks and template remapping arrive in
-  the following steps.
+- **Sub-page list**: each child shows the pages its relation rows hold,
+  three chips then "+N", beside its type, people and date.
+- **Backlinks**: a page that holds a relation to this one is listed under
+  _Linked from_ with the relation's name; a page already there from a
+  mention keeps its place and gains the label.
+- **Exports**: Markdown and print render every property row as one
+  block under the description (`**Label:** value`; people by display
+  name, dates formatted, links linked), relations both ways with trashed
+  pages as "Title (in trash)". Exports carry only what the exporter can
+  see: no placeholder, no count, for links to pages they cannot view.
+- Template remapping arrives in the next step.
 
 ## Synced blocks (Appendix A, Part 1)
 

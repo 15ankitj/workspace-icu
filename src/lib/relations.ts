@@ -183,6 +183,23 @@ export function relationSummary(
 }
 
 /**
+ * What the sub-page list shows for one child (§4.6): its relation pages in
+ * row order, up to `max` chips, and how many more there are.
+ */
+export function subPageChips(
+  rows: PagePropertyRow[],
+  links: RelationLinks,
+  max = 3,
+): { shown: RelationPage[]; more: number } {
+  const all: RelationPage[] = [];
+  for (const row of rows) {
+    if (row.type !== "relation") continue;
+    for (const link of links[row.id] ?? []) all.push(link.page);
+  }
+  return { shown: all.slice(0, max), more: Math.max(0, all.length - max) };
+}
+
+/**
  * The Trash's warning before a purge (§4.3): how many other pages lose a
  * link. Null when none do.
  */

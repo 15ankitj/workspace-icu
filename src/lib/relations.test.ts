@@ -10,6 +10,7 @@ import {
   relationSummary,
   removedRelationRows,
   sortLinks,
+  subPageChips,
   suggestReverseLabel,
   type RelationLink,
 } from "./relations";
@@ -207,6 +208,25 @@ describe("hiddenLinkCounts", () => {
         r1: [link("a", "a0"), link("b", "a1")],
       }),
     ).toEqual({});
+  });
+});
+
+describe("subPageChips", () => {
+  it("takes pages across relation rows in order, three then the rest as a count", () => {
+    const rows = normalizeProperties({
+      rows: [
+        { id: "r1", type: "relation", label: "Evidence" },
+        { id: "t", type: "text", label: "Note", value: "" },
+        { id: "r2", type: "relation", label: "Cases" },
+      ],
+    }).rows;
+    const result = subPageChips(rows, {
+      r1: [link("a", "a0"), link("b", "a1")],
+      r2: [link("c", "a0"), link("d", "a1")],
+    });
+    expect(result.shown.map((p) => p.title)).toEqual(["a", "b", "c"]);
+    expect(result.more).toBe(1);
+    expect(subPageChips(rows, {})).toEqual({ shown: [], more: 0 });
   });
 });
 

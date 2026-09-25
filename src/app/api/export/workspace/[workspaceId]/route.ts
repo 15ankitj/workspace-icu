@@ -29,14 +29,16 @@ export async function GET(
     supabase
       .from("pages")
       .select(
-        "id, parent_page_id, position, title, icon, is_private, created_by, description",
+        "id, parent_page_id, position, title, icon, is_private, created_by, description, properties",
       )
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null),
   ]);
   if (!workspace) return new Response("Not found", { status: 404 });
 
-  const zip = await buildArchive(supabase, pages ?? [], null, pages ?? []);
+  const zip = await buildArchive(supabase, pages ?? [], null, pages ?? [], {
+    workspaceId,
+  });
   await supabase.from("audit_events").insert({
     actor_id: user.id,
     workspace_id: workspaceId,

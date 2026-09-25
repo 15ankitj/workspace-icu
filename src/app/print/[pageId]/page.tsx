@@ -11,6 +11,10 @@ import {
 import { loadSyncedForPages, type SyncedLookup } from "@/lib/synced-export";
 import { syncedBlockIdsIn } from "@/lib/synced";
 import { PrintTrigger } from "@/app/print/[pageId]/print-trigger";
+import { normalizeProperties } from "@/lib/page-properties";
+import { propertyLines } from "@/lib/property-export";
+import { loadMemberNames, loadRelationsForPages } from "@/lib/relations-export";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +52,7 @@ export default async function PrintPage({
   const { data: allPages } = await supabase
     .from("pages")
     .select(
-      "id, parent_page_id, position, title, icon, is_private, created_by, description",
+      "id, parent_page_id, position, title, icon, is_private, created_by, description, properties",
     )
     .eq("workspace_id", root.workspace_id)
     .is("deleted_at", null);
@@ -92,7 +96,19 @@ export default async function PrintPage({
     const withMarkup = marked?.syncedBlocks.get(id);
     return withMarkup ? { ...clean, blocks: withMarkup } : clean;
   };
-  const counts = await unresolvedSuggestionCounts(supabase, [...include]);
+  const [counts, relations, memberNames] = await Promise.all([
+    unresolvedSuggestionCounts(supabase, [...include]),
+    loadRelationsForPages(supabase, [...include]),
+    loadMemberNames(supabase, root.workspace_id),
+  ]);
+  const pageHref = (id: string) => `/w/${root.workspace_id}/p/${id}`;
+  const linesFor = (entry: (typeof entries)[number]) =>
+    propertyLines(normalizeProperties(entry.page.properties), {
+      memberName: (id) => memberNames.get(id) ?? null,
+      pageHref,
+      links: relations.forward.get(entry.page.id) ?? {},
+      reverse: relations.reverse.get(entry.page.id) ?? [],
+    });
   const waiting = entries.filter((e) => (counts.get(e.page.id) ?? 0) > 0);
   const waitingTotal = waiting.reduce(
     (n, e) => n + (counts.get(e.page.id) ?? 0),
@@ -152,6 +168,32 @@ export default async function PrintPage({
               {entry.page.description}
             </p>
           )}
+          {linesFor(entry).length > 0 && (
+            <dl className="mb-6 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+              {linesFor(entry).map((line, i) => (
+                <div key={i} className="contents">
+                  <dt className="text-muted-foreground">{line.label}</dt>
+                  <dd>
+                    {line.parts.map((part, j) => (
+                      <span
+                        key={j}
+                        className={cn(part.muted && "text-muted-foreground")}
+                      >
+                        {j > 0 && ", "}
+                        {part.href ? (
+                          <a href={part.href} className="underline">
+                            {part.text}
+                          </a>
+                        ) : (
+                          part.text
+                        )}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <Blocks
             blocks={
               marked?.pageBlocks.get(entry.page.id) ??
@@ -159,7 +201,7 @@ export default async function PrintPage({
               []
             }
             ctx={{
-              pageHref: (id) => `/w/${root.workspace_id}/p/${id}`,
+              pageHref,
               pageTitle: (id) => titleById.get(id) ?? null,
               syncedBlock,
               suggester: marked?.suggester,

@@ -3,6 +3,9 @@ import type { createClient } from "@/lib/supabase/server";
 import { buildDocument, type EditorBlock } from "@/lib/blocks";
 import { blocksToMarkdown, fileIdsIn } from "@/lib/markdown";
 import { planExport, relativeLink, safeFilename } from "@/lib/export";
+import { normalizeProperties } from "@/lib/page-properties";
+import { propertyLines, propertyLinesToMarkdown } from "@/lib/property-export";
+import { loadMemberNames, loadRelationsForPages } from "@/lib/relations-export";
 import {
   exportNotes,
   loadMarkupExport,
@@ -19,6 +22,8 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
 export interface ArchiveOptions {
   /** Keep suggestion markup (Appendix A §2.4) instead of the clean state. */
   markup?: boolean;
+  /** The pages' workspace, for member names in people properties. */
+  workspaceId?: string;
 }
 
 /**
@@ -69,6 +74,14 @@ export async function buildArchive(
   const markup = options.markup
     ? await loadMarkupExport(supabase, pageIds, [...syncedIds])
     : null;
+  // Page properties render as one block under the description (Appendix
+  // B §4.6): relations both ways, people by display name.
+  const [relations, memberNames] = await Promise.all([
+    loadRelationsForPages(supabase, pageIds),
+    options.workspaceId
+      ? loadMemberNames(supabase, options.workspaceId)
+      : Promise.resolve(new Map<string, string>()),
+  ]);
   const syncedBlock: SyncedLookup = (id) => {
     const clean = cleanSynced(id);
     if (!clean) return null;
@@ -127,11 +140,27 @@ export async function buildArchive(
     const title = `${entry.page.icon ? `${entry.page.icon} ` : ""}${entry.page.title || "Untitled"}`;
     const description = (entry.page as { description?: string }).description;
     const intro = description ? `_${description}_\n\n` : "";
+    const properties = propertyLinesToMarkdown(
+      propertyLines(
+        normalizeProperties(
+          (entry.page as { properties?: unknown }).properties,
+        ),
+        {
+          memberName: (id) => memberNames.get(id) ?? null,
+          pageHref: (id) => {
+            const target = pathById.get(id);
+            return target ? relativeLink(entry.path, target) : null;
+          },
+          links: relations.forward.get(entry.page.id) ?? {},
+          reverse: relations.reverse.get(entry.page.id) ?? [],
+        },
+      ),
+    );
     const trailer = markup
       ? suggestionIndex(doc, syncedBlock, markup.suggester)
       : "";
     files[`${entry.path}.md`] = strToU8(
-      `# ${title}\n\n${intro}${markdown}${trailer}`,
+      `# ${title}\n\n${intro}${properties}${markdown}${trailer}`,
     );
   }
 
