@@ -3,6 +3,7 @@
 import { useId, useRef, useState, useTransition } from "react";
 import {
   AlignLeft,
+  ArrowLeftRight,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -59,6 +60,7 @@ const TYPE_ICONS: Record<PropertyType, typeof Users> = {
   select: Tag,
   link: LinkIcon,
   text: AlignLeft,
+  relation: ArrowLeftRight,
 };
 
 const rowClass =
@@ -79,6 +81,7 @@ export function PageDetails({
   members,
   siblingSelectValues,
   canEdit,
+  relationsEnabled,
 }: {
   pageId: string;
   initial: PageProperties;
@@ -88,6 +91,8 @@ export function PageDetails({
   /** Existing "Type"-style values on sibling pages, offered as options. */
   siblingSelectValues: string[];
   canEdit: boolean;
+  /** Feature flag `relations` (Appendix B): offers the Relation type. */
+  relationsEnabled: boolean;
 }) {
   const [props, setProps] = useState<PageProperties>(initial);
   const [open, setOpen] = useState(false);
@@ -160,7 +165,10 @@ export function PageDetails({
     .map((id) => ({ id, name: memberById.get(id) ?? "Unknown" }));
   const summaryBits = [
     ...filled
-      .filter((r) => r.type !== "people")
+      .filter(
+        (r): r is Exclude<PagePropertyRow, { type: "people" | "relation" }> =>
+          r.type !== "people" && r.type !== "relation",
+      )
       .map((r) =>
         r.type === "date" && r.value ? formatPropertyDate(r.value) : r.value,
       ),
@@ -305,7 +313,9 @@ export function PageDetails({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-64">
                 <DropdownMenuLabel>Property type</DropdownMenuLabel>
-                {PROPERTY_TYPES.map((type) => {
+                {PROPERTY_TYPES.filter(
+                  (type) => type !== "relation" || relationsEnabled,
+                ).map((type) => {
                   const Icon = TYPE_ICONS[type];
                   return (
                     <DropdownMenuItem key={type} onSelect={() => addRow(type)}>
@@ -602,6 +612,10 @@ function PropertyValue({
           onCommit={(value) => onChange({ value })}
         />
       );
+    case "relation":
+      // The pages a relation holds live in `page_relations`; the picker,
+      // chips and reverse panel arrive with the next step of Appendix B.
+      return empty;
   }
 }
 

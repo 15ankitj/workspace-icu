@@ -204,6 +204,33 @@ first-time address), keeping `{{ .ConfirmationURL }}`:
   redirect URLs include `https://icmworkspace.com/**` plus the
   `*.vercel.app` entries previews use.
 
+## Feature flags
+
+Flags are read from the environment in one place, `src/lib/flags.ts`;
+server components pass them down as props. A flag is on when its variable
+is `1`, `true` or `on`, and off when unset. Set them per environment in
+Vercel → Settings → Environment Variables.
+
+| Flag        | Variable            | Preview | Production                    |
+| ----------- | ------------------- | ------- | ----------------------------- |
+| `relations` | `FEATURE_RELATIONS` | on      | off until the owner has tried |
+
+Removing a flag means deleting its line in `flags.ts` and the props it fed.
+
+## Relation properties (Appendix B)
+
+A sixth page-property type: a relation row (`label`, `reverse_label`) on
+the page's properties, with the pages it holds in `page_relations`
+(migration 0025), one row per link, visible from both pages. Same
+workspace only; adding a link needs edit rights on both pages and both
+live; removing works while one side is in the Trash; a purge removes the
+link by cascade. Audit: `relation.link_added` and `relation.link_removed`
+(reason `removed` or `purge`) are written by trigger, so every path is
+covered once per link. `insert_template_pages` takes a third argument,
+`p_relations`, for links between pages of one template. Behind the
+`relations` flag; the editor, reverse panel, exports and template
+remapping arrive in the following steps.
+
 ## Synced blocks (Appendix A, Part 1)
 
 One identity, many placements. A synced block's content lives in its
