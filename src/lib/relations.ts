@@ -150,16 +150,51 @@ export function removedRelationRows(
   );
 }
 
-/** A short line for the collapsed details: "3 Evidence". */
+/**
+ * Links the viewer cannot see, per relation row (§4.2): the total the
+ * database reports minus the links RLS returned. Each one renders as
+ * "A page you don't have access to", never a title.
+ */
+export function hiddenLinkCounts(
+  totals: { source_property_id: string; total: number }[],
+  links: RelationLinks,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const { source_property_id: id, total } of totals) {
+    const hidden = Math.max(0, total - (links[id]?.length ?? 0));
+    if (hidden > 0) out[id] = hidden;
+  }
+  return out;
+}
+
+/** A short line for the collapsed details: "3 Evidence". Hidden links count. */
 export function relationSummary(
   rows: PagePropertyRow[],
   links: RelationLinks,
+  hidden: Record<string, number> = {},
 ): string[] {
   const out: string[] = [];
   for (const row of rows) {
     if (row.type !== "relation") continue;
-    const count = links[row.id]?.length ?? 0;
+    const count = (links[row.id]?.length ?? 0) + (hidden[row.id] ?? 0);
     if (count > 0) out.push(`${count} ${row.label}`);
   }
   return out;
+}
+
+/**
+ * The Trash's warning before a purge (§4.3): how many other pages lose a
+ * link. Null when none do.
+ */
+export function purgeUnlinkSentence(
+  linkedPages: number,
+  withSubPages: boolean,
+): string | null {
+  if (linkedPages <= 0) return null;
+  const subject = withSubPages
+    ? "This page and its sub-pages are"
+    : "This page is";
+  return linkedPages === 1
+    ? `${subject} linked from 1 other page; that link will be removed.`
+    : `${subject} linked from ${linkedPages} other pages; those links will be removed.`;
 }

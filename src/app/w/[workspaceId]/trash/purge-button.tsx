@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import { purgeUnlinkSentence } from "@/lib/relations";
 import { PURGE_DELETE } from "@/lib/synced";
 
 export interface AtRiskSyncedBlock {
@@ -38,12 +39,18 @@ export function PurgeButton({
   pageId,
   title,
   atRisk,
+  linkedPages = 0,
+  hasSubPages = false,
 }: {
   workspaceId: string;
   pageId: string;
   title: string;
   atRisk: AtRiskSyncedBlock[];
+  /** Other pages holding a relation link to or from the purge (Appendix B §4.3). */
+  linkedPages?: number;
+  hasSubPages?: boolean;
 }) {
+  const unlink = purgeUnlinkSentence(linkedPages, hasSubPages);
   const [open, setOpen] = useState(false);
   const [decisions, setDecisions] = useState<Record<string, string>>(() =>
     Object.fromEntries(atRisk.map((block) => [block.id, PURGE_DELETE])),
@@ -64,7 +71,7 @@ export function PurgeButton({
         <ConfirmButton
           size="sm"
           title={`Delete “${title}” permanently?`}
-          description="The page, its sub-pages and their files are removed for good. This cannot be undone."
+          description={`The page, its sub-pages and their files are removed for good.${unlink ? ` ${unlink}` : ""} This cannot be undone.`}
           confirmLabel="Delete permanently"
         >
           Delete permanently
@@ -99,6 +106,7 @@ export function PurgeButton({
             This page is the source of {atRisk.length} synced block
             {atRisk.length === 1 ? "" : "s"} that still appear on other pages.
             Decide what happens to each before the page goes.
+            {unlink ? ` ${unlink}` : ""}
           </DialogDescription>
           <ul className="max-h-72 space-y-3 overflow-y-auto">
             {atRisk.map((block) => (

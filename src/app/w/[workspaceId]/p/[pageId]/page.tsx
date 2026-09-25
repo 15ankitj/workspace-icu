@@ -7,6 +7,7 @@ import { normalizeProperties } from "@/lib/page-properties";
 import { comparePositions } from "@/lib/position";
 import {
   groupReverseLinks,
+  hiddenLinkCounts,
   sortLinks,
   type RelationLinks,
   type ReverseLinkRow,
@@ -67,6 +68,7 @@ export default async function PageView({
     { data: openSuggestionRows },
     { data: forwardRelationRows },
     { data: reverseRelationRows },
+    { data: relationTotals },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -183,6 +185,11 @@ export default async function PageView({
             "id, source_property_id, source:pages!page_relations_source_page_id_fkey(id, title, icon, deleted_at, properties)",
           )
           .eq("target_page_id", pageId)
+      : Promise.resolve({ data: null }),
+    // Totals per relation row, so links to pages the viewer cannot see
+    // show as placeholders (§4.2) rather than vanishing.
+    flags.relations
+      ? supabase.rpc("relation_link_counts", { p_page_id: pageId })
       : Promise.resolve({ data: null }),
   ]);
   const isOwner = membership?.role === "owner";
@@ -381,6 +388,13 @@ export default async function PageView({
   for (const key of Object.keys(relationLinks)) {
     relationLinks[key] = sortLinks(relationLinks[key]);
   }
+  const relationHidden = hiddenLinkCounts(
+    (relationTotals ?? []).map((row) => ({
+      source_property_id: row.source_property_id,
+      total: Number(row.total ?? 0),
+    })),
+    relationLinks,
+  );
   const reverseGroups = groupReverseLinks(
     (reverseRelationRows ?? []).flatMap((row): ReverseLinkRow[] => {
       const source = one(row.source);
@@ -526,6 +540,7 @@ export default async function PageView({
               relationsEnabled={flags.relations}
               linkablePages={linkablePages}
               relations={relationLinks}
+              relationHidden={relationHidden}
             />
             {flags.relations && reverseGroups.length > 0 && (
               <RelationReversePanel

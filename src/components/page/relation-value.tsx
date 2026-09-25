@@ -2,7 +2,7 @@
 
 import { useId, useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, X } from "lucide-react";
+import { EyeOff, Plus, X } from "lucide-react";
 import {
   addRelationLink,
   moveRelationLink,
@@ -95,17 +95,34 @@ export function RelationChip({
 }
 
 /**
+ * A link whose page the viewer cannot see (§4.2): the synced-block rule,
+ * a neutral placeholder and never the title. It cannot be removed or
+ * moved from here, since that would need edit rights on both pages.
+ */
+export function HiddenRelationChip() {
+  return (
+    <span className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border border-dashed px-2 text-sm text-muted-foreground">
+      <EyeOff className="size-3.5 shrink-0" aria-hidden />
+      <span className="truncate">A page you don&apos;t have access to</span>
+    </span>
+  );
+}
+
+/**
  * The chips of one relation in stored order, with drag to reorder (and
- * Alt+arrow for keyboards) when `onMove` is given.
+ * Alt+arrow for keyboards) when `onMove` is given, then a placeholder
+ * for each of the `hidden` links whose page the viewer cannot see.
  */
 export function RelationChips({
   links,
+  hidden = 0,
   workspaceId,
   onRemove,
   onMove,
   className,
 }: {
   links: RelationLink[];
+  hidden?: number;
   workspaceId: string;
   onRemove?: (link: RelationLink) => void;
   onMove?: (from: number, to: number) => void;
@@ -170,6 +187,11 @@ export function RelationChips({
           />
         </li>
       ))}
+      {Array.from({ length: hidden }, (_, i) => (
+        <li key={`hidden-${i}`} className="max-w-full">
+          <HiddenRelationChip />
+        </li>
+      ))}
     </ul>
   );
 }
@@ -230,6 +252,7 @@ const PENDING = "pending-";
 export function RelationValue({
   row,
   links,
+  hidden,
   pages,
   pageId,
   workspaceId,
@@ -238,6 +261,8 @@ export function RelationValue({
 }: {
   row: RelationRow;
   links: RelationLink[];
+  /** Links to pages the viewer cannot see, shown as placeholders. */
+  hidden: number;
   pages: PickablePage[];
   pageId: string;
   workspaceId: string;
@@ -257,7 +282,7 @@ export function RelationValue({
   }
 
   const add = (page: PickablePage) => {
-    if (ordered.length >= MAX_RELATION_LINKS) {
+    if (ordered.length + hidden >= MAX_RELATION_LINKS) {
       toast({
         variant: "destructive",
         title: `A relation holds at most ${MAX_RELATION_LINKS} pages`,
@@ -333,18 +358,24 @@ export function RelationValue({
     else add(page);
   };
 
+  const anything = ordered.length > 0 || hidden > 0;
   if (!canEdit) {
-    return ordered.length ? (
-      <RelationChips links={ordered} workspaceId={workspaceId} />
+    return anything ? (
+      <RelationChips
+        links={ordered}
+        hidden={hidden}
+        workspaceId={workspaceId}
+      />
     ) : (
       <span className="text-muted-foreground">Empty</span>
     );
   }
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-      {ordered.length > 0 && (
+      {anything && (
         <RelationChips
           links={ordered}
+          hidden={hidden}
           workspaceId={workspaceId}
           onRemove={remove}
           onMove={move}
@@ -355,7 +386,7 @@ export function RelationValue({
         selectedIds={linkedIds}
         excludeIds={new Set([pageId])}
         onPick={pick}
-        label={ordered.length ? "Add" : "Add page"}
+        label={anything ? "Add" : "Add page"}
       />
     </div>
   );

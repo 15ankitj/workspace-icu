@@ -105,6 +105,7 @@ export function PageDetails({
   relationsEnabled,
   linkablePages,
   relations,
+  relationHidden,
 }: {
   pageId: string;
   workspaceId: string;
@@ -121,6 +122,8 @@ export function PageDetails({
   linkablePages: PickablePage[];
   /** Links held by this page's relation rows, in stored order. */
   relations: RelationLinks;
+  /** Per relation row, links to pages the viewer cannot see (§4.2). */
+  relationHidden: Record<string, number>;
 }) {
   const [props, setProps] = useState<PageProperties>(initial);
   const [links, setLinks] = useState<RelationLinks>(relations);
@@ -230,7 +233,7 @@ export function PageDetails({
       .map((r) =>
         r.type === "date" && r.value ? formatPropertyDate(r.value) : r.value,
       ),
-    ...relationSummary(props.rows, links),
+    ...relationSummary(props.rows, links, relationHidden),
     showEdited ? `edited ${formatRelative(edited.at)}` : null,
   ].filter(Boolean);
 
@@ -313,6 +316,7 @@ export function PageDetails({
                   <RelationValue
                     row={row}
                     links={links[row.id] ?? []}
+                    hidden={relationHidden[row.id] ?? 0}
                     pages={linkablePages}
                     pageId={pageId}
                     workspaceId={workspaceId}
@@ -491,7 +495,8 @@ export function PageDetails({
           <AlertDialogDescription>
             {(() => {
               const count = confirmRemove
-                ? (links[confirmRemove.id]?.length ?? 0)
+                ? (links[confirmRemove.id]?.length ?? 0) +
+                  (relationHidden[confirmRemove.id] ?? 0)
                 : 0;
               return count === 0
                 ? "The relation holds no pages yet."
