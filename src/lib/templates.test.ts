@@ -301,7 +301,7 @@ describe("synced blocks in templates (Appendix A rule 8)", () => {
   );
 
   it("keeps in-tree and keyed placements as references, flattens the rest", () => {
-    expect(snapshot.format).toBe(3);
+    expect(snapshot.format).toBe(4);
     expect(snapshot.synced?.map((s) => [s.key, s.source_key])).toEqual([
       [S_IN, A],
       ["pack-keyed", null],
@@ -420,7 +420,7 @@ describe("authored content in templates (Appendix A §2.2)", () => {
       new Map(),
       new Map(),
     );
-    expect(snapshot.format).toBe(3);
+    expect(snapshot.format).toBe(4);
     expect(snapshot.pages.map((p) => p.authored_content)).toEqual([
       true,
       false,
@@ -503,5 +503,164 @@ describe("adding pages to an existing copy (review batch 5)", () => {
     const top = byTitle.get("New top-level")!;
     expect(top.parent_page_id).toBe("copy-parent");
     expect(top.position > "a5").toBe(true);
+  });
+});
+
+describe("relation links in templates (Appendix B §4.5)", () => {
+  const A = "aaaaaaaa-0000-4000-8000-000000000001";
+  const B = "aaaaaaaa-0000-4000-8000-000000000002";
+  const OUTSIDE = "aaaaaaaa-0000-4000-8000-000000000009";
+  const pages: SourcePage[] = [
+    {
+      id: A,
+      parent_page_id: null,
+      position: "a0",
+      title: "KC 12.7",
+      icon: null,
+      cover_url: null,
+      full_width: false,
+      small_text: false,
+      properties: {
+        rows: [
+          {
+            id: "r1",
+            type: "relation",
+            label: "Evidence",
+            reverse_label: "Evidence for",
+          },
+        ],
+      },
+    },
+    {
+      id: B,
+      parent_page_id: A,
+      position: "a0",
+      title: "Evidence 1",
+      icon: null,
+      cover_url: null,
+      full_width: false,
+      small_text: false,
+    },
+  ];
+  const relations = [
+    {
+      source_page_id: A,
+      source_property_id: "r1",
+      target_page_id: B,
+      position: "a0",
+    },
+    {
+      source_page_id: A,
+      source_property_id: "r1",
+      target_page_id: OUTSIDE,
+      position: "a1",
+    },
+    {
+      source_page_id: OUTSIDE,
+      source_property_id: "x",
+      target_page_id: A,
+      position: "a0",
+    },
+  ];
+
+  it("snapshots in-tree links as key pairs, drops the rest with a note, and keeps the row", () => {
+    const snapshot = buildSnapshot(pages, new Map(), new Map(), { relations });
+    expect(snapshot.format).toBe(4);
+    expect(snapshot.relations).toEqual([
+      { source_key: A, property_id: "r1", target_key: B, position: "a0" },
+    ]);
+    expect(snapshot.notes).toContain(
+      "1 relation link to a page outside this template was left out.",
+    );
+    expect(snapshot.pages[0].properties?.rows).toEqual([
+      {
+        id: "r1",
+        type: "relation",
+        label: "Evidence",
+        reverse_label: "Evidence for",
+      },
+    ]);
+  });
+
+  it("instantiates the copies linked to each other, not to the originals", () => {
+    const snapshot = buildSnapshot(pages, new Map(), new Map(), { relations });
+    let n = 0;
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 1,
+      workspaceId: "ws",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => `new-${++n}`,
+    });
+    const copyA = plan.pages.find((p) => p.template_page_key === A)!;
+    const copyB = plan.pages.find((p) => p.template_page_key === B)!;
+    expect(plan.relations).toEqual([
+      {
+        workspace_id: "ws",
+        source_page_id: copyA.id,
+        source_property_id: "r1",
+        target_page_id: copyB.id,
+        position: "a0",
+      },
+    ]);
+    expect(copyA.id).not.toBe(A);
+    expect(copyB.id).not.toBe(B);
+    expect(copyA.properties.rows[0]).toMatchObject({
+      id: "r1",
+      type: "relation",
+    });
+  });
+
+  it("on 'add the new pages' links a new page to an existing copy by key, never the reverse", () => {
+    const snapshot = buildSnapshot(pages, new Map(), new Map(), {
+      relations: [
+        ...relations,
+        {
+          source_page_id: B,
+          source_property_id: "r2",
+          target_page_id: A,
+          position: "a0",
+        },
+      ],
+    });
+    let n = 0;
+    // A already exists in the workspace; B is new.
+    const plan = planInstantiation({
+      snapshot,
+      templateId: "t",
+      version: 2,
+      workspaceId: "ws",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      existingByKey: new Map([[A, "existing-a"]]),
+      newId: () => `new-${++n}`,
+    });
+    expect(plan.pages.map((p) => p.template_page_key)).toEqual([B]);
+    expect(plan.relations).toEqual([
+      {
+        workspace_id: "ws",
+        source_page_id: plan.pages[0].id,
+        source_property_id: "r2",
+        target_page_id: "existing-a",
+        position: "a0",
+      },
+    ]);
+  });
+
+  it("reads older snapshots as having no links", () => {
+    const snapshot = buildSnapshot(pages, new Map(), new Map(), { relations });
+    const older = { ...snapshot, format: 3 as const, relations: undefined };
+    const plan = planInstantiation({
+      snapshot: older,
+      templateId: "t",
+      version: 1,
+      workspaceId: "ws",
+      parentPageId: null,
+      lastSiblingPosition: null,
+      newId: () => "id",
+    });
+    expect(plan.relations).toEqual([]);
   });
 });
