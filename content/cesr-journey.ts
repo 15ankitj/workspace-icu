@@ -12,6 +12,7 @@ import {
   h2,
   h3,
   i,
+  md,
   p,
   pageLink,
   prop,
@@ -23,13 +24,26 @@ import {
   todos,
   toggle,
 } from "./blocks";
+import { CESR_CURRICULUM } from "./cesr-curriculum";
+import { EVIDENCE_RULES } from "./cesr-evidence-rules";
+import {
+  hilloTitle,
+  hilloTree,
+  STATUS_VALUES,
+  summaryKey,
+  supervisorSummaryBlocks,
+} from "./cesr-hillo-pages";
 
 /**
- * CESR Journey — the first content pack (brief §11). Structure and
- * guidance are complete; curriculum-specific wording (HiLLO descriptors,
- * Key Capabilities) is left as «placeholders» for the platform owner to
- * paste from the FICM source so nothing is paraphrased inaccurately.
- * Everything here is generic guidance — no patient details, ever.
+ * CESR Journey — the first content pack (brief §11), version 4
+ * (docs/cesr-journey-v4-spec.md). One page per Key Capability with the
+ * verbatim curriculum wording from content/cesr-curriculum.ts, Status /
+ * Signed off / Supervisor properties and an Evidence relation; evidence
+ * items are pages linked from the KCs; the HiLLO page's sub-page list is
+ * the progress table. Every fact is entered once, where it belongs, and
+ * everything else is a view of it — nothing here computes anything.
+ * Everything is generic guidance or curriculum text — no patient details,
+ * ever.
  */
 
 export interface PackPage {
@@ -100,53 +114,49 @@ export interface PackTemplate {
 }
 
 // ---------------------------------------------------------------------
-// HiLLO progress tables: one synced block per HiLLO (Appendix A §1.5).
-// Source on the HiLLO page; read-only on the HiLLOs overview; read-write
-// in the mid- and end-of-placement meeting notes, so sign-offs made in a
-// meeting land on the HiLLO page. Keys are stable across packs and
-// versions so a meeting note placed later resolves to the same tables.
+// Supervisor summary blocks: one synced block per HiLLO (Appendix A §1.5,
+// spec §4.3). Source on the HiLLO page; read-only on the HiLLOs hub;
+// read-write in the mid-placement, end-of-placement and pre-submission
+// meeting notes, so what a supervisor writes in a meeting lands on the
+// HiLLO page. Keys `cesr-hillo-N-summary` are stable across packs and
+// versions so a meeting note placed later resolves to the same blocks.
+// The v3 `cesr-hillo-N-progress` tables are retired, not carried forward.
 // ---------------------------------------------------------------------
 
-const HILLO_COUNT = 14;
+const HILLO_COUNT = CESR_CURRICULUM.length;
 
-const PROGRESS = Array.from({ length: HILLO_COUNT }, (_, index) => ({
-  n: index + 1,
+const SUMMARIES = CESR_CURRICULUM.map((hillo) => ({
+  n: hillo.n,
   id: randomUUID(),
-  key: `cesr-hillo-${index + 1}-progress`,
+  key: summaryKey(hillo.n),
 }));
 
-function progressBlocks(n: number): EditorBlock[] {
-  return [
-    table([
-      [[b(`HiLLO ${n} — progress at a glance`)], [t("")]],
-      [[b("Status")], [fill("Not started / In progress / Evidenced")]],
-      [[b("Key Capabilities evidenced")], [fill(`e.g. ${n}.1, ${n}.3`)]],
-      [[b("Next action")], [fill("what, who, by when")]],
-      [[b("Supervisor sign-off")], [fill("name and date")]],
-    ]),
-  ];
-}
-
-function progressSynced(sourcePageIds: (string | null)[]): PackSynced[] {
-  return PROGRESS.map((entry, index) => ({
+function summarySynced(sourcePageIds: (string | null)[]): PackSynced[] {
+  return SUMMARIES.map((entry, index) => ({
     id: entry.id,
     key: entry.key,
     sourcePageId: sourcePageIds[index],
-    title: `HiLLO ${entry.n} progress`,
-    blocks: progressBlocks(entry.n),
+    title: `HiLLO ${entry.n} supervisor summary`,
+    blocks: supervisorSummaryBlocks(entry.n),
   }));
 }
 
-/** The 14 tables as placed on a meeting note (read-write). */
+/** The 14 summary blocks as placed on a meeting note (read-write), with the
+ *  how-to line the spec puts above the review section (§4.7). */
 function hilloReview(): EditorBlock[] {
   return [
     h2("HiLLO review"),
     p([
       i(
-        "These are the live progress tables from the HiLLO pages. What you record here — status, next action, sign-off — appears there too.",
+        "Before the meeting, open each HiLLO page: the sub-page list shows every KC's status and evidence count. Discuss ambers and reds; record sign-offs by setting Signed off and Supervisor on the KC page, not here.",
       ),
     ]),
-    ...PROGRESS.flatMap((entry) => [synced(entry.id)]),
+    p([
+      i(
+        "The blocks below are the live supervisor summaries from the HiLLO pages: what is written here appears there too.",
+      ),
+    ]),
+    ...SUMMARIES.map((entry) => synced(entry.id)),
   ];
 }
 
@@ -182,9 +192,13 @@ export function cesrJourney(): PackTemplate {
     reflections: randomUUID(),
     narrative: randomUUID(),
     evidence: randomUUID(),
+    evidenceRules: randomUUID(),
     resources: randomUUID(),
   };
-  const hilloIds = Array.from({ length: HILLO_COUNT }, () => randomUUID());
+  const hilloIds = CESR_CURRICULUM.map(() => randomUUID());
+  const kcIds = CESR_CURRICULUM.map((hillo) =>
+    hillo.kcs.map(() => randomUUID()),
+  );
 
   const start: PackPage = {
     id: ids.start,
@@ -193,73 +207,59 @@ export function cesrJourney(): PackTemplate {
     icon: "👋",
     blocks: [
       howTo(
-        "read this page once, then work mostly in My plan and the HiLLO pages. Share this workspace with your supervisor (Settings → Invite, role Editor) so meetings and comments happen in the same place.",
+        "read this page once, then work in the Key Capability pages under each HiLLO. Share this workspace with your supervisor (Settings → Invite, role Editor) so sign-offs, summaries and meetings happen in the same place.",
       ),
       noPhi(),
       h2("What this workspace is"),
       p(
-        "A working file for your CESR / Portfolio Pathway application in Intensive Care Medicine: one page per High-Level Learning Outcome, a place to plan, a running evidence index, and supervision meetings recorded where the evidence lives.",
+        "Your working file for a CESR / Portfolio Pathway application in Intensive Care Medicine: one page per Key Capability, one page per piece of evidence, and the links between them — so the submission is a matter of assembling what is already organised.",
       ),
-      p(
-        "It is not a clinical record and not your formal portfolio submission — it is where you build the case, so that the submission is a matter of assembling what is already organised.",
-      ),
-      h2("How it fits together"),
-      bullet([b("My plan"), t(" — target date, placements, milestones.")]),
+      h2("Two contracts"),
       bullet([
-        b("HiLLOs"),
+        b("Your voice is protected. "),
         t(
-          " — one page per outcome: what is asked, what good evidence looks like, a Key Capability checklist, your evidence, supervisor comments, gaps.",
+          "Reflections and the Application narrative are authored content: your supervisor opens them in Suggest mode and proposes changes; you accept or reject each one, so the submission stays your voice. Page menu → Authorship shows who counts as an author.",
         ),
       ]),
       bullet([
-        b("Supervision meetings"),
+        b("Drafts are private until you share them. "),
         t(
-          " — one page per meeting, started from the meeting templates in the gallery.",
+          "Mark a page Private (page menu) and it stays yours even in a shared workspace; everything else is visible to everyone you invite.",
         ),
       ]),
-      bullet([
-        b("Placements"),
-        t(" — unit-specific guidance seeded from existing documents."),
-      ]),
-      bullet([
-        b("Reflections"),
+      h2("The Status convention"),
+      p([
         t(
-          " — quick capture with the reflection template. Yours to write: supervisors suggest changes, you accept them.",
+          "Every Key Capability page has a Status. Use exactly these four values, spelled like this, so the HiLLO pages group sensibly: ",
         ),
+        b(STATUS_VALUES.join(" · ")),
+        t("."),
       ]),
-      bullet([
-        b("Application narrative"),
-        t(
-          " — your gap statement and the narrative for the application form, in your own voice.",
-        ),
-      ]),
-      bullet([
-        b("Evidence index"),
-        t(" — every item of evidence in one table."),
-      ]),
-      bullet([
-        b("Resources"),
-        t(" — GMC and FICM guidance, FAQs, what assessors look for."),
-      ]),
-      h2("What to share with your supervisor"),
       bullets([
-        "Invite your supervisor as an Editor so they can write in the Supervisor comments callouts and co-edit meeting pages live.",
-        "Reflections and the Application narrative are authored content: your supervisor opens them in Suggest mode and proposes changes; you accept or reject each one, so the submission stays your voice. Page menu → Authorship shows who counts as an author.",
-        "Keep drafts and personal notes as Private pages (page menu) — they stay yours even in a shared workspace.",
-        "Before each meeting, tick the KCs you believe you have evidenced and link the evidence; the meeting page then writes itself.",
+        [b("You"), t(" set Status, and you link the evidence.")],
+        [
+          b("Your supervisor"),
+          t(
+            " sets Signed off (the date) and puts their name in Supervisor. Nothing else changes a KC's standing — ticks in the evidence menu are planning, not progress.",
+          ),
+        ],
       ]),
+      h2("The evidence loop"),
+      p(
+        "Create an Evidence item under Evidence from the gallery template, fill its properties and anonymise it. Open each Key Capability page it supports and add the item to that page's Evidence property. The HiLLO page's list then shows the evidence against that KC, and the item's own page shows every KC it serves under Evidence for.",
+      ),
       h2("Suggested rhythm"),
       todos([
-        "Weekly: add new evidence to the Evidence index and the relevant HiLLO page",
-        "Monthly: review gaps on each HiLLO page and update My plan",
-        "Each placement: initial, mid-placement and end-of-placement meetings",
+        "Weekly: create an Evidence item for anything new and link it from the KC pages it supports",
+        "Monthly: open each HiLLO page, read the sub-page list, and move any KC that is ready to Ready for review",
+        "Each placement: initial, mid-placement and end-of-placement meetings, from the gallery templates",
         "Three months before submission: pre-submission meeting and readiness checklist",
       ]),
       divider(),
       pageLink(ids.plan, "My plan", "🗺️"),
       pageLink(ids.hillos, "HiLLOs", "🎯"),
+      pageLink(ids.evidence, "Evidence", "📚"),
       pageLink(ids.meetings, "Supervision meetings", "🤝"),
-      pageLink(ids.evidence, "Evidence index", "📚"),
       pageLink(ids.resources, "Resources", "🔗"),
     ],
   };
@@ -307,7 +307,7 @@ export function cesrJourney(): PackTemplate {
         "Read the current FICM curriculum and the GMC Portfolio Pathway guidance (see Resources)",
         "Complete a baseline self-assessment against all 14 HiLLOs",
         "Agree the plan with your supervisor at the initial meeting",
-        "Evidence mapped to every HiLLO, with no red gaps",
+        "Every KC at Ready for review or Signed off (check each HiLLO page's sub-page list)",
         "Structured reference and verification of evidence arranged",
         "CV, application form and evidence bundle drafted",
         "Pre-submission meeting and readiness checklist complete",
@@ -331,96 +331,23 @@ export function cesrJourney(): PackTemplate {
     icon: "🎯",
     blocks: [
       howTo(
-        "each sub-page is one High-Level Learning Outcome. Work through them in the order your placements make evidence available, not numerically. The overview below is live: each table is the progress table from its HiLLO page, shown read-only here — update it on the HiLLO page or in a meeting note.",
+        "each sub-page is one High-Level Learning Outcome, and its sub-pages are the Key Capabilities — that list is your progress table, read from each KC page's properties. Work through them in the order your placements make evidence available, not numerically. The summary blocks below are your supervisor's, shown read-only here: they write on the HiLLO page or in a meeting note.",
       ),
       h2("Overview"),
-      ...hilloIds.flatMap((id, index) => [
-        pageLink(id, `HiLLO ${index + 1}`, "🎯"),
-        synced(PROGRESS[index].id, true),
+      ...CESR_CURRICULUM.flatMap((hillo, index) => [
+        pageLink(hilloIds[index], hilloTitle(hillo), hillo.icon),
+        synced(SUMMARIES[index].id, true),
       ]),
     ],
   };
 
-  const hillos: PackPage[] = hilloIds.map((id, index) => {
-    const n = index + 1;
-    return {
-      id,
-      parentId: ids.hillos,
-      title: `HiLLO ${n}`,
-      icon: "🎯",
-      blocks: [
-        howTo(
-          "paste the outcome and its Key Capabilities from the FICM curriculum, then tick capabilities as evidence accumulates. Your supervisor writes in the green callout; keep gaps honest. The progress table is synced: it also appears on the HiLLOs overview and in meeting notes.",
-        ),
-        h2("Progress at a glance"),
-        synced(PROGRESS[index].id),
-        h2("What the curriculum asks for"),
-        p([
-          fill(
-            `Paste the HiLLO ${n} title and descriptor from the FICM Curriculum for Training in Intensive Care Medicine (2021)`,
-          ),
-        ]),
-        h2("What good evidence looks like"),
-        bullets([
-          "Direct observation of practice across a range of cases and settings, with the observer's assessment recorded",
-          "Reflective entries that name the Key Capability they speak to and what changed in your practice",
-          "Logbook extracts, course and life-support certificates, teaching records and multi-source feedback",
-          [
-            b("For CESR: "),
-            t(
-              "evidence must be yours, verifiable, current, anonymised, and explicitly mapped to this outcome",
-            ),
-          ],
-        ]),
-        h2("Key Capabilities"),
-        ...todos([
-          [t(`KC ${n}.1 — `), fill("paste key capability")],
-          [t(`KC ${n}.2 — `), fill("paste key capability")],
-          [t(`KC ${n}.3 — `), fill("paste key capability")],
-          [t(`KC ${n}.4 — `), fill("paste key capability")],
-          [t(`KC ${n}.5 — `), fill("paste key capability")],
-          [t(`KC ${n}.6 — `), fill("paste key capability")],
-        ]),
-        h2("My evidence"),
-        p([
-          i(
-            "Describe each item, link it (a page in this workspace, or a bookmark) or attach the anonymised document. Add it to the Evidence index too.",
-          ),
-        ]),
-        table([
-          ["Evidence", "Type", "Date", "Where", "KCs covered"],
-          [
-            [fill("title")],
-            [fill("WPBA / reflection / certificate / feedback")],
-            [fill("date")],
-            [fill("link or attachment")],
-            [fill("e.g. 1.1, 1.3")],
-          ],
-        ]),
-        h2("Supervisor comments"),
-        callout(
-          "🩺",
-          [
-            fill(
-              "Supervisor: comment here on the evidence above — sign with your name and the date",
-            ),
-          ],
-          "green",
-        ),
-        h2("Gaps and next actions"),
-        ...todos([
-          [
-            fill(
-              "gap — what evidence is still needed and where it will come from",
-            ),
-          ],
-          [fill("action — who, what, by when")],
-        ]),
-        divider(),
-        pageLink(ids.hillos, "HiLLOs", "🎯"),
-      ],
-    };
-  });
+  const hillos: PackPage[] = CESR_CURRICULUM.flatMap((hillo, index) =>
+    hilloTree(
+      hillo,
+      { page: hilloIds[index], hub: ids.hillos, kcPages: kcIds[index] },
+      synced(SUMMARIES[index].id),
+    ),
+  );
 
   const meetings: PackPage = {
     id: ids.meetings,
@@ -525,22 +452,12 @@ export function cesrJourney(): PackTemplate {
     authored: true,
     blocks: [
       howTo(
-        "capture quickly, reflect properly later. Start each reflection from the Reflection template in the gallery as a sub-page here, then link it from the HiLLO it evidences.",
+        "capture quickly, reflect properly later. Start each reflection from the Reflection template in the gallery as a sub-page here — the list below is your log — then open the Key Capability pages it evidences and add it to their Evidence property.",
       ),
       noPhi(),
       h2("Quick capture"),
       p([i("A line or two now, a full reflection within the week:")]),
       ...todos([[fill("what happened, in one line, anonymised")]]),
-      h2("Reflection log"),
-      table([
-        ["Date", "Topic", "HiLLO / KC", "Page"],
-        [
-          [fill("date")],
-          [fill("topic")],
-          [fill("e.g. 3 / 3.2")],
-          [fill("link")],
-        ],
-      ]),
     ],
   };
 
@@ -552,7 +469,7 @@ export function cesrJourney(): PackTemplate {
     authored: true,
     blocks: [
       howTo(
-        "this page is your voice for the application: the gap statement and the narrative the form asks for. Your supervisor opens it in Suggest mode — accept what improves it, reject what changes what you mean. Build it from the HiLLO pages and the Evidence index; write in general terms with no patient details.",
+        "this page is your voice for the application: the gap statement and the narrative the form asks for. Your supervisor opens it in Suggest mode — accept what improves it, reject what changes what you mean. Build it from the HiLLO pages and the Evidence pages; write in general terms with no patient details.",
       ),
       noPhi(),
       h2("Summary of experience"),
@@ -564,12 +481,16 @@ export function cesrJourney(): PackTemplate {
       h2("How my experience meets each HiLLO"),
       p([
         i(
-          "One short paragraph per outcome: what you did, where the evidence is (Evidence index numbers), and how it shows the capability. Draft here, then paste into the application form.",
+          "One short paragraph per outcome: what you did, where the evidence is (evidence page titles), and how it shows the capability. Draft here, then paste into the application form.",
         ),
       ]),
       ...Array.from({ length: HILLO_COUNT }, (_, index) => [
         h3(`HiLLO ${index + 1}`),
-        p([fill("narrative"), t(" — evidence: "), fill("index numbers")]),
+        p([
+          fill("narrative"),
+          t(" — evidence: "),
+          fill("evidence page titles"),
+        ]),
       ]).flat(),
       h2("Gap statement"),
       p([
@@ -583,7 +504,7 @@ export function cesrJourney(): PackTemplate {
           [fill("HiLLO / KC")],
           [fill("e.g. no PICU placement in this post")],
           [fill("placement, course, secondment, supervised cases")],
-          [fill("index numbers")],
+          [fill("evidence page titles")],
         ],
       ]),
       h2("Statement for the application form"),
@@ -594,7 +515,7 @@ export function cesrJourney(): PackTemplate {
       ]),
       h2("Checks before you paste it in"),
       ...todos([
-        "Every claim points at an item in the Evidence index",
+        "Every claim points at an evidence page linked from a Key Capability",
         "No patient-identifiable information anywhere",
         "All suggestions on this page accepted or rejected (exports are the clean state)",
         "Read aloud once: it sounds like you",
@@ -605,56 +526,54 @@ export function cesrJourney(): PackTemplate {
   const evidence: PackPage = {
     id: ids.evidence,
     parentId: null,
-    title: "Evidence index",
+    title: "Evidence",
     icon: "📚",
     blocks: [
       howTo(
-        "every item of evidence gets a row here as well as on its HiLLO page. This table becomes a proper database — with filters, rollups and computed completion — in a later release; keep the columns as they are so it migrates cleanly.",
+        "one page per item — create it here from the Evidence item template in the gallery, fill the properties, anonymise, then link it from the Key Capability pages it supports. The list below is your evidence index: type, date and consultant per row, sortable; each item's own page shows the KCs it serves under Evidence for.",
       ),
-      table([
-        [
-          "#",
-          "Evidence",
-          "Type",
-          "Date",
-          "HiLLO(s)",
-          "KC(s)",
-          "Where",
-          "Verified",
-          "Status",
-        ],
-        [
-          [t("1")],
-          [fill("title")],
-          [fill("type")],
-          [fill("date")],
-          [fill("1, 4")],
-          [fill("1.2, 4.1")],
-          [fill("page / attachment / external")],
-          [fill("by whom")],
-          [fill("Draft / Ready / Submitted")],
-        ],
-      ]),
-      h2("Evidence types"),
+      noPhi(),
+      h2("Where the evidence lives"),
+      p([i("Set Stored as on each item to one of:")]),
       bullets([
         [
-          b("WPBA"),
+          b("Described"),
           t(
-            " — direct observation, case-based discussion, procedure assessments",
-          ),
-        ],
-        [b("Reflection"), t(" — structured reflective entries")],
-        [
-          b("Feedback"),
-          t(
-            " — multi-source feedback, patient/relative feedback where appropriate and anonymised",
+            " — the item's page describes it, and that anonymised description is the evidence.",
           ),
         ],
         [
-          b("Activity"),
-          t(" — logbook, teaching delivered, QI, audit, management, research"),
+          b("Linked"),
+          t(
+            " — the document lives elsewhere (your e-portfolio, a shared drive); put the URL in Link.",
+          ),
         ],
-        [b("Certificate"), t(" — courses, life support, qualifications")],
+        [
+          b("Attached"),
+          t(" — the anonymised document is uploaded to the item's page."),
+        ],
+      ]),
+      h2("Rules that apply everywhere"),
+      pageLink(ids.evidenceRules, "Evidence rules that apply everywhere", "📋"),
+    ],
+  };
+
+  const evidenceRules: PackPage = {
+    id: ids.evidenceRules,
+    parentId: ids.evidence,
+    title: "Evidence rules that apply everywhere",
+    icon: "📋",
+    blocks: [
+      callout("ℹ️", md(EVIDENCE_RULES.intro), "blue"),
+      ...EVIDENCE_RULES.sections.flatMap((section) => [
+        h2(section.heading),
+        ...section.blocks.map((block) =>
+          block.kind === "todo"
+            ? todo(md(block.text))
+            : block.kind === "bullet"
+              ? bullet(md(block.text))
+              : p(md(block.text)),
+        ),
       ]),
     ],
   };
@@ -732,28 +651,29 @@ export function cesrJourney(): PackTemplate {
     purpose:
       "A complete working file for a CESR / Portfolio Pathway application in ICM",
     description:
-      "Start here, My plan, one page per HiLLO with Key Capability checklists and supervisor comments, supervision meeting hub, placement guidance, reflections, an evidence index and curated resources. Curriculum wording is left as placeholders to paste from the FICM source. Pair it with the Supervision meeting, Reflection, Evidence cover sheet and PDP page templates.",
+      "Start here, My plan, one page per HiLLO with one sub-page per Key Capability carrying the verbatim curriculum wording, Status / Signed off / Supervisor properties and an Evidence relation; an Evidence hub whose item pages are linked from the KCs; supervision meeting hub, placement guidance, reflections, application narrative and curated resources. Pair it with the Evidence item, Supervision meeting, Reflection, Evidence cover sheet and PDP page templates.",
     category: "Training & Portfolio",
     audience: "ICM CESR / Portfolio Pathway candidates and their supervisors",
     kind: "workspace",
-    version: 3,
+    version: 4,
     changelog:
-      "Reflections and the new Application narrative page (gap statement and the narrative for the form) are authored content: supervisors suggest, the candidate accepts. Add the new pages brings the Application narrative to existing copies; to make an existing Reflections page authored, use its page menu → Authorship.",
+      "One page per Key Capability with verbatim curriculum wording, Status/Signed off/Supervisor properties and an Evidence relation; evidence items are pages linked from KCs; the HiLLO page's sub-page list replaces the hand-typed progress table; supervisor summary blocks replace the synced progress tables in meetings. Evidence index page removed.",
     pages: [
       start,
       plan,
       hillosHub,
       ...hillos,
+      evidence,
+      evidenceRules,
       meetings,
       placements,
       placementPage(ids.picu, "PICU guidance", "🧸"),
       placementPage(ids.neuro, "Neuro ICU guidance", "🧠"),
       reflections,
       narrative,
-      evidence,
       resources,
     ],
-    synced: progressSynced(hilloIds),
+    synced: summarySynced(hilloIds),
   };
 }
 
@@ -775,14 +695,14 @@ function meetingTemplate(
   return {
     name: `Supervision meeting — ${variant}`,
     purpose,
-    description: `Structured note for a ${variant.toLowerCase()} supervision meeting. Candidate and supervisor edit it together during the meeting; agreed actions are to-dos.${release.reviewsHillos ? " Includes the live HiLLO progress tables from the CESR Journey workspace." : ""}`,
+    description: `Structured note for a ${variant.toLowerCase()} supervision meeting. Candidate and supervisor edit it together during the meeting; agreed actions are to-dos.${release.reviewsHillos ? " Includes the live supervisor summary blocks from the CESR Journey workspace's HiLLO pages." : ""}`,
     category: "Supervision",
     audience: "CESR candidates and supervisors",
     kind: "page",
     version: release.version,
     changelog: release.changelog,
     synced: release.reviewsHillos
-      ? progressSynced(PROGRESS.map(() => null))
+      ? summarySynced(SUMMARIES.map(() => null))
       : undefined,
     pages: [
       {
@@ -860,9 +780,9 @@ export function supportingTemplates(): PackTemplate[] {
         p([fill("anything either party wants recorded")]),
       ],
       {
-        version: 2,
+        version: 3,
         changelog:
-          "Adds the HiLLO review section: the fourteen synced progress tables from the CESR Journey workspace, editable in the meeting. Without that workspace the tables are plain copies.",
+          "HiLLO review now embeds the supervisor summary blocks (keys renamed from -progress to -summary); progress is read from the KC pages' properties.",
         reviewsHillos: true,
       },
     ),
@@ -874,7 +794,7 @@ export function supportingTemplates(): PackTemplate[] {
         h2("Summary of achievement"),
         p([
           fill(
-            "what was evidenced this placement, in a paragraph — the tables below carry the per-HiLLO detail",
+            "what was evidenced this placement, in a paragraph — the summary blocks below carry the per-HiLLO detail",
           ),
         ]),
         ...hilloReview(),
@@ -892,9 +812,9 @@ export function supportingTemplates(): PackTemplate[] {
         bullets([[fill("outcomes still needing evidence")]]),
       ],
       {
-        version: 2,
+        version: 3,
         changelog:
-          "The summary table becomes the HiLLO review section: the fourteen synced progress tables from the CESR Journey workspace, so sign-offs made here land on the HiLLO pages. Without that workspace the tables are plain copies.",
+          "HiLLO review now embeds the supervisor summary blocks (keys renamed from -progress to -summary); progress is read from the KC pages' properties.",
         reviewsHillos: true,
       },
     ),
@@ -905,14 +825,15 @@ export function supportingTemplates(): PackTemplate[] {
       [
         h2("Readiness checklist"),
         ...todos([
-          "Every HiLLO has mapped, verified evidence with no red gaps",
-          "Evidence index complete and matches the bundle",
+          "Every KC at Signed off, or its gap named below",
+          "Every evidence page's properties complete, and the Evidence list matches the bundle",
           "Every document anonymised and re-checked",
           "CV and application form complete and consistent with the evidence",
           "Structured references and verifiers confirmed and contactable",
           "Reflections cover the breadth of the curriculum",
           "Submission logistics (fees, formats, deadlines) confirmed",
         ]),
+        ...hilloReview(),
         h2("Outstanding gaps"),
         ...todos([[fill("gap and plan")]]),
         h2("Sign-off"),
@@ -926,6 +847,12 @@ export function supportingTemplates(): PackTemplate[] {
           "green",
         ),
       ],
+      {
+        version: 2,
+        changelog:
+          "Adds the HiLLO review section: the fourteen supervisor summary blocks from the CESR Journey workspace (keys cesr-hillo-N-summary), editable in the meeting; progress is read from the KC pages' properties. Readiness checklist reworded for KC pages and evidence pages.",
+        reviewsHillos: true,
+      },
     ),
     {
       name: "Reflection",

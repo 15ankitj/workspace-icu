@@ -245,7 +245,7 @@ export const CESR_CURRICULUM: CurriculumHillo[] = [
       },
       {
         id: "1.6",
-        shortTitle: "Integrating knowledge into practice",
+        shortTitle: "Continual learning and integration",
         text: "Continually strive to enhance and integrate knowledge into clinical practice and the NHS organisation as a whole, whilst observing legal and ethical obligations",
         strands: [
           {
@@ -597,7 +597,7 @@ export const CESR_CURRICULUM: CurriculumHillo[] = [
       },
       {
         id: "3.4",
-        shortTitle: "Ethical and legal principles",
+        shortTitle: "Ethics and law in patient care",
         text: "Use their knowledge of the ethical principles of practising medicine, and the legal framework associated with this in modern healthcare to benefit their patients",
         strands: [
           {
@@ -1246,7 +1246,7 @@ export const CESR_CURRICULUM: CurriculumHillo[] = [
       },
       {
         id: "6.2",
-        shortTitle: "Deterioration and organ support",
+        shortTitle: "Escalating organ support",
         text: "Integrate knowledge, skills and investigations to treat a patient who is deteriorating and institute or escalate organ support therapies",
         strands: [
           {
@@ -1364,7 +1364,7 @@ export const CESR_CURRICULUM: CurriculumHillo[] = [
     kcs: [
       {
         id: "7.1",
-        shortTitle: "Care around operative procedures",
+        shortTitle: "Care across a range of operations",
         text: "Have the knowledge and understanding of the care of patients undergoing a wide range of operative procedures",
         strands: [
           {
@@ -2724,7 +2724,7 @@ export const CESR_CURRICULUM: CurriculumHillo[] = [
       },
       {
         id: "12.9",
-        shortTitle: "Perioperative neurological emergencies",
+        shortTitle: "Neurological emergencies and escalation",
         text: "Providing immediate treatment of perioperative emergencies in neurosurgical and neurological patients and knowing when to seek senior help and support",
         strands: [
           {
@@ -3231,7 +3231,7 @@ export const CESR_CURRICULUM: CurriculumHillo[] = [
       },
       {
         id: "14.8",
-        shortTitle: "Perioperative emergencies",
+        shortTitle: "Cardiothoracic emergencies and escalation",
         text: "Recognising and providing immediate treatment of perioperative emergencies and know when to seek senior help and support",
         strands: [
           {

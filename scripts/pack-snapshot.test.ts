@@ -271,17 +271,11 @@ describe("packToSnapshot", () => {
     const journey = built[0];
     expect(journey.name).toBe("CESR Journey");
     expect(journey.snapshot.format).toBe(4);
-    expect(journey.snapshot.pages).toHaveLength(25);
+    expect(journey.snapshot.pages).toHaveLength(118);
     expect(journey.snapshot.synced).toHaveLength(14);
     expect(journey.snapshot.relations).toEqual([]);
     for (const template of built) {
       expect(template.snapshot.notes).toEqual([]);
-    }
-    // The v3 workspace template carries no properties yet; the page
-    // templates' own rows are checked in content/cesr-journey.test.ts.
-    for (const page of journey.snapshot.pages) {
-      expect(page.description).toBe("");
-      expect(page.properties).toEqual({ hidden: [], rows: [] });
     }
   });
 });
