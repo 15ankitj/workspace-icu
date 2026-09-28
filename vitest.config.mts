@@ -7,7 +7,12 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    // Pack authoring (content/) and its build (scripts/) are tested too.
+    include: [
+      "src/**/*.test.ts",
+      "scripts/**/*.test.ts",
+      "content/**/*.test.ts",
+    ],
     environment: "node",
   },
 });

@@ -72,3 +72,45 @@ direct-edit. The flag travels in snapshot format 3 as
 `authored_content` on the page and is set by `insert_template_pages`
 (migration 0022); a workspace template saved from an authored page
 carries it as well.
+
+### Page properties and relations (v4)
+
+A pack page can carry `description` (the one-line description under the
+title, at most 500 characters) and `properties`, the page-details rows
+built with `prop` from `blocks.ts`:
+
+```ts
+properties: [
+  prop.select("status", "Status", "Not started"),
+  prop.date("signed_off", "Signed off"),
+  prop.people("supervisor", "Supervisor"),
+  prop.relation("evidence", "Evidence", "Evidence for"),
+],
+```
+
+Ids are stable strings the author chooses, not UUIDs, so a later pack
+version can find and extend the same rows; they must match the app's id
+pattern (`^[A-Za-z0-9_-]{1,40}$`) and be unique on the page, or the build
+fails. People and date values never travel in a template (the app clears
+them on snapshot); select, text and link values do, and are the seed the
+copy starts with. A `select` value is free text in the app — there is no
+option list — so any convention (which values a status may take) is
+stated in the page's how-to, not enforced.
+
+A relation row declares the property; the links it holds are listed on
+the template as `relations`, by authoring ids:
+
+```ts
+relations: [
+  { sourcePageId: kc, propertyId: "evidence", targetPageId: item },
+],
+```
+
+They travel in snapshot format 4 as key pairs (Appendix B §4.5) and are
+recreated between the copies on instantiation, in declaration order per
+property. A link whose pages or property row are not in the template is a
+build error, not a note: a pack must never ship a dangling link.
+
+The conversion lives in `scripts/pack-snapshot.ts` (`packToSnapshot`),
+unit-tested in `scripts/pack-snapshot.test.ts`; `build-cesr-pack.ts` only
+reads the previous keys and prints the JSON.
