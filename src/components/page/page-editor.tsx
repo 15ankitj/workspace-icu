@@ -33,6 +33,8 @@ import { editorSchema } from "@/components/editor/schema";
 import { customSlashMenuItems } from "@/components/editor/slash-items";
 import { mentionMenuItems } from "@/components/editor/mention-items";
 import { SyncedDragHandleMenu } from "@/components/editor/synced-drag-menu";
+import { seedFromStoredBlocks } from "@/components/editor/seed";
+import { reportSeedFailure } from "@/components/editor/seed-failure";
 import {
   SuggestionsExtension,
   cleanDocument,
@@ -40,7 +42,6 @@ import {
   installSuggestDispatch,
   listSuggestions,
   setSuggesting,
-  withoutSuggesting,
   suggestionAtSelection,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
@@ -276,25 +277,21 @@ export function PageEditor({
     [pageId],
   );
 
-  // Seed a room that is empty after its first sync (a page written before
-  // collaboration existed) from the Phase 2 block rows, once.
+  // Seed a room whose document is still blank after its first sync (a
+  // template instantiation, a page written before collaboration existed)
+  // from the stored block rows, once. A failure here is a page that looks
+  // empty while its content exists, so it is reported, never swallowed.
   const seeded = useRef(false);
   useEffect(() => {
     if (!room || !editable || seeded.current) return;
     let cancelled = false;
-    void room.synced.then(() => {
-      if (cancelled || seeded.current) return;
-      seeded.current = true;
-      if (room.fragment.length === 0 && initialContent.length > 0) {
-        // Stored content, not this user's edit: never a suggestion.
-        withoutSuggesting(editor, () =>
-          editor.replaceBlocks(
-            editor.document,
-            initialContent as unknown as (typeof editorSchema)["PartialBlock"][],
-          ),
-        );
-      }
-    });
+    room.synced
+      .then(() => {
+        if (cancelled || seeded.current) return;
+        seeded.current = true;
+        seedFromStoredBlocks(editor, room.fragment, initialContent);
+      })
+      .catch((error) => reportSeedFailure(error, "page"));
     return () => {
       cancelled = true;
     };

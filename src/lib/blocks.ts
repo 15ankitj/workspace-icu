@@ -18,6 +18,35 @@ export interface EditorBlock {
   suggestion?: { kind: "insertion" | "deletion" | "modification"; id: string };
 }
 
+/** True when an inline-content array carries no text or inline object. */
+function hasInlineContent(content: unknown): boolean {
+  if (!Array.isArray(content)) return content !== undefined && content !== null;
+  return content.some((item) => {
+    if (!item || typeof item !== "object") return false;
+    const run = item as { type?: unknown; text?: unknown; content?: unknown };
+    if (run.type === "text") {
+      return typeof run.text === "string" && run.text.trim().length > 0;
+    }
+    if (run.type === "link") return hasInlineContent(run.content);
+    return true; // a mention or other inline object is content
+  });
+}
+
+/**
+ * A document that says nothing: no blocks, or only paragraphs with no
+ * text and no children — what a collaborative editor holds before anyone
+ * has typed (its initial empty paragraph). Used to decide whether a
+ * synced document should be seeded from the stored `blocks` rows.
+ */
+export function isBlankDocument(blocks: EditorBlock[]): boolean {
+  return blocks.every(
+    (block) =>
+      block.type === "paragraph" &&
+      !(block.children && block.children.length > 0) &&
+      !hasInlineContent(block.content),
+  );
+}
+
 export interface BlockRowInput {
   id: string;
   parent_block_id: string | null;
