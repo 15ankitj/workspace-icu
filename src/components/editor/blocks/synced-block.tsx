@@ -23,6 +23,8 @@ import {
 } from "@/app/actions/synced";
 import { Blocks } from "@/components/render/blocks-renderer";
 import { innerSchema } from "@/components/editor/inner-schema";
+import { seedFromStoredBlocks } from "@/components/editor/seed";
+import { reportSeedFailure } from "@/components/editor/seed-failure";
 import {
   SuggestionsExtension,
   cleanDocument,
@@ -30,7 +32,6 @@ import {
   installSuggestDispatch,
   listSuggestions,
   setSuggesting,
-  withoutSuggesting,
   suggestionAtSelection,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
@@ -240,26 +241,21 @@ function LiveContent({
     [view.id],
   );
 
-  // Seed a room that is empty after its first sync from the stored
-  // projection (a synced block just created, or written before its room
-  // was ever opened), once, by an editor who may write.
+  // Seed a room whose document is still blank after its first sync from
+  // the stored projection (a synced block just created by a template, or
+  // written before its room was ever opened), once, by an editor who may
+  // write. Reported, never swallowed, when it fails.
   const seeded = useRef(false);
   useEffect(() => {
     if (!canType || seeded.current) return;
     let cancelled = false;
-    void room.synced.then(() => {
-      if (cancelled || seeded.current) return;
-      seeded.current = true;
-      if (room.fragment.length === 0 && view.blocks.length > 0) {
-        // Stored content, not this user's edit: never a suggestion.
-        withoutSuggesting(editor, () =>
-          editor.replaceBlocks(
-            editor.document,
-            view.blocks as unknown as (typeof innerSchema)["PartialBlock"][],
-          ),
-        );
-      }
-    });
+    room.synced
+      .then(() => {
+        if (cancelled || seeded.current) return;
+        seeded.current = true;
+        seedFromStoredBlocks(editor, room.fragment, view.blocks);
+      })
+      .catch((error) => reportSeedFailure(error, "synced block"));
     return () => {
       cancelled = true;
     };

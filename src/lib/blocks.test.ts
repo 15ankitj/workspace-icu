@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDocument,
   flattenDocument,
+  isBlankDocument,
   type BlockRowFromDb,
   type EditorBlock,
 } from "@/lib/blocks";
@@ -114,5 +115,55 @@ describe("buildDocument", () => {
 
   it("handles an empty page", () => {
     expect(buildDocument([])).toEqual([]);
+  });
+});
+
+describe("isBlankDocument", () => {
+  const run = (text: string) => [{ type: "text", text, styles: {} }];
+
+  it("is true for nothing, and for empty paragraphs only", () => {
+    expect(isBlankDocument([])).toBe(true);
+    expect(
+      isBlankDocument([
+        { id: "a", type: "paragraph", props: {}, content: [] },
+        { id: "b", type: "paragraph", props: { textAlignment: "left" } },
+        { id: "c", type: "paragraph", props: {}, content: run("   ") },
+      ]),
+    ).toBe(true);
+  });
+
+  it("is false as soon as there is text, an inline object, a child or another block type", () => {
+    expect(
+      isBlankDocument([
+        { id: "a", type: "paragraph", props: {}, content: run("hello") },
+      ]),
+    ).toBe(false);
+    expect(
+      isBlankDocument([
+        {
+          id: "a",
+          type: "paragraph",
+          props: {},
+          content: [{ type: "pageMention", props: { pageId: "p" } }],
+        },
+      ]),
+    ).toBe(false);
+    expect(
+      isBlankDocument([
+        {
+          id: "a",
+          type: "paragraph",
+          props: {},
+          content: [],
+          children: [{ id: "b", type: "paragraph", props: {}, content: [] }],
+        },
+      ]),
+    ).toBe(false);
+    expect(isBlankDocument([{ id: "a", type: "divider", props: {} }])).toBe(
+      false,
+    );
+    expect(
+      isBlankDocument([{ id: "a", type: "heading", props: {}, content: [] }]),
+    ).toBe(false);
   });
 });

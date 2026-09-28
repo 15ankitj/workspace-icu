@@ -12,7 +12,7 @@ const PORT = 3400;
 export default defineConfig({
   testDir: "e2e",
   // The staging scenarios have their own config (playwright.staging.config.ts).
-  testIgnore: /relations\.spec\.ts$/,
+  testIgnore: /(relations|templates)\.spec\.ts$/,
   timeout: 30_000,
   fullyParallel: true,
   reporter: process.env.CI ? "github" : "list",
