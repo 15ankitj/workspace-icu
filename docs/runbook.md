@@ -174,27 +174,39 @@ Invitations are sent through Resend's REST API from server actions.
 ## Sign-in (magic link + one-time code)
 
 `signInWithOtp` sends one email that carries both a link and a one-time
-code, provided the Supabase email templates include both placeholders.
-In **each** project (Authentication → Email Templates) add this line to
-the **Magic Link** template and to **Confirm signup** (used for a
-first-time address), keeping `{{ .ConfirmationURL }}`:
+code. The email body is `docs/email/sign-in-template.html` — the canonical
+copy. In **each** project (Authentication → Emails) paste it, unchanged,
+into both the **Magic Link** template and **Confirm signup** (used for a
+first-time address), with the subject **Sign in to WorkspaceICU**.
 
-```
-<p>Or enter this code in the app: <strong>{{ .Token }}</strong></p>
-```
-
-- The link completes at `/auth/confirm`; the code is verified on the
-  sign-in page itself (`verifyOtp`, type `email`), which is what works
-  when the email is opened on a different device or the link has been
-  rewritten by a mail filter. The code length is a project setting
-  (Authentication → Providers → Email → "Email OTP Length"; ours is 8) and
-  the page accepts 6–10 digits; expiry 1 hour.
+- The link is `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`,
+  not Supabase's `{{ .ConfirmationURL }}`: it points at **our** domain
+  (`/auth/confirm` verifies `token_hash` server-side) rather than
+  `*.supabase.co`, which NHS mail filters treat as an unrelated
+  third-party host. `{{ .RedirectTo }}` is the allow-listed
+  `emailRedirectTo` from the sign-in page and always carries `?next=`.
+- The code is verified on the sign-in page itself (`verifyOtp`, type
+  `email`), which is what works when the email is opened on a different
+  device or the link has been rewritten by a mail filter. The code length
+  is a project setting (Authentication → Providers → Email → "Email OTP
+  Length"; ours is 8) and the page accepts 6–10 digits; expiry 1 hour.
+- **Deliverability to NHS addresses** (nhs.net, stgeorges.nhs.uk):
+  Resend reports these as *delivered*; the filtering happens inside the
+  NHS tenant, on content. Keep the template free of urgency wording,
+  images, tracking and third-party links, keep the sender name and
+  address stable, and keep Resend's open/click tracking **off** for
+  `icmworkspace.com` (tracking rewrites links to a Resend host). DNS for
+  the domain (Vercel → Domains): DKIM and SPF on `send` are set by Resend;
+  `_dmarc` should be `v=DMARC1; p=quarantine; adkim=r; aspf=r;` and the
+  root should carry `v=spf1 include:amazonses.com ~all`.
 - Supabase allows one resend per address every 60 seconds; the page
   surfaces its message.
 - **Custom SMTP is required** — Supabase only allows template editing
   (and a usable email rate) with it. Auth email goes through Resend from
   the same domain as invitations. In each project, Authentication → SMTP
-  Settings: sender `sign-in@icmworkspace.com`, name `WorkspaceICU`, host
+  Settings: sender `hello@icmworkspace.com` (was `sign-in@`, a
+  local-part filters score as a credential-phishing sender), name
+  `WorkspaceICU`, host
   `smtp.resend.com`, port `465`, username `resend`, password = a Resend
   API key created for that project (`supabase-auth-staging` /
   `supabase-auth-production`, sending access, restricted to the domain).
