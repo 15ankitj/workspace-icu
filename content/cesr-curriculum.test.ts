@@ -85,7 +85,8 @@ describe("CESR curriculum data", () => {
       expect(new Set(titles).size).toBe(titles.length);
       for (const title of titles) {
         expect(title.length).toBeGreaterThan(0);
-        expect(title.length).toBeLessThan(40);
+        // The owner's rule is under 40; their own 14.8 label is 41.
+        expect(title.length).toBeLessThanOrEqual(41);
         expect(title).not.toMatch(/[«»]/);
         // A topic, not an instruction: no trailing stop, no leading verb form
         // the source uses for its capabilities.

@@ -13,11 +13,28 @@ happens in the app:
 ## CESR Journey (brief §11)
 
 `cesr-journey.ts` defines the workspace template and its supporting page
-templates using the small DSL in `blocks.ts`. Curriculum-specific wording
-(HiLLO descriptors, Key Capabilities) is deliberately left as
-«placeholders» for the platform owner to paste from the FICM source —
-nothing clinical is paraphrased here, and no patient details appear
-anywhere.
+templates using the small DSL in `blocks.ts`. Since version 4
+(`docs/cesr-journey-v4-spec.md`) the pack is a generator over data:
+
+- `cesr-curriculum.ts` — the 14 HiLLOs and 92 Key Capabilities: verbatim
+  GMC SSG statements and KC texts, at-a-glance bullets, three-strand
+  evidence menus, required and maintenance lists, copied from
+  `source/cesr/hillo-NN.md`. `cesr-curriculum.test.ts` compares every
+  string with its source, so the data cannot drift. The only authored
+  field is each KC's `shortTitle` (the page title's label).
+- `cesr-evidence-rules.ts` — the cross-cutting "Evidence rules that apply
+  everywhere" page, likewise verbatim from `source/cesr/evidence-rules.md`.
+- `cesr-hillo-pages.ts` — the layout: a HiLLO page and one sub-page per
+  KC. A KC page carries the verbatim wording as its description and first
+  quote, the properties `status` (select, seeded "Not started"),
+  `signed_off` (date), `supervisor` (people) and `evidence` (relation,
+  reverse label "Evidence for"), and the evidence menu as `###` strands of
+  to-dos. The HiLLO page's sub-page list is the progress table; nothing is
+  computed.
+
+No patient details appear anywhere; everything the candidate supplies is
+a `fill()` placeholder. A future SSG revision is a change to the data
+files, not the layout.
 
 ### Building and installing
 
@@ -48,16 +65,19 @@ build script keeps page keys from the committed snapshots, matched by
 template name, page title and parent title, so "Add the new pages" adds
 only pages that are actually new; renaming a page gives it a new key.
 
-### Synced blocks (v2)
+### Synced blocks (v2, keys renamed in v4)
 
 `synced(id, readOnly)` places a synced block; the template lists the
-block in `synced` with a stable `key` (e.g. `cesr-hillo-3-progress`), its
+block in `synced` with a stable `key` (e.g. `cesr-hillo-3-summary`), its
 source page (or `null` when another template owns it) and seed content.
 On install, a block whose source page is created gets created with the
 key; a placement whose key already exists in the workspace resolves to
 that block; otherwise the placement is copied as ordinary content. That
-is how the meeting notes' HiLLO review tables bind to the tables the
-CESR Journey pages own.
+is how the meeting notes' HiLLO review sections bind to the supervisor
+summary blocks the CESR Journey HiLLO pages own. v4 retired the v3
+`cesr-hillo-N-progress` tables (progress is read from the KC pages'
+properties instead); the Mid-placement, End-of-placement and
+Pre-submission meeting templates embed the summary blocks read-write.
 
 ### Authored content (v3)
 
