@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { EditorBlock } from "../src/lib/blocks";
+import type { PagePropertyRow } from "../src/lib/page-properties";
 import {
   b,
   bookmark,
@@ -40,8 +41,30 @@ export interface PackPage {
    *  accepts or rejects. Reflections and application narrative only —
    *  meeting records, HiLLO checklists and evidence logs stay direct-edit. */
   authored?: boolean;
+  /** Page details rows (0014) as the page should carry them, built with
+   *  `prop` from `blocks.ts`. Same shape as `PageProperties.rows`: people
+   *  and date values are cleared by `propertiesForTemplate` on snapshot;
+   *  select, text, link and relation rows travel. A relation row declares
+   *  the property; the links it holds are the template's `relations`. */
+  properties?: PagePropertyRow[];
+  /** The one-line description under the title (0014), at most 500
+   *  characters — the database refuses longer. */
+  description?: string;
   /** Blocks, or groups of blocks from `bullets`/`todos`; flattened on build. */
   blocks: (EditorBlock | EditorBlock[])[];
+}
+
+/**
+ * A relation link between two pack pages (Appendix B §4.5), by authoring
+ * ids. `propertyId` names a relation row in the source page's
+ * `properties`; the build script rejects a link whose pages or row are
+ * not in the template, since a pack must never ship a dangling link.
+ * Links are ordered per (source page, property) in declaration order.
+ */
+export interface PackRelation {
+  sourcePageId: string;
+  propertyId: string;
+  targetPageId: string;
 }
 
 /** A synced block carried by a pack template (Appendix A §1.5). */
@@ -70,6 +93,9 @@ export interface PackTemplate {
   changelog: string;
   pages: PackPage[];
   synced?: PackSynced[];
+  /** Relation links between pages of this template; travel in snapshot
+   *  format 4 and are recreated between the copies on instantiation. */
+  relations?: PackRelation[];
 }
 
 // ---------------------------------------------------------------------

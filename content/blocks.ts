@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { EditorBlock } from "../src/lib/blocks";
+import type { PagePropertyRow } from "../src/lib/page-properties";
 
 /**
  * Tiny authoring DSL for content packs. Produces editor block documents
@@ -92,3 +93,56 @@ export const todos = (items: (string | Inline[])[]) =>
 
 /** A placeholder the author must replace, visually distinct in the editor. */
 export const fill = (what: string) => t(`«${what}»`, { italic: true });
+
+/**
+ * Page details rows (migration 0014, Appendix B) as a pack page carries
+ * them. Ids are stable strings the author chooses (`status`, `evidence`),
+ * not UUIDs, so a later pack version can find and extend the same rows;
+ * they must match the app's id pattern (`^[A-Za-z0-9_-]{1,40}$`), which
+ * the build script checks. People and date values never travel in a
+ * template (`propertiesForTemplate` clears them), so those helpers take
+ * no value; select, text and link values do travel and are the seed the
+ * copy starts with. A relation row only declares the property — the
+ * pages it holds are the template's `relations`.
+ */
+export const prop = {
+  select: (
+    id: string,
+    label: string,
+    value: string | null = null,
+  ): PagePropertyRow => ({ id, type: "select", label, value }),
+  date: (id: string, label: string): PagePropertyRow => ({
+    id,
+    type: "date",
+    label,
+    value: null,
+  }),
+  people: (id: string, label: string): PagePropertyRow => ({
+    id,
+    type: "people",
+    label,
+    value: [],
+  }),
+  text: (id: string, label: string, value = ""): PagePropertyRow => ({
+    id,
+    type: "text",
+    label,
+    value,
+  }),
+  link: (id: string, label: string, value = ""): PagePropertyRow => ({
+    id,
+    type: "link",
+    label,
+    value,
+  }),
+  relation: (
+    id: string,
+    label: string,
+    reverseLabel: string,
+  ): PagePropertyRow => ({
+    id,
+    type: "relation",
+    label,
+    reverse_label: reverseLabel,
+  }),
+};
