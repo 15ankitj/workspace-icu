@@ -95,6 +95,41 @@ export const todos = (items: (string | Inline[])[]) =>
 export const fill = (what: string) => t(`«${what}»`, { italic: true });
 
 /**
+ * Inline markdown emphasis to text runs: `**bold**`, `*italic*`, and bold
+ * containing italic (`**has *required* evidence**`). Nothing else is
+ * interpreted, so source text that is not markup passes through as is.
+ * Used for curriculum data copied from the markdown source files.
+ */
+export function md(text: string): Inline[] {
+  const runs: Inline[] = [];
+  let bold = false;
+  let italic = false;
+  let buffer = "";
+  const flush = () => {
+    if (!buffer) return;
+    const styles: Record<string, boolean> = {};
+    if (bold) styles.bold = true;
+    if (italic) styles.italic = true;
+    runs.push(t(buffer, styles));
+    buffer = "";
+  };
+  for (let index = 0; index < text.length; index++) {
+    if (text.startsWith("**", index)) {
+      flush();
+      bold = !bold;
+      index += 1;
+    } else if (text[index] === "*") {
+      flush();
+      italic = !italic;
+    } else {
+      buffer += text[index];
+    }
+  }
+  flush();
+  return runs;
+}
+
+/**
  * Page details rows (migration 0014, Appendix B) as a pack page carries
  * them. Ids are stable strings the author chooses (`status`, `evidence`),
  * not UUIDs, so a later pack version can find and extend the same rows;
