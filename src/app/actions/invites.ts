@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { inviteEmail, isEmailConfigured, sendEmail } from "@/lib/email";
 import type { WorkspaceRole } from "@/lib/database.types";
+import { inviteFailureReason, type InviteFailureReason } from "@/lib/invites";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -142,16 +143,37 @@ export async function revokeInvite(formData: FormData) {
   revalidatePath(`/w/${workspaceId}/settings`);
 }
 
-/** Invitee accepts while signed in with the invited address. */
-export async function acceptInvite(token: string): Promise<string> {
+export type AcceptInviteResult =
+  | { ok: true; workspaceId: string }
+  | { ok: false; reason: InviteFailureReason; message: string };
+
+/**
+ * Invitee accepts while signed in with the invited address. Accepting the
+ * same invitation again (the page can render twice after a sign-in) is
+ * not a failure: `accept_invite` (migration 0028) returns the workspace
+ * again for the person who accepted it. Failures come back as a reason
+ * the page can explain, never as a thrown error.
+ */
+export async function acceptInvite(token: string): Promise<AcceptInviteResult> {
   const { supabase } = await requireUser();
   const { data: workspaceId, error } = await supabase.rpc("accept_invite", {
     p_token: token,
   });
-  if (error || !workspaceId) {
-    throw new Error(error?.message ?? "Invitation could not be accepted");
+  if (error) {
+    return {
+      ok: false,
+      reason: inviteFailureReason(error),
+      message: error.message,
+    };
   }
-  return workspaceId;
+  if (!workspaceId) {
+    return {
+      ok: false,
+      reason: "unknown",
+      message: "Invitation could not be accepted",
+    };
+  }
+  return { ok: true, workspaceId };
 }
 
 export async function updateMemberRole(formData: FormData) {

@@ -2,7 +2,7 @@
 
 import { Suspense, useId, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { safeNextPath } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/client";
 import { AUP_STATEMENT, AUP_VERSION } from "@/lib/aup";
@@ -21,7 +21,6 @@ import { Separator } from "@/components/ui/separator";
  * the link is rewritten by a mail filter.
  */
 function SignInForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNextPath(searchParams.get("next"));
   const authError = searchParams.get("error");
@@ -86,8 +85,12 @@ function SignInForm() {
       setError(verifyError.message);
       return;
     }
-    router.replace(next);
-    router.refresh();
+    // A full navigation, not a client-side one: the browser client has just
+    // written the session cookies, and the server must see them on the very
+    // next request. The previous `router.replace(next)` followed by
+    // `router.refresh()` requested the destination twice — for an
+    // invitation link, that meant accepting it twice.
+    window.location.assign(next);
   }
 
   async function signInWithGoogle() {
