@@ -276,10 +276,12 @@ describe("packToSnapshot", () => {
     expect(journey.snapshot.relations).toEqual([]);
     for (const template of built) {
       expect(template.snapshot.notes).toEqual([]);
-      for (const page of template.snapshot.pages) {
-        expect(page.description).toBe("");
-        expect(page.properties).toEqual({ hidden: [], rows: [] });
-      }
+    }
+    // The v3 workspace template carries no properties yet; the page
+    // templates' own rows are checked in content/cesr-journey.test.ts.
+    for (const page of journey.snapshot.pages) {
+      expect(page.description).toBe("");
+      expect(page.properties).toEqual({ hidden: [], rows: [] });
     }
   });
 });

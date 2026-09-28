@@ -14,6 +14,7 @@ import {
   i,
   p,
   pageLink,
+  prop,
   quote,
   synced,
   t,
@@ -928,13 +929,13 @@ export function supportingTemplates(): PackTemplate[] {
     ),
     {
       name: "Reflection",
-      version: 2,
+      version: 3,
       changelog:
-        "Authored content: a new reflection opens supervisors in Suggest mode, so the reflection stays the writer's own voice.",
+        "Adds Date and Evidences (KC numbers) properties, so the Reflections page's sub-page list shows them. A reflection is evidence like any other item: link it from the Evidence property of each Key Capability page it supports, and it appears there under Evidence for.",
       purpose:
         "A structured reflective entry mapped to a HiLLO and Key Capability",
       description:
-        "What happened, so what, now what — with learning and actions, and the outcome it evidences. Anonymised by design, and authored content: supervisors suggest, you accept.",
+        "What happened, so what, now what — with learning and actions, and the outcome it evidences. Anonymised by design, and authored content: supervisors suggest, you accept. Link it from the Key Capability pages it supports.",
       category: "Training & Portfolio",
       audience: "Anyone building a portfolio",
       kind: "page",
@@ -945,9 +946,13 @@ export function supportingTemplates(): PackTemplate[] {
           title: "Reflection",
           icon: "💭",
           authored: true,
+          properties: [
+            prop.date("date", "Date"),
+            prop.text("kc_note", "Evidences (KC numbers)"),
+          ],
           blocks: [
             howTo(
-              "write it within a week of the event, anonymised, and link it from the HiLLO page it evidences.",
+              "write it within a week of the event, anonymised. Set the Date and note the KC numbers it evidences above, then open each of those KC pages and add this page to its Evidence property — the KCs then appear here under Evidence for.",
             ),
             noPhi(),
             h2("Maps to"),
@@ -974,6 +979,77 @@ export function supportingTemplates(): PackTemplate[] {
             bullets([[fill("learning point")]]),
             h2("Actions"),
             ...todos([[fill("action")]]),
+          ],
+        },
+      ],
+    },
+    {
+      name: "Evidence item",
+      version: 1,
+      changelog: "Initial version",
+      purpose:
+        "One page per piece of evidence: what it is, when, who supervised it, where it lives — linked from the Key Capabilities it supports",
+      description:
+        "Type, date, supervising consultant, storage mode and link as properties; a description, and an anonymisation check. Create it under Evidence in a CESR Journey workspace, then add it to the Evidence property of each Key Capability page it supports: the KCs appear on this page under Evidence for, and the Evidence hub's sub-page list becomes your index.",
+      category: "Training & Portfolio",
+      audience: "CESR candidates",
+      kind: "page",
+      pages: [
+        {
+          id: randomUUID(),
+          parentId: null,
+          title: "Evidence item",
+          icon: "📄",
+          properties: [
+            prop.select("type", "Type"),
+            prop.date("date", "Date"),
+            prop.text("consultant", "Supervising consultant"),
+            prop.select("stored_as", "Stored as"),
+            prop.link("link", "Link"),
+          ],
+          blocks: [
+            howTo(
+              "one page per item. Rename it to the item's title, fill the properties above, describe it below, anonymise anything you attach, then open each Key Capability page it supports and add this page to its Evidence property.",
+            ),
+            callout(
+              "🏷️",
+              [
+                b("Conventions. "),
+                t("Type is one of: "),
+                b(
+                  "CBD · DOPS · Mini-CEX · ACAT · MSF · Reflection · Certificate · Logbook · Letter · Audit/QI · Teaching · Other",
+                ),
+                t(". Stored as is one of: "),
+                b("Described"),
+                t(" (the description below is the evidence), "),
+                b("Linked"),
+                t(" (put the URL in Link), or "),
+                b("Attached"),
+                t(
+                  " (upload the anonymised document below). Spell them exactly so the Evidence hub groups them.",
+                ),
+              ],
+              "gray",
+            ),
+            noPhi(),
+            h2("What it is"),
+            p([
+              fill(
+                "what the evidence is and the context — in general terms, no identifiers, relative dates",
+              ),
+            ]),
+            h2("Which capabilities it evidences"),
+            p([
+              i(
+                "Link this page from the Evidence property of each KC it supports; the list appears here under Evidence for.",
+              ),
+            ]),
+            h2("Anonymisation check"),
+            ...todos([
+              "Patient and relative names, addresses and contact details removed",
+              "NHS numbers and any other patient numbers removed",
+              "Colleagues' GMC numbers removed",
+            ]),
           ],
         },
       ],
