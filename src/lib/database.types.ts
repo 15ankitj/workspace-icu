@@ -27,6 +27,7 @@ export type UserRow = {
   accepted_aup_version: string | null;
   created_at: string;
   email_digest: boolean;
+  passkey_nudge_dismissed_at: string | null;
 };
 
 export type OrganisationRow = {
@@ -740,6 +741,10 @@ export type Database = {
       };
       set_email_digest: {
         Args: { p_enabled: boolean };
+        Returns: undefined;
+      };
+      dismiss_passkey_nudge: {
+        Args: Record<string, never>;
         Returns: undefined;
       };
       search_pages: {

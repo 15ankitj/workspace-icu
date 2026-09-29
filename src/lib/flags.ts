@@ -17,4 +17,10 @@ export const flags = {
   /** Relation properties (Appendix B). `FEATURE_RELATIONS`: on for
    *  Preview (staging), off for Production until the owner has tried it. */
   relations: isOn(process.env.FEATURE_RELATIONS),
+  /** Passkey sign-in (WebAuthn, experimental in supabase-js).
+   *  `FEATURE_PASSKEYS`: set in Vercel Production only after the Supabase
+   *  Passkeys settings are in place (docs/runbook.md, "Sign-in"). Read on
+   *  the server; the sign-in page, workspace layout and settings pass it
+   *  down as a prop. */
+  passkeys: isOn(process.env.FEATURE_PASSKEYS),
 } as const;

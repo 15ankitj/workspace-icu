@@ -208,7 +208,7 @@ first-time address), with the subject **Sign in to WorkspaceICU**.
   is a project setting (Authentication → Providers → Email → "Email OTP
   Length"; ours is 8) and the page accepts 6–10 digits; expiry 1 hour.
 - **Deliverability to NHS addresses** (nhs.net, stgeorges.nhs.uk):
-  Resend reports these as *delivered*; the filtering happens inside the
+  Resend reports these as _delivered_; the filtering happens inside the
   NHS tenant, on content. Keep the template free of urgency wording,
   images, tracking and third-party links, keep the sender name and
   address stable, and keep Resend's open/click tracking **off** for
@@ -232,6 +232,44 @@ first-time address), with the subject **Sign in to WorkspaceICU**.
 - Production URL configuration: Site URL `https://icmworkspace.com`,
   redirect URLs include `https://icmworkspace.com/**` plus the
   `*.vercel.app` entries previews use.
+
+### Passkeys (optional, `FEATURE_PASSKEYS`)
+
+A signed-in user can add a passkey (device biometric or PIN, or a
+password-manager passkey) and sign in with it afterwards, so daily use no
+longer waits for an email. Email sign-in is unchanged and **remains the
+recovery route**; passkeys are never required. Enrolment is offered by a
+one-time card after an email sign-in and under Settings → Your account →
+Passkeys. Every passkey call lives in `src/lib/passkeys.ts`.
+
+Owner steps, in this order:
+
+1. Apply migration `0029_passkey_nudge.sql` (the nudge stamp on
+   `users`; passkeys themselves live in Supabase Auth).
+2. Supabase → Authentication → Passkeys, in **each** project: enable;
+   Relying Party display name `WorkspaceICU`; Relying Party ID
+   `icmworkspace.com`; origins `https://icmworkspace.com`.
+   **The RP ID is permanent once anyone enrols**: every passkey is bound
+   to it, and changing it makes all of them unusable. Origins must be the
+   RP ID or a subdomain of it, so passkeys **do not work on `*.vercel.app`
+   previews** — use email there.
+3. Vercel → Production: set `FEATURE_PASSKEYS=1` (only after step 2), then
+   redeploy. The sign-in page is prerendered, so the flag is read at build.
+4. Check: sign in by email → the card appears → Add a passkey → the
+   device prompt → confirmation; sign out → "Sign in with a passkey" →
+   in without an email; Settings lists it; remove it; `audit_events`
+   holds `passkey_registered` and `passkey_removed` rows
+   (`target_type = 'passkey'`, `workspace_id` null, metadata
+   `{ friendly_name }`).
+
+`@supabase/supabase-js` is pinned to the exact version `2.112.4` (no
+caret) while passkey support is experimental: the library only exposes it
+behind `auth.experimental.passkey` and says the API may change without
+notice, so a routine minor upgrade must be a deliberate change that
+re-checks `src/lib/passkeys.ts`. The browser client sets the opt-in; the
+server client needs nothing because no server code calls a passkey
+method. User verification (biometric/PIN rather than device presence) is
+not exposed by the one-call ceremonies, so the Supabase default applies.
 
 ## Feature flags
 
