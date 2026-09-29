@@ -1,0 +1,31 @@
+<!--
+  WorkspaceICU sign-in email — the canonical copy of the Supabase Auth
+  templates "Magic Link" and "Confirm signup" (Authentication → Emails).
+  Both templates carry this same body. Subject: "Sign in to WorkspaceICU".
+
+  Why it looks like this (docs/runbook.md, "Sign-in"): NHS mail filters
+  score content. The link points at our own domain (the app's
+  /auth/confirm accepts token_hash + type), the wording reads like the
+  invitation email that does get through, and there is no urgency
+  language, no image, no third-party host.
+
+  Placeholders are Supabase's: {{ .Token }} (one-time code),
+  {{ .TokenHash }}, {{ .RedirectTo }} (the allow-listed
+  emailRedirectTo sent by the sign-in page, which always carries ?next=).
+-->
+<p>Hello,</p>
+
+<p>You asked to sign in to <strong>WorkspaceICU</strong>, the shared workspace
+for intensive care doctors at St George's. Either option below signs you in;
+both are valid for one hour and only for this email address.</p>
+
+<p><a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email">Sign in to WorkspaceICU</a></p>
+
+<p>Or, if you are reading this on another device, enter this code on the
+sign-in page:</p>
+
+<p style="font-size:22px;letter-spacing:3px"><strong>{{ .Token }}</strong></p>
+
+<p style="color:#666;font-size:12px">If you did not ask to sign in, no action
+is needed — nothing happens unless the code or link is used. WorkspaceICU is
+not a clinical record — please never add patient-identifiable information.</p>
