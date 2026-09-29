@@ -42,6 +42,10 @@ export default function PrivacyPage() {
         <ul className={listClass}>
           <li>Your email address and display name.</li>
           <li>
+            If you set up a passkey, its public key and a device name. The
+            private key never leaves your device.
+          </li>
+          <li>
             The content you create: pages, comments and files, and who you share
             them with.
           </li>

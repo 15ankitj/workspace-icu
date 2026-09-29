@@ -17,13 +17,14 @@ it, and the controls in §5 exist for that reason.
 
 ## 2. Data subjects and data
 
-| Data subject                         | Personal data                                                                                                                     | Source                      |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Users (doctors, supervisors)         | Email, display name, sign-in timestamps, workspace memberships and roles, AUP acceptance, audit events                            | The user                    |
-| Users                                | Content they write: pages, comments, uploaded files. May contain reflective writing about their own practice and about colleagues | The user                    |
-| Colleagues named in content          | Names and roles as written by users (e.g. "my supervisor Dr X")                                                                   | Users                       |
-| Patients (prohibited, residual risk) | Should be **none**. Residual risk that a user pastes identifiable case detail despite the policy                                  | Users, in breach of the AUP |
-| Invitees                             | Email address, invited role, inviter, expiry                                                                                      | The inviting user           |
+| Data subject                          | Personal data                                                                                                                     | Source                      |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Users (doctors, supervisors)          | Email, display name, sign-in timestamps, workspace memberships and roles, AUP acceptance, audit events                            | The user                    |
+| Users (only if they set up a passkey) | Passkey public key and a device name; the private key never leaves the user's device                                              | The user's device           |
+| Users                                 | Content they write: pages, comments, uploaded files. May contain reflective writing about their own practice and about colleagues | The user                    |
+| Colleagues named in content           | Names and roles as written by users (e.g. "my supervisor Dr X")                                                                   | Users                       |
+| Patients (prohibited, residual risk)  | Should be **none**. Residual risk that a user pastes identifiable case detail despite the policy                                  | Users, in breach of the AUP |
+| Invitees                              | Email address, invited role, inviter, expiry                                                                                      | The inviting user           |
 
 Special category data: none is sought. Reflective writing about a user's
 own health or a colleague's could in principle appear; it is user-authored

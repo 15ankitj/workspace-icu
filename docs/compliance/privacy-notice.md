@@ -15,6 +15,8 @@ provide reminders and an advisory scan to help you keep it out.
 **What we collect.**
 
 - Your email address and display name.
+- If you set up a passkey, its public key and a device name. The private
+  key never leaves your device.
 - The content you create: pages, comments and files, and who you share
   them with.
 - Sign-in times, invitations you send or accept, and an audit trail of

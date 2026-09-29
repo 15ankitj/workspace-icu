@@ -20,6 +20,19 @@ test("sign-in page renders with security headers", async ({ page }) => {
   await expect(page.getByRole("textbox")).toBeVisible();
 });
 
+test("sign-in page offers no passkey button while the flag is off", async ({
+  page,
+}) => {
+  // FEATURE_PASSKEYS is unset for the smoke build: the page must be the
+  // email form alone.
+  await page.goto("/sign-in");
+  await expect(
+    page.getByRole("button", { name: "Continue with email" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /passkey/i })).toHaveCount(0);
+  await expect(page.getByText("or", { exact: true })).toHaveCount(0);
+});
+
 test("skip link is the first thing keyboard users reach", async ({ page }) => {
   await page.goto("/sign-in");
   await page.keyboard.press("Tab");

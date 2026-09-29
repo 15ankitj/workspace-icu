@@ -25,6 +25,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DeleteAccountForm } from "./delete-account-form";
+import { PasskeysBlock } from "./passkeys-block";
+import { flags } from "@/lib/flags";
 import { setEmailDigest } from "@/app/actions/suggestions";
 
 export const dynamic = "force-dynamic";
@@ -129,9 +131,8 @@ export default async function WorkspaceSettings({
         <p className="text-sm text-muted-foreground">
           Everything you can see in this workspace as Markdown files with
           attachments, in a zip. Accounts belong to individuals: take your
-          content with you at any time. Pages export in their clean state;
-          if suggestions are still waiting anywhere, the zip says which
-          pages.
+          content with you at any time. Pages export in their clean state; if
+          suggestions are still waiting anywhere, the zip says which pages.
         </p>
         <Button variant="secondary" asChild>
           <a href={`/api/export/workspace/${workspace.id}`}>
@@ -336,6 +337,7 @@ export default async function WorkspaceSettings({
             {emailDigest ? "Switch off" : "Switch on"}
           </SubmitButton>
         </form>
+        <PasskeysBlock enabled={flags.passkeys} />
         <p className="text-sm text-muted-foreground">
           Deleting your account removes your personal workspace and every
           workspace where you are the only member, including their files.

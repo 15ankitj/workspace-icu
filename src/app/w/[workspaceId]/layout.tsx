@@ -2,6 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/sidebar/sidebar";
 import { AppShell } from "@/components/sidebar/app-shell";
+import { PasskeyNudge } from "@/components/passkey-nudge";
+import { flags } from "@/lib/flags";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,7 @@ export default async function WorkspaceLayout({
     { data: recents },
     { data: pendingRows },
     { data: notificationRows },
+    { data: me },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -76,6 +79,12 @@ export default async function WorkspaceLayout({
       .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(30),
+    // Whether the one-time passkey nudge has been dismissed.
+    supabase
+      .from("users")
+      .select("passkey_nudge_dismissed_at")
+      .eq("id", user.id)
+      .maybeSingle(),
   ]);
 
   if (!workspace || !membership) notFound();
@@ -121,6 +130,9 @@ export default async function WorkspaceLayout({
         />
       }
     >
+      <PasskeyNudge
+        show={flags.passkeys && me?.passkey_nudge_dismissed_at == null}
+      />
       {children}
     </AppShell>
   );
