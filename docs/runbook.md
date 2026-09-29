@@ -185,6 +185,23 @@ first-time address), with the subject **Sign in to WorkspaceICU**.
   `*.supabase.co`, which NHS mail filters treat as an unrelated
   third-party host. `{{ .RedirectTo }}` is the allow-listed
   `emailRedirectTo` from the sign-in page and always carries `?next=`.
+- **The link opens a button page, not a signed-in session.**
+  `GET /auth/confirm` never verifies the token: it sends the browser to
+  `/auth/continue`, a plain-HTML page whose one button POSTs `token_hash`
+  back to `/auth/confirm`, and only that POST calls `verifyOtp`. NHS
+  mailboxes (Microsoft Defender Safe Links) fetch every link in an
+  incoming email to scan it; when the GET verified, the scanner consumed
+  the one-time token seconds after the email was sent, so the user's own
+  click failed ("Email link is invalid or has expired"), the code from
+  the same email failed too ("Token has expired or is invalid" — link
+  and code share one token), and the scanner briefly held a signed-in
+  session. Scanners follow links but do not submit forms, so the extra
+  click is the mitigation, and the code keeps working because nothing
+  touches the token before the user does. The symptom in the auth logs
+  was a `/verify` within seconds of every `/otp` to a
+  `stgeorges.nhs.uk` address. The PKCE `?code=` branch stays on GET: a
+  scanner cannot exchange a code without the verifier held in the
+  requesting browser's cookies.
 - The code is verified on the sign-in page itself (`verifyOtp`, type
   `email`), which is what works when the email is opened on a different
   device or the link has been rewritten by a mail filter. The code length
