@@ -11,7 +11,6 @@ date and where the accepted copy lives.
 | Liveblocks | Contact/legal page — request DPA with UK Addendum | Yes (US)                  |             |              |
 | Resend     | Legal → DPA                                       | Yes (US)                  |             |              |
 | Sentry     | Organisation settings → Legal & Compliance        | Yes unless EU data region |             |              |
-| Google     | Google Cloud/OAuth terms (controller for sign-in) | n/a                       |             |              |
 
 Sub-processor lists change: subscribe to each provider's sub-processor
 update notifications and review yearly.

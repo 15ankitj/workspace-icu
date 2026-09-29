@@ -27,7 +27,7 @@ CI runs `typecheck`, `lint`, `test` (Vitest) and `build` on every PR.
 
 ## Status
 
-Phases 1–4 are in: auth (magic link + Google), workspaces and membership
+Phases 1–4 are in: auth (magic link + one-time code), workspaces and membership
 with RLS, the sidebar page tree, the BlockNote editor with the v1 block
 list (bar columns), covers and @mentions, file uploads with the IG nudges
 and advisory PHI scan, and real-time collaboration via Liveblocks + Yjs
