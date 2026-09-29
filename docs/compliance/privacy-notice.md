@@ -14,8 +14,7 @@ provide reminders and an advisory scan to help you keep it out.
 
 **What we collect.**
 
-- Your email address, display name and (if you sign in with Google) your
-  Google profile name and picture.
+- Your email address and display name.
 - The content you create: pages, comments and files, and who you share
   them with.
 - Sign-in times, invitations you send or accept, and an audit trail of
@@ -30,8 +29,8 @@ not profile you, advertise to you, or sell your data.
 **Who processes it for us.** Supabase (database, sign-in and file storage,
 in London), Vercel (hosting, in London for our application code), Liveblocks
 (real-time collaboration while you edit, currently hosted outside the UK
-under standard contractual safeguards), Resend (sign-in emails and invitations), Sentry (error
-monitoring, without content) and Google (only if you sign in with Google).
+under standard contractual safeguards), Resend (sign-in emails and invitations) and Sentry (error
+monitoring, without content).
 
 **How long we keep it.** Your content stays until you delete it; deleted
 pages sit in the trash for 30 days and are then removed permanently along

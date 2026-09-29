@@ -17,13 +17,13 @@ it, and the controls in §5 exist for that reason.
 
 ## 2. Data subjects and data
 
-| Data subject                         | Personal data                                                                                                                        | Source                      |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
-| Users (doctors, supervisors)         | Email, display name, avatar (from Google if used), sign-in timestamps, workspace memberships and roles, AUP acceptance, audit events | The user; Google OAuth      |
-| Users                                | Content they write: pages, comments, uploaded files. May contain reflective writing about their own practice and about colleagues    | The user                    |
-| Colleagues named in content          | Names and roles as written by users (e.g. "my supervisor Dr X")                                                                      | Users                       |
-| Patients (prohibited, residual risk) | Should be **none**. Residual risk that a user pastes identifiable case detail despite the policy                                     | Users, in breach of the AUP |
-| Invitees                             | Email address, invited role, inviter, expiry                                                                                         | The inviting user           |
+| Data subject                         | Personal data                                                                                                                     | Source                      |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Users (doctors, supervisors)         | Email, display name, sign-in timestamps, workspace memberships and roles, AUP acceptance, audit events                            | The user                    |
+| Users                                | Content they write: pages, comments, uploaded files. May contain reflective writing about their own practice and about colleagues | The user                    |
+| Colleagues named in content          | Names and roles as written by users (e.g. "my supervisor Dr X")                                                                   | Users                       |
+| Patients (prohibited, residual risk) | Should be **none**. Residual risk that a user pastes identifiable case detail despite the policy                                  | Users, in breach of the AUP |
+| Invitees                             | Email address, invited role, inviter, expiry                                                                                      | The inviting user           |
 
 Special category data: none is sought. Reflective writing about a user's
 own health or a colleague's could in principle appear; it is user-authored
@@ -50,7 +50,6 @@ No profiling, no automated decision-making, no marketing, no sale of data.
 | Liveblocks | Real-time collaboration transport and state                | Live page content while editing, presence (name), room tokens | Global (US-based) — chosen over the paid UK region at this stage | DPA + SCCs/UK Addendum. **Review before scale** |
 | Resend     | Transactional email (sign-in links and codes, invitations) | Recipient email, inviter name, workspace name                 | US company; sending domain icmworkspace.com in the EU region     | DPA + SCCs/UK Addendum                          |
 | Sentry     | Error monitoring (when a DSN is set)                       | Stack traces, URL path, user id; **no content, no PII**       | EU or US depending on the DSN region chosen — choose EU          | DPA                                             |
-| Google     | OAuth sign-in (when enabled)                               | Email, name, avatar                                           | Google's terms                                                   | Google as independent controller for sign-in    |
 
 Checklist of DPAs to accept is in [processors.md](./processors.md).
 

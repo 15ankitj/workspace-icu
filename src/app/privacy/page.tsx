@@ -40,10 +40,7 @@ export default function PrivacyPage() {
       <section className="space-y-2">
         <SectionHeading>What we collect</SectionHeading>
         <ul className={listClass}>
-          <li>
-            Your email address, display name and, if you sign in with Google,
-            your Google profile name and picture.
-          </li>
+          <li>Your email address and display name.</li>
           <li>
             The content you create: pages, comments and files, and who you share
             them with.
@@ -75,8 +72,7 @@ export default function PrivacyPage() {
           (hosting, in London for our application code), Liveblocks (real-time
           collaboration while you edit, currently hosted outside the UK under
           standard contractual safeguards), Resend (sign-in emails and
-          invitations), Sentry (error monitoring, without content) and Google
-          (only if you sign in with Google).
+          invitations) and Sentry (error monitoring, without content).
         </p>
       </section>
 

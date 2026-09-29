@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
-import { Separator } from "@/components/ui/separator";
 
 /**
  * Sign-in: a magic link and a one-time code arrive in the same email
@@ -91,20 +90,6 @@ function SignInForm() {
     // `router.refresh()` requested the destination twice — for an
     // invitation link, that meant accepting it twice.
     window.location.assign(next);
-  }
-
-  async function signInWithGoogle() {
-    if (!aupAccepted) {
-      setError("Please confirm the acceptable-use statement first.");
-      return;
-    }
-    const { error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${redirectBase}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    });
-    if (oauthError) setError(oauthError.message);
   }
 
   return (
@@ -213,20 +198,6 @@ function SignInForm() {
                 {busy === "sending" ? "Sending…" : "Continue with email"}
               </Button>
             </form>
-
-            <div className="flex items-center gap-3">
-              <Separator className="flex-1" />
-              <span className="text-xs text-muted-foreground">or</span>
-              <Separator className="flex-1" />
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={signInWithGoogle}
-            >
-              Continue with Google
-            </Button>
           </>
         )}
 
