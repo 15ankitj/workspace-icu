@@ -3,6 +3,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fail,
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionResult,
+} from "@/lib/action-result";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -21,34 +28,36 @@ async function requireUser() {
 export async function setPublicLink(
   pageId: string,
   enabled: boolean,
-): Promise<{ token: string | null }> {
-  const { supabase, user } = await requireUser();
+): Promise<ActionResult<{ token: string | null }>> {
+  return runAction(async () => {
+    const { supabase, user } = await requireUser();
 
-  const { data: page } = await supabase
-    .from("pages")
-    .select("workspace_id")
-    .eq("id", pageId)
-    .single();
-  if (!page) throw new Error("Page not found");
+    const { data: page } = await supabase
+      .from("pages")
+      .select("workspace_id")
+      .eq("id", pageId)
+      .single();
+    if (!page) return fail("Page not found");
 
-  const { data: share, error } = await supabase
-    .from("page_shares")
-    .upsert(
-      { page_id: pageId, created_by: user.id, public_enabled: enabled },
-      { onConflict: "page_id" },
-    )
-    .select("public_token, public_enabled")
-    .single();
-  if (error) throw new Error(`Could not update sharing: ${error.message}`);
+    const { data: share, error } = await supabase
+      .from("page_shares")
+      .upsert(
+        { page_id: pageId, created_by: user.id, public_enabled: enabled },
+        { onConflict: "page_id" },
+      )
+      .select("public_token, public_enabled")
+      .single();
+    if (error) return fromSupabaseError(error);
 
-  await supabase.from("audit_events").insert({
-    actor_id: user.id,
-    workspace_id: page.workspace_id,
-    event_type: enabled ? "public_link_enabled" : "public_link_disabled",
-    target_type: "page",
-    target_id: pageId,
+    await supabase.from("audit_events").insert({
+      actor_id: user.id,
+      workspace_id: page.workspace_id,
+      event_type: enabled ? "public_link_enabled" : "public_link_disabled",
+      target_type: "page",
+      target_id: pageId,
+    });
+
+    revalidatePath(`/w/${page.workspace_id}/p/${pageId}`);
+    return ok({ token: share.public_enabled ? share.public_token : null });
   });
-
-  revalidatePath(`/w/${page.workspace_id}/p/${pageId}`);
-  return { token: share.public_enabled ? share.public_token : null };
 }

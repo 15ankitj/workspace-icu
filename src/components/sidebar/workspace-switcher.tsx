@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/label";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ActionForm } from "@/components/ui/action-form";
 
 export function WorkspaceSwitcher({
   workspaces,
@@ -82,7 +83,7 @@ export function WorkspaceSwitcher({
           <DialogDescription>
             A shared space with its own pages and members.
           </DialogDescription>
-          <form action={createWorkspace} className="space-y-4">
+          <ActionForm action={createWorkspace} className="space-y-4">
             <Field label="Workspace name" htmlFor={nameId}>
               <Input
                 id={nameId}
@@ -104,7 +105,7 @@ export function WorkspaceSwitcher({
                 Create workspace
               </SubmitButton>
             </DialogFooter>
-          </form>
+          </ActionForm>
         </DialogContent>
       </Dialog>
     </>

@@ -12,6 +12,7 @@ import {
 } from "@/app/actions/templates";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,13 +112,13 @@ export default async function TemplateDetail({
           )}
         </div>
         {canStart && current && (
-          <form action={startFromTemplate}>
+          <ActionForm action={startFromTemplate}>
             <input type="hidden" name="templateId" value={template.id} />
             <input type="hidden" name="workspaceId" value={workspaceId} />
             <SubmitButton pendingLabel="Creating…">
               Start with this template
             </SubmitButton>
-          </form>
+          </ActionForm>
         )}
       </header>
 
@@ -187,7 +188,10 @@ export default async function TemplateDetail({
           <section className="space-y-3">
             <SectionHeading>Manage</SectionHeading>
             {template.source_page_id && (
-              <form action={republishTemplate} className="flex flex-wrap gap-2">
+              <ActionForm
+                action={republishTemplate}
+                className="flex flex-wrap gap-2"
+              >
                 <input type="hidden" name="templateId" value={template.id} />
                 <input type="hidden" name="workspaceId" value={workspaceId} />
                 <Label htmlFor="changelog" className="sr-only">
@@ -202,11 +206,11 @@ export default async function TemplateDetail({
                 <SubmitButton variant="secondary" pendingLabel="Publishing…">
                   Republish from source page
                 </SubmitButton>
-              </form>
+              </ActionForm>
             )}
             <div className="flex flex-wrap gap-2">
               {template.owner_scope === "platform" && (
-                <form action={setTemplatePublished}>
+                <ActionForm action={setTemplatePublished}>
                   <input type="hidden" name="templateId" value={template.id} />
                   <input type="hidden" name="workspaceId" value={workspaceId} />
                   <input
@@ -219,9 +223,9 @@ export default async function TemplateDetail({
                       ? "Hide from gallery"
                       : "Publish to gallery"}
                   </SubmitButton>
-                </form>
+                </ActionForm>
               )}
-              <form action={deleteTemplate}>
+              <ActionForm action={deleteTemplate}>
                 <input type="hidden" name="templateId" value={template.id} />
                 <input type="hidden" name="workspaceId" value={workspaceId} />
                 <ConfirmButton
@@ -231,7 +235,7 @@ export default async function TemplateDetail({
                 >
                   Delete template
                 </ConfirmButton>
-              </form>
+              </ActionForm>
             </div>
             <p className="text-sm text-muted-foreground">
               Existing copies are never affected by republishing, hiding or

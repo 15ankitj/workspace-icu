@@ -43,6 +43,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { PrivacyMenuItem } from "@/components/page/privacy-menu-item";
 import { cn } from "@/lib/utils";
+import { withFailureToast } from "@/components/ui/action-toast";
 
 type DropMode = "before" | "after" | "child";
 
@@ -111,7 +112,16 @@ export function PageTree({
     }
 
     startTransition(() =>
-      movePage({ workspaceId, pageId: moved, newParentId, beforeId, afterId }),
+      withFailureToast(
+        "Couldn't move the page",
+        movePage({
+          workspaceId,
+          pageId: moved,
+          newParentId,
+          beforeId,
+          afterId,
+        }),
+      ),
     );
   }
 
@@ -127,7 +137,12 @@ export function PageTree({
               size="xs"
               disabled={isPending}
               onClick={() =>
-                startTransition(() => createPage(workspaceId, null))
+                startTransition(() =>
+                  withFailureToast(
+                    "Couldn't create the page",
+                    createPage(workspaceId, null),
+                  ),
+                )
               }
             >
               <Plus /> New page
@@ -296,7 +311,12 @@ function TreeRow({
               <DropdownMenuContent align="start">
                 <DropdownMenuItem
                   onSelect={() =>
-                    startTransition(() => toggleFavourite(workspaceId, page.id))
+                    startTransition(() =>
+                      withFailureToast(
+                        "Couldn't update favourites",
+                        toggleFavourite(workspaceId, page.id),
+                      ),
+                    )
                   }
                 >
                   <Star /> Favourite
@@ -321,7 +341,12 @@ function TreeRow({
               className={rowButton}
               aria-label={`Add sub-page under ${page.title || "Untitled"}`}
               onClick={() =>
-                startTransition(() => createPage(workspaceId, page.id))
+                startTransition(() =>
+                  withFailureToast(
+                    "Couldn't create the page",
+                    createPage(workspaceId, page.id),
+                  ),
+                )
               }
             >
               <Plus className="size-3.5" />
@@ -346,7 +371,12 @@ function TreeRow({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() =>
-                startTransition(() => deletePage(workspaceId, page.id))
+                startTransition(() =>
+                  withFailureToast(
+                    "Couldn't delete the page",
+                    deletePage(workspaceId, page.id),
+                  ),
+                )
               }
             >
               Move to trash

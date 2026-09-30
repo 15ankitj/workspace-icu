@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { withFailureToast } from "@/components/ui/action-toast";
 
 function CoverPicker({
   pageId,
@@ -32,7 +33,12 @@ function CoverPicker({
 
   const setUrlCover = () => {
     if (isValidCover(url.trim()))
-      startTransition(() => setPageCover(pageId, url.trim()));
+      startTransition(() =>
+        withFailureToast(
+          "Couldn't change the cover",
+          setPageCover(pageId, url.trim()),
+        ),
+      );
     else setInvalid(true);
   };
 
@@ -57,7 +63,12 @@ function CoverPicker({
                 )}
                 style={{ background: gradient }}
                 onClick={() =>
-                  startTransition(() => setPageCover(pageId, value))
+                  startTransition(() =>
+                    withFailureToast(
+                      "Couldn't change the cover",
+                      setPageCover(pageId, value),
+                    ),
+                  )
                 }
               >
                 {selected && (
@@ -171,7 +182,14 @@ export function PageCover({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => startTransition(() => setPageCover(pageId, null))}
+            onClick={() =>
+              startTransition(() =>
+                withFailureToast(
+                  "Couldn't remove the cover",
+                  setPageCover(pageId, null),
+                ),
+              )
+            }
           >
             Remove
           </Button>

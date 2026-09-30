@@ -143,18 +143,17 @@ export function PageDetails({
     const previous = props;
     setProps(next);
     startTransition(async () => {
-      try {
-        const saved = await setPageProperties(pageId, next);
-        lastGood.current = saved;
-      } catch (error) {
+      const saved = await setPageProperties(pageId, next);
+      if (!saved.ok) {
         setProps(previous);
         toast({
           variant: "destructive",
           title: "Couldn't save page details",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
+          description: saved.error,
         });
+        return;
       }
+      lastGood.current = saved.properties;
     });
   }
 

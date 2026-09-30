@@ -29,6 +29,7 @@ import {
 import { useSidebarCollapse } from "@/components/sidebar/app-shell";
 import { formatRelativeShort } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { withFailureToast } from "@/components/ui/action-toast";
 
 export interface SidebarWorkspace {
   id: string;
@@ -174,7 +175,12 @@ export function Sidebar({
                 className="text-muted-foreground"
                 aria-label="New page"
                 title="New page"
-                onClick={() => createPage(currentWorkspace.id, null)}
+                onClick={() =>
+                  void withFailureToast(
+                    "Couldn't create the page",
+                    createPage(currentWorkspace.id, null),
+                  )
+                }
               >
                 <Plus />
               </Button>

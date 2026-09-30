@@ -12,6 +12,7 @@ import {
 import { isEmailConfigured } from "@/lib/email";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ActionForm } from "@/components/ui/action-form";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Input } from "@/components/ui/input";
@@ -110,7 +111,7 @@ export default async function WorkspaceSettings({
       <section className="space-y-3">
         <SectionHeading>Name</SectionHeading>
         {isOwner ? (
-          <form action={renameWorkspace} className="flex flex-wrap gap-2">
+          <ActionForm action={renameWorkspace} className="flex flex-wrap gap-2">
             <input type="hidden" name="workspaceId" value={workspace.id} />
             <Label htmlFor="workspace-name" className="sr-only">
               Workspace name
@@ -125,7 +126,7 @@ export default async function WorkspaceSettings({
             <SubmitButton variant="secondary" pendingLabel="Renaming…">
               Rename
             </SubmitButton>
-          </form>
+          </ActionForm>
         ) : (
           <p className="text-sm">{workspace.name}</p>
         )}
@@ -172,7 +173,10 @@ export default async function WorkspaceSettings({
                 </span>
                 {manageable ? (
                   <span className="flex flex-wrap items-center gap-2">
-                    <form action={updateMemberRole} className="flex gap-1">
+                    <ActionForm
+                      action={updateMemberRole}
+                      className="flex gap-1"
+                    >
                       <input
                         type="hidden"
                         name="workspaceId"
@@ -199,8 +203,8 @@ export default async function WorkspaceSettings({
                       >
                         Update
                       </SubmitButton>
-                    </form>
-                    <form action={removeMember}>
+                    </ActionForm>
+                    <ActionForm action={removeMember}>
                       <input
                         type="hidden"
                         name="workspaceId"
@@ -219,7 +223,7 @@ export default async function WorkspaceSettings({
                       >
                         Remove
                       </ConfirmButton>
-                    </form>
+                    </ActionForm>
                   </span>
                 ) : (
                   <Badge variant="muted" className="capitalize">
@@ -237,7 +241,7 @@ export default async function WorkspaceSettings({
           <Separator />
           <section className="space-y-3">
             <SectionHeading>Invite someone</SectionHeading>
-            <form action={createInvite} className="flex flex-wrap gap-2">
+            <ActionForm action={createInvite} className="flex flex-wrap gap-2">
               <input type="hidden" name="workspaceId" value={workspace.id} />
               <Label htmlFor="invite-email" className="sr-only">
                 Email address
@@ -261,7 +265,7 @@ export default async function WorkspaceSettings({
               <SubmitButton pendingLabel="Sending…">
                 Send invitation
               </SubmitButton>
-            </form>
+            </ActionForm>
             <p className="text-sm text-muted-foreground">
               {emailConfigured
                 ? "The invitation is emailed and expires in 7 days. It only works for the invited address."
@@ -284,7 +288,7 @@ export default async function WorkspaceSettings({
                             {invite.role}
                           </Badge>
                         </span>
-                        <form action={revokeInvite}>
+                        <ActionForm action={revokeInvite}>
                           <input
                             type="hidden"
                             name="inviteId"
@@ -303,7 +307,7 @@ export default async function WorkspaceSettings({
                           >
                             Revoke
                           </ConfirmButton>
-                        </form>
+                        </ActionForm>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Input
@@ -327,7 +331,7 @@ export default async function WorkspaceSettings({
 
       <section className="space-y-3">
         <SectionHeading>Your account</SectionHeading>
-        <form
+        <ActionForm
           action={setEmailDigest}
           className="flex flex-wrap items-center gap-3"
         >
@@ -348,7 +352,7 @@ export default async function WorkspaceSettings({
           <SubmitButton size="sm" variant="secondary" pendingLabel="Saving…">
             {emailDigest ? "Switch off" : "Switch on"}
           </SubmitButton>
-        </form>
+        </ActionForm>
         <PasskeysBlock enabled={flags.passkeys} />
         <p className="text-sm text-muted-foreground">
           Deleting your account removes your personal workspace and every

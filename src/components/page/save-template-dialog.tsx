@@ -52,24 +52,24 @@ export function SaveTemplateDialog({
             const form = new FormData(event.currentTarget);
             setError(null);
             startTransition(async () => {
-              try {
-                const { templateId } = await saveAsTemplate({
-                  workspaceId,
-                  sourcePageId: pageId,
-                  kind: form.get("kind") === "tree" ? "tree" : "page",
-                  scope:
-                    form.get("scope") === "platform" ? "platform" : "workspace",
-                  name: String(form.get("name") ?? ""),
-                  purpose: String(form.get("purpose") ?? ""),
-                  description: String(form.get("description") ?? ""),
-                  category: String(form.get("category") ?? "Personal"),
-                  audience: String(form.get("audience") ?? ""),
-                });
-                onOpenChange(false);
-                router.push(`/w/${workspaceId}/gallery/${templateId}`);
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Could not save");
+              const r = await saveAsTemplate({
+                workspaceId,
+                sourcePageId: pageId,
+                kind: form.get("kind") === "tree" ? "tree" : "page",
+                scope:
+                  form.get("scope") === "platform" ? "platform" : "workspace",
+                name: String(form.get("name") ?? ""),
+                purpose: String(form.get("purpose") ?? ""),
+                description: String(form.get("description") ?? ""),
+                category: String(form.get("category") ?? "Personal"),
+                audience: String(form.get("audience") ?? ""),
+              });
+              if (!r.ok) {
+                setError(r.error);
+                return;
               }
+              onOpenChange(false);
+              router.push(`/w/${workspaceId}/gallery/${r.templateId}`);
             });
           }}
         >

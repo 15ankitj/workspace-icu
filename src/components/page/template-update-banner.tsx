@@ -86,13 +86,22 @@ export function TemplateUpdateBanner({
             disabled={isPending}
             onClick={() =>
               startTransition(async () => {
-                try {
-                  const { created } = await instantiateTemplate({
-                    templateId,
-                    workspaceId,
-                    parentPageId,
-                    onlyMissing: true,
+                const r = await instantiateTemplate({
+                  templateId,
+                  workspaceId,
+                  parentPageId,
+                  onlyMissing: true,
+                });
+                if (!r.ok) {
+                  toast({
+                    variant: "destructive",
+                    title: "Couldn't add the new pages",
+                    description: r.error,
                   });
+                  return;
+                }
+                const { created } = r;
+                {
                   toast({
                     title: created
                       ? `${created} new page${created === 1 ? "" : "s"} added`
@@ -102,15 +111,6 @@ export function TemplateUpdateBanner({
                       : "Your copy already has every page in the new version.",
                   });
                   router.refresh();
-                } catch (error) {
-                  toast({
-                    variant: "destructive",
-                    title: "Couldn't add the new pages",
-                    description:
-                      error instanceof Error
-                        ? error.message
-                        : "Please try again.",
-                  });
                 }
               })
             }

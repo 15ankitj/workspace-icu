@@ -56,7 +56,16 @@ function TurnIntoSyncedItem() {
     }
     setBusy(true);
     try {
-      const { id, title } = await createSyncedBlock(host.hostPageId, [target]);
+      const created = await createSyncedBlock(host.hostPageId, [target]);
+      if (!created.ok) {
+        toast({
+          title: "Could not create synced block",
+          description: created.error,
+          variant: "destructive",
+        });
+        return;
+      }
+      const { id, title } = created;
       editor.replaceBlocks(
         [block],
         [

@@ -6,6 +6,7 @@ import { PurgeButton, type AtRiskSyncedBlock } from "./purge-button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageShell, PageHeading } from "@/components/ui/page-shell";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ActionForm } from "@/components/ui/action-form";
 
 export const dynamic = "force-dynamic";
 
@@ -140,7 +141,7 @@ export default async function TrashPage({
                 </span>
                 {canEdit && (
                   <span className="flex gap-2">
-                    <form action={restorePage}>
+                    <ActionForm action={restorePage}>
                       <input
                         type="hidden"
                         name="workspaceId"
@@ -154,7 +155,7 @@ export default async function TrashPage({
                       >
                         Restore
                       </SubmitButton>
-                    </form>
+                    </ActionForm>
                     <PurgeButton
                       workspaceId={workspaceId}
                       pageId={page.id}

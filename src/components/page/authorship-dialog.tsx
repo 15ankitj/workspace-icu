@@ -47,27 +47,26 @@ export function AuthorshipDialog({
 
   const save = async () => {
     setBusy(true);
-    try {
-      await setPageAuthorship(workspaceId, pageId, isAuthored, [...selected]);
-      toast({
-        title: isAuthored
-          ? "Authored content is on"
-          : "Authored content is off",
-        description: isAuthored
-          ? "Others now suggest changes for the author to accept."
-          : "Everyone who can edit this page edits it directly.",
-      });
-      onOpenChange(false);
-      router.refresh();
-    } catch (error) {
+    const r = await setPageAuthorship(workspaceId, pageId, isAuthored, [
+      ...selected,
+    ]);
+    setBusy(false);
+    if (!r.ok) {
       toast({
         title: "Could not update authorship",
-        description: error instanceof Error ? error.message : "Try again.",
+        description: r.error,
         variant: "destructive",
       });
-    } finally {
-      setBusy(false);
+      return;
     }
+    toast({
+      title: isAuthored ? "Authored content is on" : "Authored content is off",
+      description: isAuthored
+        ? "Others now suggest changes for the author to accept."
+        : "Everyone who can edit this page edits it directly.",
+    });
+    onOpenChange(false);
+    router.refresh();
   };
 
   return (

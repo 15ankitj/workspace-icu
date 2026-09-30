@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LayoutTemplate, Plus } from "lucide-react";
 import { createPage } from "@/app/actions/pages";
 import { Button } from "@/components/ui/button";
+import { withFailureToast } from "@/components/ui/action-toast";
 
 /** The two things a new user can do with an empty workspace. */
 export function EmptyWorkspaceActions({
@@ -20,7 +21,14 @@ export function EmptyWorkspaceActions({
       {canEdit && (
         <Button
           disabled={isPending}
-          onClick={() => startTransition(() => createPage(workspaceId, null))}
+          onClick={() =>
+            startTransition(() =>
+              withFailureToast(
+                "Couldn't create the page",
+                createPage(workspaceId, null),
+              ),
+            )
+          }
         >
           <Plus /> {isPending ? "Creating…" : "Create a page"}
         </Button>

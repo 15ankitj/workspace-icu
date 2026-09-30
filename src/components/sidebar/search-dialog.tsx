@@ -62,8 +62,9 @@ export function SearchDialog() {
       }
       setStatus("searching");
       try {
-        setHits(await searchPages(term));
-        setStatus("done");
+        const r = await searchPages(term);
+        setHits(r.ok ? r.hits : []);
+        setStatus(r.ok ? "done" : "error");
       } catch {
         setHits([]);
         setStatus("error");

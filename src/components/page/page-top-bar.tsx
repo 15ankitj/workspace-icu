@@ -98,15 +98,13 @@ export function PageTopBar({
     const next = !favourite;
     setFavourite(next);
     startTransition(async () => {
-      try {
-        await toggleFavourite(workspaceId, pageId);
-      } catch (error) {
+      const r = await toggleFavourite(workspaceId, pageId);
+      if (!r.ok) {
         setFavourite(!next);
         toast({
           variant: "destructive",
           title: "Couldn't update favourites",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
+          description: r.error,
         });
       }
     });

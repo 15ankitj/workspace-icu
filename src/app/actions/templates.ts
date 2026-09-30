@@ -4,6 +4,14 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fail,
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionResult,
+  type FormState,
+} from "@/lib/action-result";
 import { flags } from "@/lib/flags";
 import { descendantIds } from "@/lib/tree";
 import { comparePositions } from "@/lib/position";
@@ -70,202 +78,208 @@ export interface SaveTemplateInput {
  */
 export async function saveAsTemplate(
   input: SaveTemplateInput,
-): Promise<{ templateId: string; version: number }> {
-  const { supabase, user } = await requireUser();
-  const name = input.name.trim().slice(0, 120);
-  if (!name) throw new Error("Give the template a name");
-  const category = TEMPLATE_CATEGORIES.includes(
-    input.category as (typeof TEMPLATE_CATEGORIES)[number],
-  )
-    ? input.category
-    : "Personal";
-
-  // Source tree (RLS-visible pages only).
-  const { data: allPages, error: pagesError } = await supabase
-    .from("pages")
-    .select(
-      "id, parent_page_id, position, title, icon, cover_url, full_width, small_text, authored_content, is_private, created_by, description, properties",
+): Promise<ActionResult<{ templateId: string; version: number }>> {
+  return runAction(async () => {
+    const { supabase, user } = await requireUser();
+    const name = input.name.trim().slice(0, 120);
+    if (!name) return fail("Give the template a name");
+    const category = TEMPLATE_CATEGORIES.includes(
+      input.category as (typeof TEMPLATE_CATEGORIES)[number],
     )
-    .eq("workspace_id", input.workspaceId)
-    .is("deleted_at", null);
-  if (pagesError) throw new Error(pagesError.message);
-  const root = (allPages ?? []).find((p) => p.id === input.sourcePageId);
-  if (!root) throw new Error("Page not found");
-  const treeIds =
-    input.kind === "tree"
-      ? new Set([root.id, ...descendantIds(allPages ?? [], root.id)])
-      : new Set([root.id]);
-  const sourcePages = (allPages ?? [])
-    .filter((p) => treeIds.has(p.id))
-    .map((p) => ({
-      ...p,
-      // The root becomes a top-level template page.
-      parent_page_id: p.id === root.id ? null : p.parent_page_id,
+      ? input.category
+      : "Personal";
+
+    // Source tree (RLS-visible pages only).
+    const { data: allPages, error: pagesError } = await supabase
+      .from("pages")
+      .select(
+        "id, parent_page_id, position, title, icon, cover_url, full_width, small_text, authored_content, is_private, created_by, description, properties",
+      )
+      .eq("workspace_id", input.workspaceId)
+      .is("deleted_at", null);
+    if (pagesError) return fromSupabaseError(pagesError);
+    const root = (allPages ?? []).find((p) => p.id === input.sourcePageId);
+    if (!root) return fail("Page not found");
+    const treeIds =
+      input.kind === "tree"
+        ? new Set([root.id, ...descendantIds(allPages ?? [], root.id)])
+        : new Set([root.id]);
+    const sourcePages = (allPages ?? [])
+      .filter((p) => treeIds.has(p.id))
+      .map((p) => ({
+        ...p,
+        // The root becomes a top-level template page.
+        parent_page_id: p.id === root.id ? null : p.parent_page_id,
+      }));
+
+    const { data: blockRows } = await supabase
+      .from("blocks")
+      .select("id, page_id, parent_block_id, type, position, content")
+      .in("page_id", [...treeIds]);
+    const blocksByPage = new Map<string, NonNullable<typeof blockRows>>();
+    for (const row of blockRows ?? []) {
+      const list = blocksByPage.get(row.page_id) ?? [];
+      list.push(row);
+      blocksByPage.set(row.page_id, list);
+    }
+
+    // Files referenced by the pages' blocks.
+    const fileIds = new Set<string>();
+    for (const match of JSON.stringify(blockRows ?? []).matchAll(FILE_URL)) {
+      fileIds.add(match[1].toLowerCase());
+    }
+    const { data: fileRows } = fileIds.size
+      ? await supabase
+          .from("files")
+          .select("id, filename, mime, size_bytes, storage_path")
+          .in("id", [...fileIds])
+          .is("deleted_at", null)
+      : { data: [] };
+    const filesById = new Map<string, Omit<SnapshotFile, "key">>();
+    for (const f of fileRows ?? []) {
+      filesById.set(f.id.toLowerCase(), {
+        filename: f.filename,
+        mime: f.mime,
+        size_bytes: f.size_bytes,
+      });
+    }
+
+    // Synced blocks placed on these pages (Appendix A §1.3 rule 8): those
+    // sourced within the tree, or carrying a stable key, travel with the
+    // template; the rest are flattened to static copies, with a note.
+    const placementIds = new Set<string>();
+    for (const row of blockRows ?? []) {
+      const id = (row.content as { props?: { syncedBlockId?: unknown } } | null)
+        ?.props?.syncedBlockId;
+      if (row.type === SYNCED_BLOCK_TYPE && typeof id === "string" && id) {
+        placementIds.add(id.toLowerCase());
+      }
+    }
+    const { data: syncedRows } = placementIds.size
+      ? await supabase
+          .from("synced_blocks")
+          .select("id, source_page_id, template_key, title, blocks")
+          .in("id", [...placementIds])
+          .is("deleted_at", null)
+      : { data: [] };
+    const synced: SourceSynced[] = (syncedRows ?? []).map((row) => ({
+      id: row.id,
+      source_page_id: row.source_page_id,
+      template_key: row.template_key,
+      title: row.title,
+      blocks: (Array.isArray(row.blocks)
+        ? row.blocks
+        : []) as unknown as EditorBlock[],
     }));
 
-  const { data: blockRows } = await supabase
-    .from("blocks")
-    .select("id, page_id, parent_block_id, type, position, content")
-    .in("page_id", [...treeIds]);
-  const blocksByPage = new Map<string, NonNullable<typeof blockRows>>();
-  for (const row of blockRows ?? []) {
-    const list = blocksByPage.get(row.page_id) ?? [];
-    list.push(row);
-    blocksByPage.set(row.page_id, list);
-  }
+    // Relation links held by the pages (Appendix B §4.5): those inside the
+    // tree travel as key pairs; the builder notes the rest.
+    const { data: relationRows } = flags.relations
+      ? await supabase
+          .from("page_relations")
+          .select(
+            "source_page_id, source_property_id, target_page_id, position",
+          )
+          .in("source_page_id", [...treeIds])
+      : { data: [] };
 
-  // Files referenced by the pages' blocks.
-  const fileIds = new Set<string>();
-  for (const match of JSON.stringify(blockRows ?? []).matchAll(FILE_URL)) {
-    fileIds.add(match[1].toLowerCase());
-  }
-  const { data: fileRows } = fileIds.size
-    ? await supabase
-        .from("files")
-        .select("id, filename, mime, size_bytes, storage_path")
-        .in("id", [...fileIds])
-        .is("deleted_at", null)
-    : { data: [] };
-  const filesById = new Map<string, Omit<SnapshotFile, "key">>();
-  for (const f of fileRows ?? []) {
-    filesById.set(f.id.toLowerCase(), {
-      filename: f.filename,
-      mime: f.mime,
-      size_bytes: f.size_bytes,
+    const snapshot = buildSnapshot(sourcePages, blocksByPage, filesById, {
+      synced,
+      relations: relationRows ?? [],
+      newId: () => randomUUID(),
     });
-  }
+    const notes = snapshot.notes ?? [];
 
-  // Synced blocks placed on these pages (Appendix A §1.3 rule 8): those
-  // sourced within the tree, or carrying a stable key, travel with the
-  // template; the rest are flattened to static copies, with a note.
-  const placementIds = new Set<string>();
-  for (const row of blockRows ?? []) {
-    const id = (row.content as { props?: { syncedBlockId?: unknown } } | null)
-      ?.props?.syncedBlockId;
-    if (row.type === SYNCED_BLOCK_TYPE && typeof id === "string" && id) {
-      placementIds.add(id.toLowerCase());
+    // Template row (new or existing) and the next version number.
+    let templateId = input.templateId ?? null;
+    let version = 1;
+    if (templateId) {
+      const { data: latest } = await supabase
+        .from("template_versions")
+        .select("version")
+        .eq("template_id", templateId)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      version = (latest?.version ?? 0) + 1;
+    } else {
+      const { data: created, error } = await supabase
+        .from("templates")
+        .insert({
+          owner_scope: input.scope,
+          workspace_id: input.scope === "workspace" ? input.workspaceId : null,
+          source_page_id: root.id,
+          name,
+          purpose: input.purpose.trim().slice(0, 200),
+          description: input.description.trim().slice(0, 4000),
+          category,
+          audience: input.audience.trim().slice(0, 200),
+          kind: input.kind,
+          is_published: input.scope === "workspace",
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+      if (error) return fromSupabaseError(error);
+      templateId = created.id;
     }
-  }
-  const { data: syncedRows } = placementIds.size
-    ? await supabase
-        .from("synced_blocks")
-        .select("id, source_page_id, template_key, title, blocks")
-        .in("id", [...placementIds])
-        .is("deleted_at", null)
-    : { data: [] };
-  const synced: SourceSynced[] = (syncedRows ?? []).map((row) => ({
-    id: row.id,
-    source_page_id: row.source_page_id,
-    template_key: row.template_key,
-    title: row.title,
-    blocks: (Array.isArray(row.blocks)
-      ? row.blocks
-      : []) as unknown as EditorBlock[],
-  }));
 
-  // Relation links held by the pages (Appendix B §4.5): those inside the
-  // tree travel as key pairs; the builder notes the rest.
-  const { data: relationRows } = flags.relations
-    ? await supabase
-        .from("page_relations")
-        .select("source_page_id, source_property_id, target_page_id, position")
-        .in("source_page_id", [...treeIds])
-    : { data: [] };
-
-  const snapshot = buildSnapshot(sourcePages, blocksByPage, filesById, {
-    synced,
-    relations: relationRows ?? [],
-    newId: () => randomUUID(),
-  });
-  const notes = snapshot.notes ?? [];
-
-  // Template row (new or existing) and the next version number.
-  let templateId = input.templateId ?? null;
-  let version = 1;
-  if (templateId) {
-    const { data: latest } = await supabase
+    const { data: versionRow, error: versionError } = await supabase
       .from("template_versions")
-      .select("version")
-      .eq("template_id", templateId)
-      .order("version", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    version = (latest?.version ?? 0) + 1;
-  } else {
-    const { data: created, error } = await supabase
-      .from("templates")
       .insert({
-        owner_scope: input.scope,
-        workspace_id: input.scope === "workspace" ? input.workspaceId : null,
-        source_page_id: root.id,
-        name,
-        purpose: input.purpose.trim().slice(0, 200),
-        description: input.description.trim().slice(0, 4000),
-        category,
-        audience: input.audience.trim().slice(0, 200),
-        kind: input.kind,
-        is_published: input.scope === "workspace",
+        template_id: templateId,
+        version,
+        snapshot: snapshot as unknown as Json,
+        changelog: [
+          input.changelog ?? (version === 1 ? "Initial version" : ""),
+          ...notes,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .slice(0, 2000),
         created_by: user.id,
       })
       .select("id")
       .single();
-    if (error) throw new Error(`Could not create template: ${error.message}`);
-    templateId = created.id;
-  }
+    if (versionError) return fromSupabaseError(versionError);
+    await supabase
+      .from("templates")
+      .update({ current_version_id: versionRow.id, source_page_id: root.id })
+      .eq("id", templateId);
 
-  const { data: versionRow, error: versionError } = await supabase
-    .from("template_versions")
-    .insert({
-      template_id: templateId,
-      version,
-      snapshot: snapshot as unknown as Json,
-      changelog: [
-        input.changelog ?? (version === 1 ? "Initial version" : ""),
-        ...notes,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .slice(0, 2000),
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
-  if (versionError) {
-    throw new Error(`Could not save template version: ${versionError.message}`);
-  }
-  await supabase
-    .from("templates")
-    .update({ current_version_id: versionRow.id, source_page_id: root.id })
-    .eq("id", templateId);
+    // Copy assets; a failed copy leaves that file out of the template.
+    for (const f of fileRows ?? []) {
+      const { error } = await supabase.storage
+        .from("files")
+        .copy(
+          f.storage_path,
+          `${templateId}/${version}/${f.id.toLowerCase()}`,
+          {
+            destinationBucket: "template-assets",
+          },
+        );
+      if (error) console.error("Template asset copy failed:", error.message);
+    }
 
-  // Copy assets; a failed copy leaves that file out of the template.
-  for (const f of fileRows ?? []) {
-    const { error } = await supabase.storage
-      .from("files")
-      .copy(f.storage_path, `${templateId}/${version}/${f.id.toLowerCase()}`, {
-        destinationBucket: "template-assets",
-      });
-    if (error) console.error("Template asset copy failed:", error.message);
-  }
+    await audit(
+      supabase,
+      user.id,
+      input.scope === "workspace" ? input.workspaceId : null,
+      version === 1 ? "template_created" : "template_republished",
+      templateId,
+      {
+        version,
+        kind: input.kind,
+        scope: input.scope,
+        pages: snapshot.pages.length,
+        synced: snapshot.synced?.length ?? 0,
+        flattened: notes.length,
+      },
+    );
 
-  await audit(
-    supabase,
-    user.id,
-    input.scope === "workspace" ? input.workspaceId : null,
-    version === 1 ? "template_created" : "template_republished",
-    templateId,
-    {
-      version,
-      kind: input.kind,
-      scope: input.scope,
-      pages: snapshot.pages.length,
-      synced: snapshot.synced?.length ?? 0,
-      flattened: notes.length,
-    },
-  );
-
-  revalidatePath(`/w/${input.workspaceId}/gallery`);
-  return { templateId, version };
+    revalidatePath(`/w/${input.workspaceId}/gallery`);
+    return ok({ templateId, version });
+  });
 }
 
 /**
@@ -278,257 +292,284 @@ export async function instantiateTemplate(input: {
   workspaceId: string;
   parentPageId: string | null;
   onlyMissing?: boolean;
-}): Promise<{ pageId: string | null; created: number }> {
-  const { supabase, user } = await requireUser();
+}): Promise<ActionResult<{ pageId: string | null; created: number }>> {
+  return runAction(async () => {
+    const { supabase, user } = await requireUser();
 
-  const { data: template, error: templateError } = await supabase
-    .from("templates")
-    .select("id, name, current_version_id, owner_scope, workspace_id")
-    .eq("id", input.templateId)
-    .single();
-  if (templateError || !template?.current_version_id) {
-    throw new Error("Template not found");
-  }
-  const { data: versionRow } = await supabase
-    .from("template_versions")
-    .select("version, snapshot")
-    .eq("id", template.current_version_id)
-    .single();
-  if (!versionRow) throw new Error("Template version not found");
-  const snapshot = versionRow.snapshot as unknown as TemplateSnapshot;
+    const { data: template, error: templateError } = await supabase
+      .from("templates")
+      .select("id, name, current_version_id, owner_scope, workspace_id")
+      .eq("id", input.templateId)
+      .single();
+    if (templateError || !template?.current_version_id) {
+      return fail("Template not found");
+    }
+    const { data: versionRow } = await supabase
+      .from("template_versions")
+      .select("version, snapshot")
+      .eq("id", template.current_version_id)
+      .single();
+    if (!versionRow) return fail("Template version not found");
+    const snapshot = versionRow.snapshot as unknown as TemplateSnapshot;
 
-  const { data: siblings } = await supabase
-    .from("pages")
-    .select("id, position, parent_page_id, template_id, template_page_key")
-    .eq("workspace_id", input.workspaceId)
-    .is("deleted_at", null);
-  const existingByKey = new Map<string, string>();
-  if (input.onlyMissing) {
-    for (const p of siblings ?? []) {
-      if (p.template_id === template.id && p.template_page_key) {
-        existingByKey.set(p.template_page_key, p.id);
+    const { data: siblings } = await supabase
+      .from("pages")
+      .select("id, position, parent_page_id, template_id, template_page_key")
+      .eq("workspace_id", input.workspaceId)
+      .is("deleted_at", null);
+    const existingByKey = new Map<string, string>();
+    if (input.onlyMissing) {
+      for (const p of siblings ?? []) {
+        if (p.template_id === template.id && p.template_page_key) {
+          existingByKey.set(p.template_page_key, p.id);
+        }
       }
     }
-  }
 
-  // New top-level pages of a later version go beside the copy's existing
-  // top-level pages, not under whichever page the banner was clicked on.
-  let parentPageId = input.parentPageId;
-  if (input.onlyMissing) {
-    const byId = new Map((siblings ?? []).map((p) => [p.id, p]));
-    const existingTop = snapshot.pages.find(
-      (p) => p.parent_key === null && existingByKey.has(p.key),
-    );
-    const existingTopPage = existingTop
-      ? byId.get(existingByKey.get(existingTop.key)!)
-      : undefined;
-    if (existingTopPage) parentPageId = existingTopPage.parent_page_id;
-  }
-  const topSibling = (siblings ?? [])
-    .filter((p) => p.parent_page_id === parentPageId)
-    .sort((a, b) => comparePositions(a.position, b.position))
-    .at(-1);
-  const lastPositionByParentId = new Map<string, string>();
-  for (const p of siblings ?? []) {
-    if (!p.parent_page_id) continue;
-    const current = lastPositionByParentId.get(p.parent_page_id);
-    if (!current || comparePositions(p.position, current) > 0) {
-      lastPositionByParentId.set(p.parent_page_id, p.position);
+    // New top-level pages of a later version go beside the copy's existing
+    // top-level pages, not under whichever page the banner was clicked on.
+    let parentPageId = input.parentPageId;
+    if (input.onlyMissing) {
+      const byId = new Map((siblings ?? []).map((p) => [p.id, p]));
+      const existingTop = snapshot.pages.find(
+        (p) => p.parent_key === null && existingByKey.has(p.key),
+      );
+      const existingTopPage = existingTop
+        ? byId.get(existingByKey.get(existingTop.key)!)
+        : undefined;
+      if (existingTopPage) parentPageId = existingTopPage.parent_page_id;
     }
-  }
-
-  // Synced blocks the workspace already holds under the template's stable
-  // keys resolve to those (Appendix A §1.3 rule 8).
-  const syncedKeys = (snapshot.synced ?? []).map((entry) => entry.key);
-  const existingSyncedByKey = new Map<string, string>();
-  if (syncedKeys.length > 0) {
-    const { data: existingSynced } = await supabase
-      .from("synced_blocks")
-      .select("id, template_key")
-      .eq("workspace_id", input.workspaceId)
-      .in("template_key", syncedKeys)
-      .is("deleted_at", null);
-    for (const row of existingSynced ?? []) {
-      if (row.template_key) existingSyncedByKey.set(row.template_key, row.id);
+    const topSibling = (siblings ?? [])
+      .filter((p) => p.parent_page_id === parentPageId)
+      .sort((a, b) => comparePositions(a.position, b.position))
+      .at(-1);
+    const lastPositionByParentId = new Map<string, string>();
+    for (const p of siblings ?? []) {
+      if (!p.parent_page_id) continue;
+      const current = lastPositionByParentId.get(p.parent_page_id);
+      if (!current || comparePositions(p.position, current) > 0) {
+        lastPositionByParentId.set(p.parent_page_id, p.position);
+      }
     }
-  }
 
-  const plan = planInstantiation({
-    snapshot,
-    templateId: template.id,
-    version: versionRow.version,
-    workspaceId: input.workspaceId,
-    parentPageId,
-    lastSiblingPosition: topSibling?.position ?? null,
-    lastPositionByParentId,
-    existingByKey: input.onlyMissing ? existingByKey : undefined,
-    existingSyncedByKey,
-    newId: () => randomUUID(),
-  });
-
-  if (plan.pages.length > 0) {
-    const { error } = await supabase.rpc("insert_template_pages", {
-      p_pages: plan.pages as unknown as Json,
-      p_synced: plan.synced as unknown as Json,
-      p_relations: (flags.relations ? plan.relations : []) as unknown as Json,
-    });
-    if (error) throw new Error(`Could not create pages: ${error.message}`);
-  }
-
-  // The copy is now at this version: existing pages record it so the
-  // update banner clears (their content is never changed).
-  if (input.onlyMissing && existingByKey.size > 0) {
-    await supabase
-      .from("pages")
-      .update({ template_version: versionRow.version })
-      .in("id", [...existingByKey.values()])
-      .lt("template_version", versionRow.version);
-  }
-
-  if (plan.pages.length === 0) return { pageId: null, created: 0 };
-
-  for (const file of plan.files) {
-    const dest = `${input.workspaceId}/${file.pageId}/${file.newId}`;
-    const { error: copyError } = await supabase.storage
-      .from("template-assets")
-      .copy(`${template.id}/${versionRow.version}/${file.key}`, dest, {
-        destinationBucket: "files",
-      });
-    if (copyError) {
-      console.error("Template asset copy failed:", copyError.message);
-      continue;
+    // Synced blocks the workspace already holds under the template's stable
+    // keys resolve to those (Appendix A §1.3 rule 8).
+    const syncedKeys = (snapshot.synced ?? []).map((entry) => entry.key);
+    const existingSyncedByKey = new Map<string, string>();
+    if (syncedKeys.length > 0) {
+      const { data: existingSynced } = await supabase
+        .from("synced_blocks")
+        .select("id, template_key")
+        .eq("workspace_id", input.workspaceId)
+        .in("template_key", syncedKeys)
+        .is("deleted_at", null);
+      for (const row of existingSynced ?? []) {
+        if (row.template_key) existingSyncedByKey.set(row.template_key, row.id);
+      }
     }
-    await supabase.from("files").insert({
-      id: file.newId,
-      workspace_id: input.workspaceId,
-      page_id: file.pageId,
-      uploader_id: user.id,
-      storage_path: dest,
-      filename: file.filename,
-      mime: file.mime,
-      size_bytes: file.size_bytes,
-      phi_scan_status: "not_scanned",
-      aup_acknowledged: true,
-    });
-  }
 
-  await audit(
-    supabase,
-    user.id,
-    input.workspaceId,
-    "template_instantiated",
-    template.id,
-    {
+    const plan = planInstantiation({
+      snapshot,
+      templateId: template.id,
       version: versionRow.version,
-      pages: plan.pages.length,
-      synced: plan.synced.length,
-      flattened: plan.notes.length,
-      only_missing: Boolean(input.onlyMissing),
-    },
-  );
+      workspaceId: input.workspaceId,
+      parentPageId,
+      lastSiblingPosition: topSibling?.position ?? null,
+      lastPositionByParentId,
+      existingByKey: input.onlyMissing ? existingByKey : undefined,
+      existingSyncedByKey,
+      newId: () => randomUUID(),
+    });
 
-  revalidatePath(`/w/${input.workspaceId}`, "layout");
-  return { pageId: plan.rootPageId, created: plan.pages.length };
+    if (plan.pages.length > 0) {
+      const { error } = await supabase.rpc("insert_template_pages", {
+        p_pages: plan.pages as unknown as Json,
+        p_synced: plan.synced as unknown as Json,
+        p_relations: (flags.relations ? plan.relations : []) as unknown as Json,
+      });
+      if (error) return fromSupabaseError(error);
+    }
+
+    // The copy is now at this version: existing pages record it so the
+    // update banner clears (their content is never changed).
+    if (input.onlyMissing && existingByKey.size > 0) {
+      await supabase
+        .from("pages")
+        .update({ template_version: versionRow.version })
+        .in("id", [...existingByKey.values()])
+        .lt("template_version", versionRow.version);
+    }
+
+    if (plan.pages.length === 0) return ok({ pageId: null, created: 0 });
+
+    for (const file of plan.files) {
+      const dest = `${input.workspaceId}/${file.pageId}/${file.newId}`;
+      const { error: copyError } = await supabase.storage
+        .from("template-assets")
+        .copy(`${template.id}/${versionRow.version}/${file.key}`, dest, {
+          destinationBucket: "files",
+        });
+      if (copyError) {
+        console.error("Template asset copy failed:", copyError.message);
+        continue;
+      }
+      await supabase.from("files").insert({
+        id: file.newId,
+        workspace_id: input.workspaceId,
+        page_id: file.pageId,
+        uploader_id: user.id,
+        storage_path: dest,
+        filename: file.filename,
+        mime: file.mime,
+        size_bytes: file.size_bytes,
+        phi_scan_status: "not_scanned",
+        aup_acknowledged: true,
+      });
+    }
+
+    await audit(
+      supabase,
+      user.id,
+      input.workspaceId,
+      "template_instantiated",
+      template.id,
+      {
+        version: versionRow.version,
+        pages: plan.pages.length,
+        synced: plan.synced.length,
+        flattened: plan.notes.length,
+        only_missing: Boolean(input.onlyMissing),
+      },
+    );
+
+    revalidatePath(`/w/${input.workspaceId}`, "layout");
+    return ok({ pageId: plan.rootPageId, created: plan.pages.length });
+  });
 }
 
-/** Form wrapper: start from a template at the workspace root. */
-export async function startFromTemplate(formData: FormData) {
+/** Form wrapper: start from a template at the workspace root, then
+ *  redirect to the new page; a result comes back only on failure. */
+export async function startFromTemplate(
+  _state: FormState,
+  formData: FormData,
+): Promise<ActionResult> {
   const templateId = String(formData.get("templateId") ?? "");
   const workspaceId = String(formData.get("workspaceId") ?? "");
-  const { pageId } = await instantiateTemplate({
+  const result = await instantiateTemplate({
     templateId,
     workspaceId,
     parentPageId: null,
   });
+  if (!result.ok) return result;
+  const { pageId } = result;
   redirect(pageId ? `/w/${workspaceId}/p/${pageId}` : `/w/${workspaceId}`);
 }
 
 /** Platform owner: publish to / deprecate from the gallery. */
-export async function setTemplatePublished(formData: FormData) {
-  const templateId = String(formData.get("templateId") ?? "");
-  const workspaceId = String(formData.get("workspaceId") ?? "");
-  const published = String(formData.get("published") ?? "") === "true";
-  const { supabase, user } = await requireUser();
+export async function setTemplatePublished(
+  _state: FormState,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const templateId = String(formData.get("templateId") ?? "");
+    const workspaceId = String(formData.get("workspaceId") ?? "");
+    const published = String(formData.get("published") ?? "") === "true";
+    const { supabase, user } = await requireUser();
 
-  const { data: template, error } = await supabase
-    .from("templates")
-    .update({ is_published: published })
-    .eq("id", templateId)
-    .select("id, category, owner_scope")
-    .single();
-  if (error) throw new Error(`Could not update template: ${error.message}`);
+    const { data: template, error } = await supabase
+      .from("templates")
+      .update({ is_published: published })
+      .eq("id", templateId)
+      .select("id, category, owner_scope")
+      .single();
+    if (error) return fromSupabaseError(error);
 
-  if (template.owner_scope === "platform") {
-    if (published) {
-      await supabase
-        .from("gallery_entries")
-        .upsert({ template_id: templateId, category: template.category });
-    } else {
-      await supabase
-        .from("gallery_entries")
-        .delete()
-        .eq("template_id", templateId);
+    if (template.owner_scope === "platform") {
+      if (published) {
+        await supabase
+          .from("gallery_entries")
+          .upsert({ template_id: templateId, category: template.category });
+      } else {
+        await supabase
+          .from("gallery_entries")
+          .delete()
+          .eq("template_id", templateId);
+      }
     }
-  }
-  await audit(
-    supabase,
-    user.id,
-    null,
-    published ? "template_published" : "template_deprecated",
-    templateId,
-  );
-  revalidatePath(`/w/${workspaceId}/gallery`);
+    await audit(
+      supabase,
+      user.id,
+      null,
+      published ? "template_published" : "template_deprecated",
+      templateId,
+    );
+    revalidatePath(`/w/${workspaceId}/gallery`);
+    return ok();
+  });
 }
 
-export async function deleteTemplate(formData: FormData) {
-  const templateId = String(formData.get("templateId") ?? "");
-  const workspaceId = String(formData.get("workspaceId") ?? "");
-  const { supabase, user } = await requireUser();
-  const { error } = await supabase
-    .from("templates")
-    .delete()
-    .eq("id", templateId);
-  if (error) throw new Error(`Could not delete template: ${error.message}`);
-  await audit(supabase, user.id, null, "template_deleted", templateId);
-  redirect(`/w/${workspaceId}/gallery`);
+/** Deletes and redirects to the gallery; a result comes back only on failure. */
+export async function deleteTemplate(
+  _state: FormState,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction(async (): Promise<ActionResult> => {
+    const templateId = String(formData.get("templateId") ?? "");
+    const workspaceId = String(formData.get("workspaceId") ?? "");
+    const { supabase, user } = await requireUser();
+    const { error } = await supabase
+      .from("templates")
+      .delete()
+      .eq("id", templateId);
+    if (error) return fromSupabaseError(error);
+    await audit(supabase, user.id, null, "template_deleted", templateId);
+    redirect(`/w/${workspaceId}/gallery`);
+  });
 }
 
 /** Republish from the template's source page with a changelog. */
-export async function republishTemplate(formData: FormData) {
-  const templateId = String(formData.get("templateId") ?? "");
-  const workspaceId = String(formData.get("workspaceId") ?? "");
-  const changelog = String(formData.get("changelog") ?? "");
-  const { supabase } = await requireUser();
+export async function republishTemplate(
+  _state: FormState,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const templateId = String(formData.get("templateId") ?? "");
+    const workspaceId = String(formData.get("workspaceId") ?? "");
+    const changelog = String(formData.get("changelog") ?? "");
+    const { supabase } = await requireUser();
 
-  const { data: template } = await supabase
-    .from("templates")
-    .select(
-      "id, source_page_id, owner_scope, workspace_id, name, purpose, description, category, audience, kind",
-    )
-    .eq("id", templateId)
-    .single();
-  if (!template?.source_page_id) {
-    throw new Error("This template's source page is no longer available");
-  }
-  const { data: source } = await supabase
-    .from("pages")
-    .select("workspace_id")
-    .eq("id", template.source_page_id)
-    .single();
-  if (!source) throw new Error("Source page not found");
+    const { data: template } = await supabase
+      .from("templates")
+      .select(
+        "id, source_page_id, owner_scope, workspace_id, name, purpose, description, category, audience, kind",
+      )
+      .eq("id", templateId)
+      .single();
+    if (!template?.source_page_id) {
+      return fail("This template's source page is no longer available");
+    }
+    const { data: source } = await supabase
+      .from("pages")
+      .select("workspace_id")
+      .eq("id", template.source_page_id)
+      .single();
+    if (!source) return fail("Source page not found");
 
-  await saveAsTemplate({
-    workspaceId: source.workspace_id,
-    sourcePageId: template.source_page_id,
-    kind: template.kind === "page" ? "page" : "tree",
-    scope: template.owner_scope,
-    name: template.name,
-    purpose: template.purpose,
-    description: template.description,
-    category: template.category,
-    audience: template.audience,
-    templateId: template.id,
-    changelog,
+    const saved = await saveAsTemplate({
+      workspaceId: source.workspace_id,
+      sourcePageId: template.source_page_id,
+      kind: template.kind === "page" ? "page" : "tree",
+      scope: template.owner_scope,
+      name: template.name,
+      purpose: template.purpose,
+      description: template.description,
+      category: template.category,
+      audience: template.audience,
+      templateId: template.id,
+      changelog,
+    });
+    if (!saved.ok) return saved;
+    revalidatePath(`/w/${workspaceId}/gallery/${templateId}`);
+    return ok();
   });
-  revalidatePath(`/w/${workspaceId}/gallery/${templateId}`);
 }

@@ -126,7 +126,11 @@ export function ImportDialog({ workspaceId }: { workspaceId: string }) {
           setProgress(null);
           setError(null);
           setOpen(true);
-          setUploadCount(await countMyUploads().catch(() => 0));
+          setUploadCount(
+            await countMyUploads()
+              .then((r) => (r.ok ? r.count : 0))
+              .catch(() => 0),
+          );
         }}
       >
         <Upload /> Import
@@ -167,13 +171,16 @@ export function ImportDialog({ workspaceId }: { workspaceId: string }) {
                         `Importing ${file.name} (${done + 1} of ${files.length})…`,
                       );
                       const { title, blocks } = await parseFile(file);
-                      const { pageId } = await createEmptyPage(
+                      const created = await createEmptyPage(
                         workspaceId,
                         null,
                         title,
                       );
+                      if (!created.ok) throw new Error(created.error);
+                      const { pageId } = created;
                       await uploadEmbeddedImages(pageId, blocks);
-                      await savePageContent(pageId, blocks);
+                      const saved = await savePageContent(pageId, blocks);
+                      if (!saved.ok) throw new Error(saved.error);
                       lastPageId = pageId;
                       done++;
                     } catch (error) {

@@ -2,6 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fail,
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionResult,
+} from "@/lib/action-result";
 import { DEFAULT_PASSKEY_NAME, MAX_PASSKEY_NAME_LENGTH } from "@/lib/passkeys";
 
 /**
@@ -22,37 +29,42 @@ async function requireUser() {
 }
 
 /** The nudge card was acted on or dismissed: never show it again. */
-export async function dismissPasskeyNudge(): Promise<void> {
-  const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("dismiss_passkey_nudge");
-  if (error) {
-    throw new Error(`Could not save the passkey preference: ${error.message}`);
-  }
+export async function dismissPasskeyNudge(): Promise<ActionResult> {
+  return runAction(async () => {
+    const { supabase } = await requireUser();
+    const { error } = await supabase.rpc("dismiss_passkey_nudge");
+    if (error) return fromSupabaseError(error);
+    return ok();
+  });
 }
 
 /** Audit a successful registration ceremony. */
 export async function recordPasskeyRegistered(
   passkeyId: string,
   friendlyName: string,
-): Promise<void> {
-  await auditPasskey("passkey_registered", passkeyId, friendlyName);
+): Promise<ActionResult> {
+  return runAction(() =>
+    auditPasskey("passkey_registered", passkeyId, friendlyName),
+  );
 }
 
 /** Audit a removal. Called after the passkey is gone. */
 export async function recordPasskeyRemoved(
   passkeyId: string,
   friendlyName: string,
-): Promise<void> {
-  await auditPasskey("passkey_removed", passkeyId, friendlyName);
+): Promise<ActionResult> {
+  return runAction(() =>
+    auditPasskey("passkey_removed", passkeyId, friendlyName),
+  );
 }
 
 async function auditPasskey(
   eventType: "passkey_registered" | "passkey_removed",
   passkeyId: string,
   friendlyName: string,
-) {
+): Promise<ActionResult> {
   if (typeof passkeyId !== "string" || !UUID.test(passkeyId)) {
-    throw new Error("Invalid passkey id");
+    return fail("Invalid passkey id");
   }
   const { supabase, user } = await requireUser();
   // Account-level, not workspace-level: workspace_id stays null, which the
@@ -65,9 +77,8 @@ async function auditPasskey(
     target_id: passkeyId,
     metadata: { friendly_name: cleanName(friendlyName) },
   });
-  if (error) {
-    throw new Error(`Could not record the passkey change: ${error.message}`);
-  }
+  if (error) return fromSupabaseError(error);
+  return ok();
 }
 
 function cleanName(name: unknown): string {

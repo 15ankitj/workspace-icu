@@ -25,16 +25,14 @@ export function PrivacyMenuItem({
     <DropdownMenuItem
       onSelect={() =>
         startTransition(async () => {
-          try {
-            await setPagePrivacy(pageId, !isPrivate);
-          } catch (error) {
+          const r = await setPagePrivacy(pageId, !isPrivate);
+          if (!r.ok) {
             toast({
               variant: "destructive",
               title: isPrivate
                 ? "Couldn't make the page shared"
                 : "Couldn't make the page private",
-              description:
-                error instanceof Error ? error.message : "Please try again.",
+              description: r.error,
             });
           }
         })

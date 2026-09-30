@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import { purgePage } from "@/app/actions/trash";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
@@ -55,7 +55,13 @@ export function PurgeButton({
   const [decisions, setDecisions] = useState<Record<string, string>>(() =>
     Object.fromEntries(atRisk.map((block) => [block.id, PURGE_DELETE])),
   );
-  const [submitting, setSubmitting] = useState(false);
+  // A refusal comes back as a result: the dialog stays open and says why.
+  const [state, formAction, submitting] = useActionState(purgePage, null);
+  const failure = state && !state.ok && (
+    <p role="alert" className="text-sm text-destructive">
+      {state.error}
+    </p>
+  );
 
   const hidden = (
     <>
@@ -66,7 +72,7 @@ export function PurgeButton({
 
   if (atRisk.length === 0) {
     return (
-      <form action={purgePage}>
+      <form action={formAction}>
         {hidden}
         <ConfirmButton
           size="sm"
@@ -76,6 +82,7 @@ export function PurgeButton({
         >
           Delete permanently
         </ConfirmButton>
+        {failure}
       </form>
     );
   }
@@ -88,7 +95,7 @@ export function PurgeButton({
   const formId = `purge-${pageId}`;
 
   return (
-    <form id={formId} action={purgePage} onSubmit={() => setSubmitting(true)}>
+    <form id={formId} action={formAction}>
       {hidden}
       <input type="hidden" name="decisions" value={JSON.stringify(decisions)} />
       <Button
@@ -143,6 +150,7 @@ export function PurgeButton({
               </li>
             ))}
           </ul>
+          {failure}
           <DialogFooter>
             <Button
               type="button"
