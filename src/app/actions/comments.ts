@@ -3,6 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionResult,
+} from "@/lib/action-result";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -21,18 +27,21 @@ export async function addComment(
   pageId: string,
   text: string,
   suggestionId?: string | null,
-) {
-  const trimmed = text.trim().slice(0, 5000);
-  if (!trimmed) return;
-  const { supabase, user } = await requireUser();
-  const { error } = await supabase.from("comments").insert({
-    page_id: pageId,
-    author_id: user.id,
-    body: { text: trimmed },
-    suggestion_id: suggestionId?.slice(0, 80) ?? null,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const trimmed = text.trim().slice(0, 5000);
+    if (!trimmed) return ok();
+    const { supabase, user } = await requireUser();
+    const { error } = await supabase.from("comments").insert({
+      page_id: pageId,
+      author_id: user.id,
+      body: { text: trimmed },
+      suggestion_id: suggestionId?.slice(0, 80) ?? null,
+    });
+    if (error) return fromSupabaseError(error);
+    revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+    return ok();
   });
-  if (error) throw new Error(`Could not add comment: ${error.message}`);
-  revalidatePath(`/w/${workspaceId}/p/${pageId}`);
 }
 
 export async function setCommentResolved(
@@ -40,26 +49,32 @@ export async function setCommentResolved(
   pageId: string,
   commentId: string,
   resolved: boolean,
-) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase
-    .from("comments")
-    .update({ resolved })
-    .eq("id", commentId);
-  if (error) throw new Error(`Could not update comment: ${error.message}`);
-  revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const { supabase } = await requireUser();
+    const { error } = await supabase
+      .from("comments")
+      .update({ resolved })
+      .eq("id", commentId);
+    if (error) return fromSupabaseError(error);
+    revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+    return ok();
+  });
 }
 
 export async function deleteComment(
   workspaceId: string,
   pageId: string,
   commentId: string,
-) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase
-    .from("comments")
-    .delete()
-    .eq("id", commentId);
-  if (error) throw new Error(`Could not delete comment: ${error.message}`);
-  revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const { supabase } = await requireUser();
+    const { error } = await supabase
+      .from("comments")
+      .delete()
+      .eq("id", commentId);
+    if (error) return fromSupabaseError(error);
+    revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+    return ok();
+  });
 }
