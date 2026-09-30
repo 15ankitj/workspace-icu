@@ -3,6 +3,13 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionResult,
+  type FormState,
+} from "@/lib/action-result";
 import type {
   CountResult,
   ResolveResult,
@@ -75,15 +82,18 @@ export async function setPageAuthorship(
   pageId: string,
   authored: boolean,
   coAuthors: string[],
-) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("set_page_authorship", {
-    p_page_id: pageId,
-    p_authored: authored,
-    p_co_authors: coAuthors.slice(0, 50),
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const { supabase } = await requireUser();
+    const { error } = await supabase.rpc("set_page_authorship", {
+      p_page_id: pageId,
+      p_authored: authored,
+      p_co_authors: coAuthors.slice(0, 50),
+    });
+    if (error) return fromSupabaseError(error);
+    revalidatePath(`/w/${workspaceId}/p/${pageId}`);
+    return ok();
   });
-  if (error) throw new Error(`Could not update authorship: ${error.message}`);
-  revalidatePath(`/w/${workspaceId}/p/${pageId}`);
 }
 
 /** An editor's own change removed the marks of these open suggestions:
@@ -103,25 +113,34 @@ export async function markSuggestionsStale(
 }
 
 /** Mark this user's unread notifications read (one workspace, or all). */
-export async function markNotificationsRead(workspaceId?: string) {
-  const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("mark_notifications_read", {
-    p_workspace_id: workspaceId,
+export async function markNotificationsRead(
+  workspaceId?: string,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const { supabase } = await requireUser();
+    const { error } = await supabase.rpc("mark_notifications_read", {
+      p_workspace_id: workspaceId,
+    });
+    if (error) return fromSupabaseError(error);
+    if (workspaceId) revalidatePath(`/w/${workspaceId}`, "layout");
+    return ok();
   });
-  if (error)
-    throw new Error(`Could not update notifications: ${error.message}`);
-  if (workspaceId) revalidatePath(`/w/${workspaceId}`, "layout");
 }
 
 /** Daily digest opt-out (Appendix A §2.5), from account settings. */
-export async function setEmailDigest(formData: FormData) {
-  const workspaceId = String(formData.get("workspaceId") ?? "");
-  const enabled = String(formData.get("enabled") ?? "") === "true";
-  const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("set_email_digest", {
-    p_enabled: enabled,
+export async function setEmailDigest(
+  _state: FormState,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const workspaceId = String(formData.get("workspaceId") ?? "");
+    const enabled = String(formData.get("enabled") ?? "") === "true";
+    const { supabase } = await requireUser();
+    const { error } = await supabase.rpc("set_email_digest", {
+      p_enabled: enabled,
+    });
+    if (error) return fromSupabaseError(error);
+    revalidatePath(`/w/${workspaceId}/settings`);
+    return ok();
   });
-  if (error)
-    throw new Error(`Could not update the digest setting: ${error.message}`);
-  revalidatePath(`/w/${workspaceId}/settings`);
 }
