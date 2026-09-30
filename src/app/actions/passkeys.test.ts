@@ -19,6 +19,13 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`redirect:${url}`);
   },
+  // runAction rethrows Next.js control flow; the mock's redirect is a
+  // plain Error, so recognise it by its message here.
+  unstable_rethrow: (error: unknown) => {
+    if (error instanceof Error && error.message.startsWith("redirect:")) {
+      throw error;
+    }
+  },
 }));
 
 import {
@@ -74,9 +81,10 @@ describe("passkey audit actions", () => {
   });
 
   it("rejects a malformed passkey id before touching the database", async () => {
-    await expect(recordPasskeyRegistered("not-a-uuid", "x")).rejects.toThrow(
-      /Invalid passkey id/,
-    );
+    await expect(recordPasskeyRegistered("not-a-uuid", "x")).resolves.toEqual({
+      ok: false,
+      error: "Invalid passkey id.",
+    });
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -88,11 +96,15 @@ describe("passkey audit actions", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
-  it("surfaces an insert failure", async () => {
-    insert.mockResolvedValue({ error: { message: "denied" } });
-    await expect(recordPasskeyRegistered(PASSKEY_ID, "x")).rejects.toThrow(
-      /denied/,
-    );
+  it("returns an insert failure as a result, never a throw", async () => {
+    insert.mockResolvedValue({
+      error: { code: "42501", message: "permission denied for table x" },
+    });
+    await expect(recordPasskeyRegistered(PASSKEY_ID, "x")).resolves.toEqual({
+      ok: false,
+      error: "You don't have permission to do that.",
+      code: "permission_denied",
+    });
   });
 });
 
@@ -102,8 +114,12 @@ describe("dismissPasskeyNudge", () => {
     expect(rpc).toHaveBeenCalledWith("dismiss_passkey_nudge");
   });
 
-  it("surfaces an RPC failure", async () => {
-    rpc.mockResolvedValue({ error: { message: "nope" } });
-    await expect(dismissPasskeyNudge()).rejects.toThrow(/nope/);
+  it("returns an RPC failure as a result", async () => {
+    rpc.mockResolvedValue({ error: { code: "P0001", message: "nope" } });
+    await expect(dismissPasskeyNudge()).resolves.toEqual({
+      ok: false,
+      error: "Nope.",
+      code: "refused",
+    });
   });
 });

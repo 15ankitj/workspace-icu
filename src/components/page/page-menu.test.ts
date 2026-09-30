@@ -7,7 +7,9 @@ const actions = vi.hoisted(() => ({
   setPagePrivacy: vi.fn(),
   setPageLayout: vi.fn(),
 }));
+const toasts = vi.hoisted(() => ({ toast: vi.fn() }));
 vi.mock("@/app/actions/pages", () => actions);
+vi.mock("@/components/ui/toast", () => toasts);
 vi.mock("@/app/actions/reports", () => ({ reportPage: vi.fn() }));
 vi.mock("@/app/actions/shares", () => ({ setPublicLink: vi.fn() }));
 vi.mock("@/components/page/save-template-dialog", () => ({
@@ -32,6 +34,7 @@ afterEach(async () => {
   await mounted?.unmount();
   mounted = null;
   actions.setPagePrivacy.mockReset();
+  toasts.toast.mockReset();
 });
 
 function menu(props: Partial<Parameters<typeof PageMenu>[0]> = {}) {
@@ -106,8 +109,30 @@ describe("PageMenu privacy item", () => {
     expect(items).not.toContain("Make private");
   });
 
+  it("shows the action's own sentence when the toggle is refused", async () => {
+    actions.setPagePrivacy.mockResolvedValue({
+      ok: false,
+      error: "Only the page creator can change this.",
+    });
+    mounted = await mount(menu({ canTogglePrivacy: true }));
+    await openMenu(mounted.container);
+    const item = itemNamed("Make private");
+    if (!item) throw new Error("Make private not found");
+    await act(async () => {
+      item.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+      );
+    });
+    await flush();
+    expect(toasts.toast).toHaveBeenCalledWith({
+      variant: "destructive",
+      title: "Couldn't make the page private",
+      description: "Only the page creator can change this.",
+    });
+  });
+
   it("toggles privacy through setPagePrivacy", async () => {
-    actions.setPagePrivacy.mockResolvedValue(undefined);
+    actions.setPagePrivacy.mockResolvedValue({ ok: true });
     mounted = await mount(menu({ canTogglePrivacy: true, isPrivate: true }));
     await openMenu(mounted.container);
     const item = itemNamed("Make shared");
