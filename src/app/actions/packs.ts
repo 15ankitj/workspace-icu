@@ -3,6 +3,14 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fail,
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionResult,
+  type FormState,
+} from "@/lib/action-result";
 import type { Json, TemplateKind } from "@/lib/database.types";
 import packSnapshots from "../../../content/cesr-journey.snapshots.json";
 
@@ -64,112 +72,115 @@ export async function listPacks(): Promise<
  * copies are never modified: a new version reaches them through the
  * update banner.
  */
-export async function installPack(formData: FormData) {
-  const name = String(formData.get("name") ?? "");
-  const workspaceId = String(formData.get("workspaceId") ?? "");
-  const pack = PACKS.find((p) => p.name === name);
-  if (!pack) throw new Error("Unknown pack");
-  const bundledVersion = pack.version ?? 1;
+export async function installPack(
+  _state: FormState,
+  formData: FormData,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const name = String(formData.get("name") ?? "");
+    const workspaceId = String(formData.get("workspaceId") ?? "");
+    const pack = PACKS.find((p) => p.name === name);
+    if (!pack) return fail("Unknown pack");
+    const bundledVersion = pack.version ?? 1;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/sign-in");
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) redirect("/sign-in");
 
-  const { data: existing } = await supabase
-    .from("templates")
-    .select("id, template_versions!templates_current_version_fkey(version)")
-    .eq("owner_scope", "platform")
-    .eq("name", pack.name)
-    .maybeSingle();
-  if (existing) {
-    const current = existing.template_versions?.version ?? 1;
-    if (bundledVersion > current) {
-      const { data: added, error: addError } = await supabase
-        .from("template_versions")
-        .insert({
-          template_id: existing.id,
-          version: bundledVersion,
-          snapshot: pack.snapshot as Json,
-          changelog: (pack.changelog ?? "").slice(0, 2000),
-          created_by: user.id,
-        })
-        .select("id")
-        .single();
-      if (addError) {
-        throw new Error(`Could not update pack: ${addError.message}`);
+    const { data: existing } = await supabase
+      .from("templates")
+      .select("id, template_versions!templates_current_version_fkey(version)")
+      .eq("owner_scope", "platform")
+      .eq("name", pack.name)
+      .maybeSingle();
+    if (existing) {
+      const current = existing.template_versions?.version ?? 1;
+      if (bundledVersion > current) {
+        const { data: added, error: addError } = await supabase
+          .from("template_versions")
+          .insert({
+            template_id: existing.id,
+            version: bundledVersion,
+            snapshot: pack.snapshot as Json,
+            changelog: (pack.changelog ?? "").slice(0, 2000),
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (addError) return fromSupabaseError(addError);
+        await supabase
+          .from("templates")
+          .update({
+            current_version_id: added.id,
+            description: pack.description,
+            purpose: pack.purpose,
+          })
+          .eq("id", existing.id);
+        await supabase.from("audit_events").insert({
+          actor_id: user.id,
+          workspace_id: null,
+          event_type: "pack_updated",
+          target_type: "template",
+          target_id: existing.id,
+          metadata: { name: pack.name, version: bundledVersion },
+        });
       }
-      await supabase
-        .from("templates")
-        .update({
-          current_version_id: added.id,
-          description: pack.description,
-          purpose: pack.purpose,
-        })
-        .eq("id", existing.id);
-      await supabase.from("audit_events").insert({
-        actor_id: user.id,
-        workspace_id: null,
-        event_type: "pack_updated",
-        target_type: "template",
-        target_id: existing.id,
-        metadata: { name: pack.name, version: bundledVersion },
-      });
+      revalidatePath(`/w/${workspaceId}/gallery`);
+      return ok();
     }
-    revalidatePath(`/w/${workspaceId}/gallery`);
-    return;
-  }
 
-  const { data: template, error } = await supabase
-    .from("templates")
-    .insert({
-      owner_scope: "platform",
-      workspace_id: null,
-      name: pack.name,
-      purpose: pack.purpose,
-      description: pack.description,
-      category: pack.category,
-      audience: pack.audience,
-      kind: pack.kind,
-      is_published: true,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(`Could not install pack: ${error.message}`);
+    const { data: template, error } = await supabase
+      .from("templates")
+      .insert({
+        owner_scope: "platform",
+        workspace_id: null,
+        name: pack.name,
+        purpose: pack.purpose,
+        description: pack.description,
+        category: pack.category,
+        audience: pack.audience,
+        kind: pack.kind,
+        is_published: true,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (error) return fromSupabaseError(error);
 
-  const { data: version, error: versionError } = await supabase
-    .from("template_versions")
-    .insert({
+    const { data: version, error: versionError } = await supabase
+      .from("template_versions")
+      .insert({
+        template_id: template.id,
+        version: bundledVersion,
+        snapshot: pack.snapshot as Json,
+        changelog: pack.changelog || "Initial version",
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (versionError) return fromSupabaseError(versionError);
+
+    await supabase
+      .from("templates")
+      .update({ current_version_id: version.id })
+      .eq("id", template.id);
+    await supabase.from("gallery_entries").upsert({
       template_id: template.id,
-      version: bundledVersion,
-      snapshot: pack.snapshot as Json,
-      changelog: pack.changelog || "Initial version",
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
-  if (versionError)
-    throw new Error(`Could not install pack: ${versionError.message}`);
+      category: pack.category,
+      sort_order: PACKS.indexOf(pack),
+    });
+    await supabase.from("audit_events").insert({
+      actor_id: user.id,
+      workspace_id: null,
+      event_type: "pack_installed",
+      target_type: "template",
+      target_id: template.id,
+      metadata: { name: pack.name, version: bundledVersion },
+    });
 
-  await supabase
-    .from("templates")
-    .update({ current_version_id: version.id })
-    .eq("id", template.id);
-  await supabase.from("gallery_entries").upsert({
-    template_id: template.id,
-    category: pack.category,
-    sort_order: PACKS.indexOf(pack),
+    revalidatePath(`/w/${workspaceId}/gallery`);
+    return ok();
   });
-  await supabase.from("audit_events").insert({
-    actor_id: user.id,
-    workspace_id: null,
-    event_type: "pack_installed",
-    target_type: "template",
-    target_id: template.id,
-    metadata: { name: pack.name, version: bundledVersion },
-  });
-
-  revalidatePath(`/w/${workspaceId}/gallery`);
 }
