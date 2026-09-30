@@ -100,6 +100,7 @@ export function PageDetails({
   created,
   edited,
   members,
+  membersUnavailable = false,
   siblingSelectValues,
   canEdit,
   relationsEnabled,
@@ -113,6 +114,8 @@ export function PageDetails({
   created: { id: string; name: string; at: string };
   edited: { id: string | null; name: string; at: string };
   members: Person[];
+  /** The member query failed: say so rather than offer an empty list. */
+  membersUnavailable?: boolean;
   /** Existing "Type"-style values on sibling pages, offered as options. */
   siblingSelectValues: string[];
   canEdit: boolean;
@@ -332,6 +335,7 @@ export function PageDetails({
                   <PropertyValue
                     row={row}
                     members={members}
+                    membersUnavailable={membersUnavailable}
                     memberById={memberById}
                     siblingSelectValues={siblingSelectValues}
                     canEdit={canEdit}
@@ -569,6 +573,7 @@ function SystemRow({
 function PropertyValue({
   row,
   members,
+  membersUnavailable,
   memberById,
   siblingSelectValues,
   canEdit,
@@ -576,6 +581,7 @@ function PropertyValue({
 }: {
   row: PagePropertyRow;
   members: Person[];
+  membersUnavailable: boolean;
   memberById: Map<string, string>;
   siblingSelectValues: string[];
   canEdit: boolean;
@@ -586,13 +592,15 @@ function PropertyValue({
 
   switch (row.type) {
     case "people": {
+      const unknown = membersUnavailable ? "Unavailable" : "Unknown";
+      const nameFor = (id: string) => memberById.get(id) ?? unknown;
       const chips = row.value.map((id) => (
         <span
           key={id}
           className="inline-flex h-6 items-center gap-1.5 rounded-full bg-muted py-0.5 pl-0.5 pr-2"
         >
-          <Avatar id={id} name={memberById.get(id) ?? "Unknown"} size="xs" />
-          {memberById.get(id) ?? "Unknown"}
+          <Avatar id={id} name={nameFor(id)} size="xs" />
+          {nameFor(id)}
         </span>
       ));
       if (!canEdit)
@@ -607,13 +615,16 @@ function PropertyValue({
             <button
               type="button"
               className="flex min-h-8 flex-wrap items-center gap-1.5 rounded-md px-1 text-left hover:bg-accent"
-              aria-label={`${row.label}: ${row.value.length ? row.value.map((id) => memberById.get(id) ?? "Unknown").join(", ") : "empty"}`}
+              aria-label={`${row.label}: ${row.value.length ? row.value.map(nameFor).join(", ") : "empty"}`}
             >
               {chips.length ? chips : empty}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-64">
             <DropdownMenuLabel>Workspace members</DropdownMenuLabel>
+            {membersUnavailable && (
+              <DropdownMenuItem disabled>Members unavailable</DropdownMenuItem>
+            )}
             {members.map((m) => (
               <DropdownMenuCheckboxItem
                 key={m.id}
