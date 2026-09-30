@@ -35,11 +35,12 @@ import {
 } from "./cesr-hillo-pages";
 
 /**
- * CESR Journey — the first content pack (brief §11), version 4
- * (docs/cesr-journey-v4-spec.md). One page per Key Capability with the
- * verbatim curriculum wording from content/cesr-curriculum.ts, Status /
- * Signed off / Supervisor properties and an Evidence relation; evidence
- * items are pages linked from the KCs; the HiLLO page's sub-page list is
+ * CESR Journey — the first content pack (brief §11), version 5: the v4
+ * layout (docs/cesr-journey-v4-spec.md) with a corrected Start here. One
+ * page per Key Capability with the verbatim curriculum wording from
+ * content/cesr-curriculum.ts, Status / Signed off / Supervisor properties
+ * and an Evidence relation; evidence items are pages linked from the KCs;
+ * the HiLLO page's sub-page list is
  * the progress table. Every fact is entered once, where it belongs, and
  * everything else is a view of it — nothing here computes anything.
  * Everything is generic guidance or curriculum text — no patient details,
@@ -224,7 +225,7 @@ export function cesrJourney(): PackTemplate {
       bullet([
         b("Drafts are private until you share them. "),
         t(
-          "Mark a page Private (page menu) and it stays yours even in a shared workspace; everything else is visible to everyone you invite.",
+          "Mark a page Private from the ⋯ menu at the top of the page, or from its row in the sidebar, and it stays yours even in a shared workspace; everything else is visible to everyone you invite. Only the person who created a page can make it private.",
         ),
       ]),
       h2("The Status convention"),
@@ -655,9 +656,8 @@ export function cesrJourney(): PackTemplate {
     category: "Training & Portfolio",
     audience: "ICM CESR / Portfolio Pathway candidates and their supervisors",
     kind: "workspace",
-    version: 4,
-    changelog:
-      "One page per Key Capability with verbatim curriculum wording, Status/Signed off/Supervisor properties and an Evidence relation; evidence items are pages linked from KCs; the HiLLO page's sub-page list replaces the hand-typed progress table; supervisor summary blocks replace the synced progress tables in meetings. Evidence index page removed.",
+    version: 5,
+    changelog: "Start here: corrected where the Private option lives",
     pages: [
       start,
       plan,

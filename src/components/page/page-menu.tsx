@@ -15,6 +15,7 @@ import { reportPage } from "@/app/actions/reports";
 import { setPublicLink } from "@/app/actions/shares";
 import { SaveTemplateDialog } from "@/components/page/save-template-dialog";
 import { AuthorshipDialog } from "@/components/page/authorship-dialog";
+import { PrivacyMenuItem } from "@/components/page/privacy-menu-item";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -47,7 +48,7 @@ export interface ShareState {
 
 /**
  * Page actions: a visible Share button for editors, and a menu for
- * templates, export, layout and reporting.
+ * privacy (creator only), templates, export, layout and reporting.
  */
 export function PageMenu({
   pageId,
@@ -55,6 +56,8 @@ export function PageMenu({
   fullWidth,
   smallText,
   canEdit,
+  isPrivate,
+  canTogglePrivacy,
   share,
   isPlatformOwner,
   unresolvedSuggestions = 0,
@@ -65,6 +68,10 @@ export function PageMenu({
   fullWidth: boolean;
   smallText: boolean;
   canEdit: boolean;
+  isPrivate: boolean;
+  /** The viewer created this page, so may make it private or shared;
+   *  offered whatever `canEdit` says, and never to anyone else. */
+  canTogglePrivacy: boolean;
   share: ShareState | null;
   isPlatformOwner: boolean;
   /** Suggestions still waiting on this page: clean exports leave them out
@@ -147,6 +154,12 @@ export function PageMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
+          {canTogglePrivacy && (
+            <>
+              <PrivacyMenuItem pageId={pageId} isPrivate={isPrivate} />
+              <DropdownMenuSeparator />
+            </>
+          )}
           {canEdit && (
             <>
               <DropdownMenuItem onSelect={() => setSavingTemplate(true)}>

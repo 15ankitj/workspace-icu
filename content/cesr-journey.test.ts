@@ -97,10 +97,11 @@ describe("CESR Journey v4 workspace template", () => {
   const byKey = new Map(snapshot.pages.map((page) => [page.key, page]));
   const titleOf = (key: string | null) => (key ? byKey.get(key)?.title : null);
 
-  it("is version 4 with the spec's changelog and no Evidence index", () => {
-    expect(journey.version).toBe(4);
-    expect(journey.changelog).toContain("One page per Key Capability");
-    expect(journey.changelog).toContain("Evidence index page removed");
+  it("is version 5 (Start here correction) with no Evidence index", () => {
+    expect(journey.version).toBe(5);
+    expect(journey.changelog).toBe(
+      "Start here: corrected where the Private option lives",
+    );
     expect(journey.pages.map((p) => p.title)).not.toContain("Evidence index");
     expect(
       journey.pages.filter((p) => p.parentId === null).map((p) => p.title),
@@ -115,6 +116,18 @@ describe("CESR Journey v4 workspace template", () => {
       "Application narrative",
       "Resources",
     ]);
+  });
+
+  it("tells candidates where the Private option lives, and who may use it", () => {
+    const start = snapshot.pages.find((p) => p.title === "Start here")!;
+    const text = textOf(start.blocks);
+    expect(text).toContain(
+      "Mark a page Private from the ⋯ menu at the top of the page, or from its row in the sidebar",
+    );
+    expect(text).toContain(
+      "Only the person who created a page can make it private.",
+    );
+    expect(text).not.toContain("Private (page menu)");
   });
 
   it("builds to format 4 with exactly 118 pages: 92 KCs under 14 HiLLOs, plus 12 others", () => {
