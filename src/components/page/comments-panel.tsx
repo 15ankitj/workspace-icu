@@ -16,6 +16,7 @@ import { SectionHeading } from "@/components/ui/page-shell";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import type { ActionResult } from "@/lib/action-result";
 
 export interface PageComment {
   id: string;
@@ -52,16 +53,14 @@ export function CommentsPanel({
   const visible = comments.filter((c) => showResolved || !c.resolved);
   const resolvedCount = comments.filter((c) => c.resolved).length;
 
-  function run(label: string, action: () => Promise<unknown>) {
+  function run(label: string, action: () => Promise<ActionResult>) {
     startTransition(async () => {
-      try {
-        await action();
-      } catch (error) {
+      const r = await action();
+      if (!r.ok) {
         toast({
           variant: "destructive",
           title: `Couldn't ${label}`,
-          description:
-            error instanceof Error ? error.message : "Please try again.",
+          description: r.error,
         });
       }
     });
@@ -178,19 +177,16 @@ export function CommentsPanel({
             if (!value) return;
             // The draft is cleared only once the comment is saved.
             startTransition(async () => {
-              try {
-                await addComment(workspaceId, pageId, value);
-                setText("");
-              } catch (error) {
+              const r = await addComment(workspaceId, pageId, value);
+              if (!r.ok) {
                 toast({
                   variant: "destructive",
                   title: "Couldn't post your comment",
-                  description:
-                    error instanceof Error
-                      ? error.message
-                      : "Your text is still in the box. Try again.",
+                  description: `${r.error} Your text is still in the box.`,
                 });
+                return;
               }
+              setText("");
             });
           }}
         >

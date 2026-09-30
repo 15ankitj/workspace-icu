@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
+import type { ActionResult } from "@/lib/action-result";
 
 export interface SourceRemovalTarget {
   id: string;
@@ -65,8 +66,8 @@ function RemovalDialog({
     if (!picking || hosts !== null) return;
     let cancelled = false;
     listSyncedHosts(target.id)
-      .then((list) => {
-        if (!cancelled) setHosts(list);
+      .then((r) => {
+        if (!cancelled) setHosts(r.ok ? r.hosts : []);
       })
       .catch(() => {
         if (!cancelled) setHosts([]);
@@ -80,24 +81,24 @@ function RemovalDialog({
   const pages = `${target.otherPages} other page${target.otherPages === 1 ? "" : "s"}`;
 
   const run = async (
-    action: () => Promise<void>,
+    action: () => Promise<ActionResult>,
     outcome: "deleted" | "reassigned",
     done: string,
   ) => {
     if (busy) return;
     setBusy(true);
-    try {
-      await action();
-      toast({ title: done });
-      onResolved(target.id, outcome);
-    } catch (error) {
+    const r = await action();
+    if (!r.ok) {
       toast({
         title: "That didn't work",
-        description: error instanceof Error ? error.message : "Try again.",
+        description: r.error,
         variant: "destructive",
       });
       setBusy(false);
+      return;
     }
+    toast({ title: done });
+    onResolved(target.id, outcome);
   };
 
   const hidden = hosts ? Math.max(0, target.otherPages - hosts.length) : 0;

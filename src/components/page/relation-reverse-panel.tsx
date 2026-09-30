@@ -48,12 +48,8 @@ export function RelationReversePanel({
     );
   }
 
-  function fail(title: string, error: unknown) {
-    toast({
-      variant: "destructive",
-      title,
-      description: error instanceof Error ? error.message : "Please try again.",
-    });
+  function fail(title: string, description: string) {
+    toast({ variant: "destructive", title, description });
   }
 
   const add = (group: ReverseGroup, page: PickablePage) => {
@@ -64,20 +60,20 @@ export function RelationReversePanel({
     };
     update(group.key, (links) => [...links, temp]);
     startTransition(async () => {
-      try {
-        const saved = await addRelationFromReverse(
-          pageId,
-          page.id,
-          group.label,
-          group.reverseLabel,
-        );
-        update(group.key, (links) =>
-          links.map((l) => (l.id === tempId ? { ...l, id: saved.id } : l)),
-        );
-      } catch (error) {
+      const saved = await addRelationFromReverse(
+        pageId,
+        page.id,
+        group.label,
+        group.reverseLabel,
+      );
+      if (!saved.ok) {
         update(group.key, (links) => links.filter((l) => l.id !== tempId));
-        fail("Couldn't link the page", error);
+        fail("Couldn't link the page", saved.error);
+        return;
       }
+      update(group.key, (links) =>
+        links.map((l) => (l.id === tempId ? { ...l, id: saved.id } : l)),
+      );
     });
   };
 
@@ -88,13 +84,12 @@ export function RelationReversePanel({
     }
     update(group.key, (links) => links.filter((l) => l.id !== link.id));
     startTransition(async () => {
-      try {
-        await removeRelationLink(link.id);
-      } catch (error) {
+      const r = await removeRelationLink(link.id);
+      if (!r.ok) {
         update(group.key, (links) =>
           links.some((l) => l.id === link.id) ? links : [...links, link],
         );
-        fail("Couldn't remove the link", error);
+        fail("Couldn't remove the link", r.error);
       }
     });
   };

@@ -273,12 +273,8 @@ export function RelationValue({
   const ordered = sortLinks(links);
   const linkedIds = new Set(ordered.map((l) => l.page.id));
 
-  function fail(title: string, error: unknown) {
-    toast({
-      variant: "destructive",
-      title,
-      description: error instanceof Error ? error.message : "Please try again.",
-    });
+  function fail(title: string, description: string) {
+    toast({ variant: "destructive", title, description });
   }
 
   const add = (page: PickablePage) => {
@@ -296,19 +292,19 @@ export function RelationValue({
     };
     onChange((current) => [...current, temp]);
     startTransition(async () => {
-      try {
-        const saved = await addRelationLink(pageId, row.id, page.id);
-        onChange((current) =>
-          current.map((l) =>
-            l.id === temp.id
-              ? { ...l, id: saved.id, position: saved.position }
-              : l,
-          ),
-        );
-      } catch (error) {
+      const saved = await addRelationLink(pageId, row.id, page.id);
+      if (!saved.ok) {
         onChange((current) => current.filter((l) => l.id !== temp.id));
-        fail("Couldn't link the page", error);
+        fail("Couldn't link the page", saved.error);
+        return;
       }
+      onChange((current) =>
+        current.map((l) =>
+          l.id === temp.id
+            ? { ...l, id: saved.id, position: saved.position }
+            : l,
+        ),
+      );
     });
   };
 
@@ -319,13 +315,12 @@ export function RelationValue({
     }
     onChange((current) => current.filter((l) => l.id !== link.id));
     startTransition(async () => {
-      try {
-        await removeRelationLink(link.id);
-      } catch (error) {
+      const r = await removeRelationLink(link.id);
+      if (!r.ok) {
         onChange((current) =>
           current.some((l) => l.id === link.id) ? current : [...current, link],
         );
-        fail("Couldn't remove the link", error);
+        fail("Couldn't remove the link", r.error);
       }
     });
   };
@@ -339,15 +334,14 @@ export function RelationValue({
       current.map((l) => (l.id === moved.id ? { ...l, position } : l)),
     );
     startTransition(async () => {
-      try {
-        await moveRelationLink(moved.id, position);
-      } catch (error) {
+      const r = await moveRelationLink(moved.id, position);
+      if (!r.ok) {
         onChange((current) =>
           current.map((l) =>
             l.id === moved.id ? { ...l, position: restore } : l,
           ),
         );
-        fail("Couldn't reorder", error);
+        fail("Couldn't reorder", r.error);
       }
     });
   };

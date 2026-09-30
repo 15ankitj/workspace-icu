@@ -365,26 +365,29 @@ export function PageEditor({
         : savePageContent(pageId, blocks);
       report("saving");
       save
-        .then(() => {
-          if (!dirty.current) report("saved");
-        })
-        .catch((error) => {
+        .then((r) => {
+          if (r.ok) {
+            if (!dirty.current) report("saved");
+            return;
+          }
           dirty.current = true;
           // On an authored page a non-author's save may carry the author's
           // not-yet-persisted edits; the author's client lands them within
-          // seconds, so retry quietly rather than alarm the suggester.
-          if (
-            modeRef.current !== "edit" &&
-            error instanceof Error &&
-            error.message.includes("authored_content")
-          ) {
+          // seconds, so retry quietly rather than alarm the suggester. The
+          // refusal is recognised by its code, never by its wording.
+          if (modeRef.current !== "edit" && r.code === "authored_content") {
             if (saveTimer.current) clearTimeout(saveTimer.current);
             saveTimer.current = setTimeout(flush, AUTHORED_RETRY_MS);
             return;
           }
-          console.error("Failed to save page:", error);
+          console.error("Failed to save page:", r.error);
           // Keep the document marked dirty so a retry (or the next edit)
           // sends everything again.
+          report("error", flush);
+        })
+        .catch((error) => {
+          dirty.current = true;
+          console.error("Failed to save page:", error);
           report("error", flush);
         });
     };

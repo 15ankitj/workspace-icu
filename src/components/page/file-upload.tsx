@@ -92,11 +92,15 @@ export function useFileUpload({
       });
     }
 
-    const { fileId, storagePath } = await registerUpload(targetPageId, {
+    const registered = await registerUpload(targetPageId, {
       filename: file.name,
       mime: file.type,
       sizeBytes: file.size,
     });
+    // The editor's upload hook reports failures by throwing; the action's
+    // sentence is what it shows.
+    if (!registered.ok) throw new Error(registered.error);
+    const { fileId, storagePath } = registered;
 
     const supabase = createClient();
     const { error } = await supabase.storage
@@ -109,7 +113,7 @@ export function useFileUpload({
 
     countRef.current += 1;
     const result = await finalizeUpload(fileId);
-    if (result.status === "flagged") {
+    if (result.ok && result.status === "flagged") {
       setFlagged({ fileId, filename: file.name, findings: result.findings });
     }
     return `/api/files/${fileId}`;
@@ -129,36 +133,36 @@ export function useFileUpload({
   async function resolveFlagged(mode: "remove" | "keep") {
     if (!flagged) return;
     setResolving(mode);
-    try {
-      if (mode === "remove") {
-        await deleteFile(flagged.fileId);
-        toast({
-          title: "File removed",
-          description:
-            "Delete its block from the page, anonymise the document and upload it again.",
-          duration: 10000,
-        });
-      } else {
-        await overridePhiFindings(flagged.fileId);
-        toast({
-          title: "Kept as anonymised",
-          description: `Your confirmation for “${flagged.filename}” has been recorded.`,
-        });
-      }
-      setFlagged(null);
-    } catch (error) {
+    const r =
+      mode === "remove"
+        ? await deleteFile(flagged.fileId)
+        : await overridePhiFindings(flagged.fileId);
+    setResolving(null);
+    if (!r.ok) {
       toast({
         variant: "destructive",
         title:
           mode === "remove"
             ? "Couldn't remove the file"
             : "Couldn't record your confirmation",
-        description:
-          error instanceof Error ? error.message : "Please try again.",
+        description: r.error,
       });
-    } finally {
-      setResolving(null);
+      return;
     }
+    if (mode === "remove") {
+      toast({
+        title: "File removed",
+        description:
+          "Delete its block from the page, anonymise the document and upload it again.",
+        duration: 10000,
+      });
+    } else {
+      toast({
+        title: "Kept as anonymised",
+        description: `Your confirmation for “${flagged.filename}” has been recorded.`,
+      });
+    }
+    setFlagged(null);
   }
 
   const dialogs = (

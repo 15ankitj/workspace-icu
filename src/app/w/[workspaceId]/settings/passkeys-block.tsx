@@ -82,7 +82,8 @@ function PasskeysManager() {
       const passkey = await register();
       if (!passkey) return; // Cancelled: nothing to say.
       setPasskeys((current) => [...(current ?? []), passkey]);
-      await recordPasskeyRegistered(passkey.id, passkey.name);
+      const recorded = await recordPasskeyRegistered(passkey.id, passkey.name);
+      if (!recorded.ok) setError(recorded.error);
     } catch (addError) {
       setError(message(addError, "Could not add a passkey"));
     } finally {
@@ -115,7 +116,8 @@ function PasskeysManager() {
       setPasskeys((current) =>
         (current ?? []).filter((p) => p.id !== passkey.id),
       );
-      await recordPasskeyRemoved(passkey.id, passkey.name);
+      const recorded = await recordPasskeyRemoved(passkey.id, passkey.name);
+      if (!recorded.ok) setError(recorded.error);
     } catch (removeError) {
       setError(message(removeError, "Could not remove the passkey"));
     } finally {

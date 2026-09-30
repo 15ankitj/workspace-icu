@@ -54,8 +54,8 @@ export function UpdatesDialog({
           if (unread > 0) {
             startTransition(async () => {
               try {
-                await markNotificationsRead(workspaceId);
-                router.refresh();
+                const r = await markNotificationsRead(workspaceId);
+                if (r.ok) router.refresh();
               } catch {
                 // The list still shows; the badge clears next time.
               }

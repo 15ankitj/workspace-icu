@@ -40,6 +40,7 @@ import { Field } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
+import { withFailureToast } from "@/components/ui/action-toast";
 
 export interface ShareState {
   enabled: boolean;
@@ -113,24 +114,22 @@ export function PageMenu({
 
   function updateShare(enabled: boolean) {
     startTransition(async () => {
-      try {
-        if (enabled) {
-          const { token } = await setPublicLink(pageId, true);
-          setShareState({ enabled: true, token });
-        } else {
-          await setPublicLink(pageId, false);
-          setShareState({ enabled: false, token: null });
-          toast({ title: "Public link revoked" });
-        }
-      } catch (error) {
+      const r = await setPublicLink(pageId, enabled);
+      if (!r.ok) {
         toast({
           variant: "destructive",
           title: enabled
             ? "Couldn't create the link"
             : "Couldn't revoke the link",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
+          description: r.error,
         });
+        return;
+      }
+      if (enabled) {
+        setShareState({ enabled: true, token: r.token });
+      } else {
+        setShareState({ enabled: false, token: null });
+        toast({ title: "Public link revoked" });
       }
     });
   }
@@ -226,7 +225,10 @@ export function PageMenu({
                 checked={fullWidth}
                 onCheckedChange={(next) =>
                   startTransition(() =>
-                    setPageLayout(pageId, { fullWidth: next }),
+                    withFailureToast(
+                      "Couldn't change the layout",
+                      setPageLayout(pageId, { fullWidth: next }),
+                    ),
                   )
                 }
               >
@@ -236,7 +238,10 @@ export function PageMenu({
                 checked={smallText}
                 onCheckedChange={(next) =>
                   startTransition(() =>
-                    setPageLayout(pageId, { smallText: next }),
+                    withFailureToast(
+                      "Couldn't change the layout",
+                      setPageLayout(pageId, { smallText: next }),
+                    ),
                   )
                 }
               >
@@ -344,19 +349,16 @@ export function PageMenu({
               onSubmit={(event) => {
                 event.preventDefault();
                 startTransition(async () => {
-                  try {
-                    await reportPage(pageId, reason);
-                    setReported(true);
-                  } catch (error) {
+                  const r = await reportPage(pageId, reason);
+                  if (!r.ok) {
                     toast({
                       variant: "destructive",
                       title: "Couldn't send the report",
-                      description:
-                        error instanceof Error
-                          ? error.message
-                          : "Please try again.",
+                      description: r.error,
                     });
+                    return;
                   }
+                  setReported(true);
                 });
               }}
             >

@@ -73,8 +73,8 @@ function SyncedPicker({
   useEffect(() => {
     let cancelled = false;
     listSyncedBlocks(workspaceId)
-      .then((list) => {
-        if (!cancelled) setItems(list);
+      .then((r) => {
+        if (!cancelled) setItems(r.ok ? r.blocks : []);
       })
       .catch(() => {
         if (!cancelled) setItems([]);
@@ -301,27 +301,36 @@ function LiveContent({
         bytesToBase64(Y.encodeStateAsUpdate(room.doc)),
         blocks,
         hostPageId,
-      ).catch((error) => {
-        dirty.current = true;
-        // A suggester's save may carry the author's unsaved edits; the
-        // author's client lands them shortly, so retry quietly.
-        if (
-          suggesting &&
-          error instanceof Error &&
-          error.message.includes("authored_content")
-        ) {
-          if (saveTimer.current) clearTimeout(saveTimer.current);
-          saveTimer.current = setTimeout(flush, 4000);
-          return;
-        }
-        console.error("Failed to save synced block:", error);
-        toast({
-          title: "Synced block not saved",
-          description:
-            "Your edit is still on screen. Retrying on the next change.",
-          variant: "destructive",
+      )
+        .then((r) => {
+          if (r.ok) return;
+          dirty.current = true;
+          // A suggester's save may carry the author's unsaved edits; the
+          // author's client lands them shortly, so retry quietly. The
+          // refusal is recognised by its code, never by its wording.
+          if (suggesting && r.code === "authored_content") {
+            if (saveTimer.current) clearTimeout(saveTimer.current);
+            saveTimer.current = setTimeout(flush, 4000);
+            return;
+          }
+          console.error("Failed to save synced block:", r.error);
+          toast({
+            title: "Synced block not saved",
+            description:
+              "Your edit is still on screen. Retrying on the next change.",
+            variant: "destructive",
+          });
+        })
+        .catch((error) => {
+          dirty.current = true;
+          console.error("Failed to save synced block:", error);
+          toast({
+            title: "Synced block not saved",
+            description:
+              "Your edit is still on screen. Retrying on the next change.",
+            variant: "destructive",
+          });
         });
-      });
     };
     const trackSuggestions = () => {
       let current: SuggestionSpan[];
@@ -472,8 +481,8 @@ function SyncedPlacement({
   useEffect(() => {
     let cancelled = false;
     loadSyncedBlock(syncedBlockId)
-      .then((v) => {
-        if (!cancelled) setView(v);
+      .then((r) => {
+        if (!cancelled) setView(r.ok ? r.view : null);
       })
       .catch(() => {
         if (!cancelled) setView(null);

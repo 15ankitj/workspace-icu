@@ -70,18 +70,13 @@ export function SubPages({
 
   const newSubPage = () =>
     startTransition(async () => {
-      try {
-        await createPage(workspaceId, pageId);
-      } catch (error) {
-        // createPage redirects on success; a redirect throws internally and
-        // must not be reported as a failure.
-        if (error instanceof Error && /NEXT_REDIRECT/.test(error.message))
-          throw error;
+      // createPage redirects on success; a result comes back only on failure.
+      const r = await createPage(workspaceId, pageId);
+      if (!r.ok) {
         toast({
           variant: "destructive",
           title: "Couldn't create the page",
-          description:
-            error instanceof Error ? error.message : "Please try again.",
+          description: r.error,
         });
       }
     });
