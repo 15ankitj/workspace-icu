@@ -56,7 +56,7 @@ export default async function PageView({
     { data: membership },
     { data: blockRows },
     { data: workspacePages },
-    { data: memberRows },
+    { data: memberRows, error: memberError },
     { count: uploadCount },
     { data: storedStateBase64 },
     { data: share },
@@ -97,9 +97,12 @@ export default async function PageView({
       .eq("workspace_id", workspaceId)
       .is("deleted_at", null),
     // For the "@" mention menu, the People property and the edited-by names.
+    // workspace_members has two foreign keys to users (user_id and
+    // invited_by), so the embed must name the one it means or PostgREST
+    // refuses the query as ambiguous (PGRST201).
     supabase
       .from("workspace_members")
-      .select("user_id, users (display_name)")
+      .select("user_id, users!workspace_members_user_id_fkey(display_name)")
       .eq("workspace_id", workspaceId),
     // Drives the first-five-uploads confirmation gate.
     supabase
@@ -207,14 +210,25 @@ export default async function PageView({
   const linkablePages = allPages
     .filter((p) => p.id !== pageId)
     .map(({ id, title, icon }) => ({ id, title, icon }));
+  // A failed member query must not pass for an empty workspace: the page
+  // still renders, but names read "Unavailable" rather than "A former
+  // member", and the People property says so. Only the error's code and
+  // message are logged; never row content.
+  if (memberError) {
+    console.error(
+      `Workspace members unavailable: ${memberError.code} ${memberError.message}`,
+    );
+  }
+  const membersUnavailable = memberError !== null;
   const members = (memberRows ?? []).map((m) => ({
     id: m.user_id,
     displayName: m.users?.display_name ?? "Unknown",
   }));
-  const nameOf = (id: string | null) =>
-    id === user.id
-      ? "You"
-      : (members.find((m) => m.id === id)?.displayName ?? "A former member");
+  const nameOf = (id: string | null) => {
+    if (id === user.id) return "You";
+    if (membersUnavailable) return "Unavailable";
+    return members.find((m) => m.id === id)?.displayName ?? "A former member";
+  };
   const people = members.map((m) => ({ id: m.id, name: m.displayName }));
   // Collaboration switches on when the Liveblocks secret is configured;
   // otherwise the editor runs local-only (feature-flag by configuration).
@@ -567,6 +581,7 @@ export default async function PageView({
                 at: page.updated_at,
               }}
               members={people}
+              membersUnavailable={membersUnavailable}
               siblingSelectValues={[...selectValues].sort()}
               canEdit={canEditThisPage}
               relationsEnabled={flags.relations}

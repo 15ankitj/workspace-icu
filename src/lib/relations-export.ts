@@ -104,7 +104,7 @@ export async function loadMemberNames(
 ): Promise<Map<string, string>> {
   const { data } = await supabase
     .from("workspace_members")
-    .select("user_id, users (display_name)")
+    .select("user_id, users!workspace_members_user_id_fkey(display_name)")
     .eq("workspace_id", workspaceId);
   return new Map(
     (data ?? []).map((m) => [m.user_id, m.users?.display_name ?? "Unknown"]),

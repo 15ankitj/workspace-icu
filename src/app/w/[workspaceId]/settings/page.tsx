@@ -55,7 +55,7 @@ export default async function WorkspaceSettings({
 
   const [
     { data: workspace },
-    { data: members },
+    { data: members, error: membersError },
     { data: membership },
     { data: invites },
     { data: me },
@@ -68,7 +68,9 @@ export default async function WorkspaceSettings({
       .maybeSingle(),
     supabase
       .from("workspace_members")
-      .select("user_id, role, joined_at, users (display_name, email)")
+      .select(
+        "user_id, role, joined_at, users!workspace_members_user_id_fkey(display_name, email)",
+      )
       .eq("workspace_id", workspaceId)
       .order("joined_at", { ascending: true }),
     supabase
@@ -91,6 +93,11 @@ export default async function WorkspaceSettings({
   ]);
   const emailDigest = me?.email_digest ?? true;
   if (!workspace || !membership) notFound();
+  if (membersError) {
+    console.error(
+      `Workspace members unavailable: ${membersError.code} ${membersError.message}`,
+    );
+  }
 
   const isOwner = membership.role === "owner";
   const origin = isOwner ? await appOrigin() : "";
@@ -145,6 +152,11 @@ export default async function WorkspaceSettings({
 
       <section className="space-y-3">
         <SectionHeading>Members</SectionHeading>
+        {membersError && (
+          <p className="text-sm text-muted-foreground">
+            The member list could not be loaded.
+          </p>
+        )}
         <ul className="space-y-2">
           {(members ?? []).map((member) => {
             const manageable =
