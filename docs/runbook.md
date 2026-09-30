@@ -171,6 +171,31 @@ Invitations are sent through Resend's REST API from server actions.
 - **Compliance drafts**: `docs/compliance/` (DPIA, privacy notice, breach
   procedure, processor DPA checklist) and the in-app `/privacy` page.
 
+### Errors from server actions
+
+Server actions under `src/app/actions` **return** their failures; they
+never throw. In production Next.js masks an error thrown inside a server
+action before it reaches the browser — the client gets a digest and
+React's generic "#441" text — so every message written for the user
+("only the page author can resolve suggestions", "invitation not found",
+a rate-limit or permission refusal) was invisible. Each action returns
+`ActionResult<T>` from `src/lib/action-result.ts`: `{ ok: true, …data }`
+or `{ ok: false, error, code? }`, where `error` is a complete sentence
+(a form renders it on its own). `fail()` builds one; `fromSupabaseError()`
+maps the common Postgres and PostgREST codes (permission and RLS,
+duplicate, no rows, rate limit) to standing wording and passes our own
+`raise exception` messages (SQLSTATE `P0001`) through verbatim; anything
+else becomes "Something went wrong. Please try again." and is logged by
+code and message only. `runAction()` wraps each body, converts what is
+thrown and rethrows Next.js control flow with `unstable_rethrow`, so
+`requireUser()`'s redirect to sign-in still works. Callers check
+`r.ok`: transitions toast `r.error` under their existing title,
+`<ActionForm>` (or `useActionState`) renders it inline under the form,
+and the editor saves recognise an authored-content refusal by
+`code === "authored_content"`, never by message text. An ESLint rule in
+`eslint.config.mjs` refuses any `throw` under `src/app/actions/**` so the
+masking bug cannot return.
+
 ## Sign-in (magic link + one-time code)
 
 `signInWithOtp` sends one email that carries both a link and a one-time
