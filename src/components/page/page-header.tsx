@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSaveStatus } from "@/components/page/save-status";
 import { cn } from "@/lib/utils";
+import type { ActionResult } from "@/lib/action-result";
 
 const SAVE_DEBOUNCE_MS = 600;
 
@@ -50,11 +51,18 @@ export function PageHeader({
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  function persist(label: string, action: () => Promise<unknown>) {
+  function persist(label: string, action: () => Promise<ActionResult>) {
     const attempt = () => {
       report("saving");
       action()
-        .then(() => report("saved"))
+        .then((r) => {
+          if (r.ok) {
+            report("saved");
+            return;
+          }
+          console.error(`Failed to save ${label}:`, r.error);
+          report("error", attempt);
+        })
         .catch((error) => {
           console.error(`Failed to save ${label}:`, error);
           report("error", attempt);
@@ -63,7 +71,7 @@ export function PageHeader({
     attempt();
   }
 
-  function schedule(key: string, action: () => Promise<unknown>) {
+  function schedule(key: string, action: () => Promise<ActionResult>) {
     clearTimeout(timers.current[key]);
     timers.current[key] = setTimeout(
       () => persist(key, action),
@@ -71,7 +79,7 @@ export function PageHeader({
     );
   }
 
-  function flush(key: string, action: () => Promise<unknown>) {
+  function flush(key: string, action: () => Promise<ActionResult>) {
     clearTimeout(timers.current[key]);
     persist(key, action);
   }
