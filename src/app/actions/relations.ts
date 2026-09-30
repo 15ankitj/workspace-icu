@@ -3,6 +3,14 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  fail,
+  fromSupabaseError,
+  ok,
+  runAction,
+  type ActionFailure,
+  type ActionResult,
+} from "@/lib/action-result";
 import { comparePositions, firstPosition, positionAfter } from "@/lib/position";
 import {
   MAX_RELATION_LINKS,
@@ -38,36 +46,40 @@ async function requireUser() {
 }
 
 /** Turn a refused write into something a person can act on. */
-function explain(
-  error: { message: string; code?: string },
-  fallback: string,
-): Error {
+function explain(error: { message: string; code?: string }): ActionFailure {
   const m = error.message;
   if (error.code === "42501" || /row-level security/i.test(m)) {
-    return new Error("You need edit access to both pages to change this link.");
+    return fail(
+      "You need edit access to both pages to change this link.",
+      "permission_denied",
+    );
   }
   if (/same workspace/.test(m)) {
-    return new Error("Relations link pages in the same workspace only.");
+    return fail("Relations link pages in the same workspace only.");
   }
   if (/in the trash/.test(m)) {
-    return new Error("A page in the trash cannot be linked. Restore it first.");
+    return fail("A page in the trash cannot be linked. Restore it first.");
   }
   if (/at most 200/.test(m)) {
-    return new Error(`A relation holds at most ${MAX_RELATION_LINKS} pages.`);
+    return fail(`A relation holds at most ${MAX_RELATION_LINKS} pages.`);
   }
   if (/no relation property/.test(m)) {
-    return new Error("That relation no longer exists on the page.");
+    return fail("That relation no longer exists on the page.");
   }
-  if (error.code === "23505") return new Error("That page is already linked.");
-  return new Error(`${fallback}: ${m}`);
+  if (error.code === "23505") {
+    return fail("That page is already linked.", "conflict");
+  }
+  return fromSupabaseError(error);
 }
 
-function assertIds(...pairs: [unknown, RegExp][]) {
+/** The failure for a malformed id, or null when every id is well formed. */
+function checkIds(...pairs: [unknown, RegExp][]): ActionFailure | null {
   for (const [value, pattern] of pairs) {
     if (typeof value !== "string" || !pattern.test(value)) {
-      throw new Error("Invalid request");
+      return fail("Invalid request");
     }
   }
+  return null;
 }
 
 async function insertLink(
@@ -77,19 +89,19 @@ async function insertLink(
   sourcePageId: string,
   propertyId: string,
   targetPageId: string,
-): Promise<{ id: string; position: string }> {
+): Promise<ActionResult<{ id: string; position: string }>> {
   const { data: existing, error: loadError } = await supabase
     .from("page_relations")
     .select("position, target_page_id")
     .eq("source_page_id", sourcePageId)
     .eq("source_property_id", propertyId);
-  if (loadError) throw explain(loadError, "Could not load the relation");
+  if (loadError) return explain(loadError);
   const links = existing ?? [];
   if (links.some((l) => l.target_page_id === targetPageId)) {
-    throw new Error("That page is already linked.");
+    return fail("That page is already linked.", "conflict");
   }
   if (links.length >= MAX_RELATION_LINKS) {
-    throw new Error(`A relation holds at most ${MAX_RELATION_LINKS} pages.`);
+    return fail(`A relation holds at most ${MAX_RELATION_LINKS} pages.`);
   }
   // Ordered here, not in SQL: fractional keys sort by code point, which
   // the database collation need not agree with.
@@ -111,8 +123,8 @@ async function insertLink(
     })
     .select("id, position")
     .single();
-  if (error) throw explain(error, "Could not link the page");
-  return data;
+  if (error) return explain(error);
+  return ok(data);
 }
 
 function revalidatePages(workspaceId: string, ...pageIds: string[]) {
@@ -124,37 +136,41 @@ export async function addRelationLink(
   sourcePageId: string,
   propertyId: string,
   targetPageId: string,
-): Promise<{ id: string; position: string }> {
-  assertIds(
-    [sourcePageId, UUID],
-    [propertyId, PROPERTY_ID],
-    [targetPageId, UUID],
-  );
-  if (sourcePageId === targetPageId) {
-    throw new Error("A page cannot be linked to itself.");
-  }
-  const { supabase, user } = await requireUser();
-  const { data: page } = await supabase
-    .from("pages")
-    .select("workspace_id, properties")
-    .eq("id", sourcePageId)
-    .maybeSingle();
-  if (!page) throw new Error("Page not found");
-  const row = normalizeProperties(page.properties).rows.find(
-    (r) => r.id === propertyId && r.type === "relation",
-  );
-  if (!row) throw new Error("That relation no longer exists on the page.");
+): Promise<ActionResult<{ id: string; position: string }>> {
+  return runAction(async () => {
+    const invalid = checkIds(
+      [sourcePageId, UUID],
+      [propertyId, PROPERTY_ID],
+      [targetPageId, UUID],
+    );
+    if (invalid) return invalid;
+    if (sourcePageId === targetPageId) {
+      return fail("A page cannot be linked to itself.");
+    }
+    const { supabase, user } = await requireUser();
+    const { data: page } = await supabase
+      .from("pages")
+      .select("workspace_id, properties")
+      .eq("id", sourcePageId)
+      .maybeSingle();
+    if (!page) return fail("Page not found");
+    const row = normalizeProperties(page.properties).rows.find(
+      (r) => r.id === propertyId && r.type === "relation",
+    );
+    if (!row) return fail("That relation no longer exists on the page.");
 
-  const link = await insertLink(
-    supabase,
-    user.id,
-    page.workspace_id,
-    sourcePageId,
-    propertyId,
-    targetPageId,
-  );
-  revalidatePages(page.workspace_id, sourcePageId, targetPageId);
-  return link;
+    const link = await insertLink(
+      supabase,
+      user.id,
+      page.workspace_id,
+      sourcePageId,
+      propertyId,
+      targetPageId,
+    );
+    if (!link.ok) return link;
+    revalidatePages(page.workspace_id, sourcePageId, targetPageId);
+    return ok({ id: link.id, position: link.position });
+  });
 }
 
 /**
@@ -168,101 +184,117 @@ export async function addRelationFromReverse(
   sourcePageId: string,
   label: string,
   reverseLabel: string,
-): Promise<{ id: string; position: string; propertyId: string }> {
-  assertIds([targetPageId, UUID], [sourcePageId, UUID]);
-  if (typeof label !== "string" || !label.trim()) {
-    throw new Error("Invalid request");
-  }
-  if (sourcePageId === targetPageId) {
-    throw new Error("A page cannot be linked to itself.");
-  }
-  const { supabase, user } = await requireUser();
-  const { data: source } = await supabase
-    .from("pages")
-    .select("workspace_id, properties")
-    .eq("id", sourcePageId)
-    .maybeSingle();
-  if (!source) throw new Error("Page not found");
-
-  const properties = normalizeProperties(source.properties);
-  let row: RelationRow | null = relationRowByLabel(properties, label);
-  if (!row) {
-    if (properties.rows.length >= MAX_ROWS) {
-      throw new Error(
-        "That page already has the maximum number of properties.",
-      );
+): Promise<ActionResult<{ id: string; position: string; propertyId: string }>> {
+  return runAction(async () => {
+    const invalid = checkIds([targetPageId, UUID], [sourcePageId, UUID]);
+    if (invalid) return invalid;
+    if (typeof label !== "string" || !label.trim()) {
+      return fail("Invalid request");
     }
-    const candidate: PagePropertyRow = {
-      id: newPropertyId(),
-      type: "relation",
-      label,
-      reverse_label: reverseLabel,
-    };
-    const next = normalizeProperties({
-      hidden: properties.hidden,
-      rows: [...properties.rows, candidate],
-    });
-    const added = next.rows.find((r) => r.id === candidate.id);
-    if (!added || added.type !== "relation") {
-      throw new Error("Could not add the relation to that page.");
+    if (sourcePageId === targetPageId) {
+      return fail("A page cannot be linked to itself.");
     }
-    const { error } = await supabase
+    const { supabase, user } = await requireUser();
+    const { data: source } = await supabase
       .from("pages")
-      .update({ properties: next as unknown as Json })
-      .eq("id", sourcePageId);
-    if (error) throw explain(error, "Could not add the relation to that page");
-    row = added;
-  }
+      .select("workspace_id, properties")
+      .eq("id", sourcePageId)
+      .maybeSingle();
+    if (!source) return fail("Page not found");
 
-  const link = await insertLink(
-    supabase,
-    user.id,
-    source.workspace_id,
-    sourcePageId,
-    row.id,
-    targetPageId,
-  );
-  revalidatePages(source.workspace_id, sourcePageId, targetPageId);
-  return { ...link, propertyId: row.id };
+    const properties = normalizeProperties(source.properties);
+    let row: RelationRow | null = relationRowByLabel(properties, label);
+    if (!row) {
+      if (properties.rows.length >= MAX_ROWS) {
+        return fail("That page already has the maximum number of properties.");
+      }
+      const candidate: PagePropertyRow = {
+        id: newPropertyId(),
+        type: "relation",
+        label,
+        reverse_label: reverseLabel,
+      };
+      const next = normalizeProperties({
+        hidden: properties.hidden,
+        rows: [...properties.rows, candidate],
+      });
+      const added = next.rows.find((r) => r.id === candidate.id);
+      if (!added || added.type !== "relation") {
+        return fail("Could not add the relation to that page.");
+      }
+      const { error } = await supabase
+        .from("pages")
+        .update({ properties: next as unknown as Json })
+        .eq("id", sourcePageId);
+      if (error) return explain(error);
+      row = added;
+    }
+
+    const link = await insertLink(
+      supabase,
+      user.id,
+      source.workspace_id,
+      sourcePageId,
+      row.id,
+      targetPageId,
+    );
+    if (!link.ok) return link;
+    revalidatePages(source.workspace_id, sourcePageId, targetPageId);
+    return ok({ id: link.id, position: link.position, propertyId: row.id });
+  });
 }
 
 /** Remove a link from either side. */
-export async function removeRelationLink(linkId: string): Promise<void> {
-  assertIds([linkId, UUID]);
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("page_relations")
-    .delete()
-    .eq("id", linkId)
-    .select("workspace_id, source_page_id, target_page_id");
-  if (error) throw explain(error, "Could not remove the link");
-  const gone = data?.[0];
-  if (!gone) {
-    throw new Error(
-      "The link was not removed: it is already gone, or you need edit access to both pages.",
+export async function removeRelationLink(
+  linkId: string,
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const invalid = checkIds([linkId, UUID]);
+    if (invalid) return invalid;
+    const { supabase } = await requireUser();
+    const { data, error } = await supabase
+      .from("page_relations")
+      .delete()
+      .eq("id", linkId)
+      .select("workspace_id, source_page_id, target_page_id");
+    if (error) return explain(error);
+    const gone = data?.[0];
+    if (!gone) {
+      return fail(
+        "The link was not removed: it is already gone, or you need edit access to both pages.",
+      );
+    }
+    revalidatePages(
+      gone.workspace_id,
+      gone.source_page_id,
+      gone.target_page_id,
     );
-  }
-  revalidatePages(gone.workspace_id, gone.source_page_id, gone.target_page_id);
+    return ok();
+  });
 }
 
 /** Reorder within a property: the client computes the fractional key. */
 export async function moveRelationLink(
   linkId: string,
   position: string,
-): Promise<void> {
-  assertIds([linkId, UUID], [position, POSITION]);
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("page_relations")
-    .update({ position })
-    .eq("id", linkId)
-    .select("workspace_id, source_page_id");
-  if (error) throw explain(error, "Could not reorder the link");
-  const moved = data?.[0];
-  if (!moved) {
-    throw new Error(
-      "The link was not moved: it is gone, or you need edit access to the page.",
-    );
-  }
-  revalidatePages(moved.workspace_id, moved.source_page_id);
+): Promise<ActionResult> {
+  return runAction(async () => {
+    const invalid = checkIds([linkId, UUID], [position, POSITION]);
+    if (invalid) return invalid;
+    const { supabase } = await requireUser();
+    const { data, error } = await supabase
+      .from("page_relations")
+      .update({ position })
+      .eq("id", linkId)
+      .select("workspace_id, source_page_id");
+    if (error) return explain(error);
+    const moved = data?.[0];
+    if (!moved) {
+      return fail(
+        "The link was not moved: it is gone, or you need edit access to the page.",
+      );
+    }
+    revalidatePages(moved.workspace_id, moved.source_page_id);
+    return ok();
+  });
 }
