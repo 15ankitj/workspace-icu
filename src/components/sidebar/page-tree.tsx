@@ -21,7 +21,6 @@ import {
   createPage,
   deletePage,
   movePage,
-  setPagePrivacy,
   toggleFavourite,
 } from "@/app/actions/pages";
 import {
@@ -42,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PrivacyMenuItem } from "@/components/page/privacy-menu-item";
 import { cn } from "@/lib/utils";
 
 type DropMode = "before" | "after" | "child";
@@ -302,16 +302,10 @@ function TreeRow({
                   <Star /> Favourite
                 </DropdownMenuItem>
                 {page.created_by === userId && (
-                  <DropdownMenuItem
-                    onSelect={() =>
-                      startTransition(() =>
-                        setPagePrivacy(page.id, !page.is_private),
-                      )
-                    }
-                  >
-                    <Lock />
-                    {page.is_private ? "Make shared" : "Make private"}
-                  </DropdownMenuItem>
+                  <PrivacyMenuItem
+                    pageId={page.id}
+                    isPrivate={page.is_private}
+                  />
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

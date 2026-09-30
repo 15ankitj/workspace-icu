@@ -469,6 +469,8 @@ export default async function PageView({
       fullWidth={page.full_width}
       smallText={page.small_text}
       canEdit={canEditThisPage}
+      isPrivate={page.is_private}
+      canTogglePrivacy={page.created_by === user.id}
       isPlatformOwner={Boolean(platformOwner)}
       unresolvedSuggestions={openSuggestionIds.size + staleSuggestions.length}
       authorship={
