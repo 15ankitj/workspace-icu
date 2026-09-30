@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   allowedPageModes,
   defaultPageMode,
+  documentOutcomeFor,
   excerptOf,
+  isFinalStatus,
   isOwnSuggestion,
+  kindTitle,
   makeSuggestionId,
   staleCandidates,
+  statusLabel,
   suggesterName,
   suggesterPrefix,
   suggestionLabel,
@@ -132,5 +136,32 @@ describe("block-level suggestions", () => {
     expect(staleCandidates(["a", "b", "c"], ["b"], ["a", "b"])).toEqual(["a"]);
     expect(staleCandidates([], ["b"], ["b"])).toEqual([]);
     expect(staleCandidates(["a"], [], [])).toEqual([]);
+  });
+});
+
+describe("recorded statuses", () => {
+  it("knows which statuses are final", () => {
+    expect(isFinalStatus("open")).toBe(false);
+    expect(isFinalStatus(undefined)).toBe(false);
+    for (const s of ["accepted", "rejected", "withdrawn", "stale"] as const) {
+      expect(isFinalStatus(s)).toBe(true);
+    }
+  });
+
+  it("maps a recorded status to what the document must do", () => {
+    expect(documentOutcomeFor("accepted")).toBe("accept");
+    expect(documentOutcomeFor("rejected")).toBe("revert");
+    expect(documentOutcomeFor("withdrawn")).toBe("revert");
+    expect(documentOutcomeFor("stale")).toBe("revert");
+    expect(documentOutcomeFor("open")).toBeNull();
+    expect(documentOutcomeFor(null)).toBeNull();
+  });
+
+  it("labels statuses and indexed kinds for the review list", () => {
+    expect(statusLabel("accepted")).toBe("Accepted");
+    expect(statusLabel("stale")).toBe("No longer applies");
+    expect(kindTitle("insertion")).toBe("Insertion");
+    expect(kindTitle("modification")).toBe("Modification");
+    expect(kindTitle("edit")).toBe("Edit");
   });
 });

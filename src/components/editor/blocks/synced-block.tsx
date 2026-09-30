@@ -35,7 +35,10 @@ import {
   suggestionAtSelection,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
-import { SuggestionPopover } from "@/components/editor/suggestions-ui";
+import {
+  SuggestionChip,
+  useActiveSuggestion,
+} from "@/components/editor/suggestions-ui";
 import { registerSuggestions } from "@/app/actions/suggestions";
 import { excerptOf, isOwnSuggestion } from "@/lib/suggestions";
 import {
@@ -203,10 +206,8 @@ function LiveContent({
   const canType = editable || suggesting;
   const roomId = roomIdForSyncedBlock(view.id);
   const [spans, setSpans] = useState<SuggestionSpan[]>([]);
-  const [active, setActive] = useState<{
-    span: SuggestionSpan;
-    position: { left: number; top: number };
-  } | null>(null);
+  // The chip follows the document: gone the moment its span is.
+  const [active, setActive] = useActiveSuggestion(spans);
   const containerRef = useRef<HTMLDivElement>(null);
   const knownSuggestions = useRef<Set<string> | null>(null);
   const registerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -353,9 +354,15 @@ function LiveContent({
           .map((s) => ({ id: s.id, kind: s.kind, excerpt: excerptOf(s.text) }));
         for (const item of items) knownSuggestions.current!.add(item.id);
         if (items.length > 0 && view.sourcePageId) {
-          registerSuggestions(view.sourcePageId, items).catch((error) =>
-            console.error("Failed to record suggestions:", error),
-          );
+          registerSuggestions(view.sourcePageId, items)
+            .then((result) => {
+              if (!result.ok) {
+                console.error("Failed to record suggestions:", result.error);
+              }
+            })
+            .catch((error) =>
+              console.error("Failed to record suggestions:", error),
+            );
         }
       }, 2000);
     };
@@ -414,18 +421,19 @@ function LiveContent({
       });
     }, true);
     return () => unsubscribe?.();
-  }, [editor, spans, actor]);
+  }, [editor, spans, actor, setActive]);
 
   return (
     <div ref={containerRef} className="relative">
       {active && actor && view.sourcePageId && (
-        <SuggestionPopover
+        <SuggestionChip
           key={active.span.id}
           editor={editor}
           pageId={view.sourcePageId}
           actor={{ ...actor, isAuthor: view.sourceIsAuthor }}
           span={active.span}
           position={active.position}
+          callbacks={{ onResolving: () => setActive(null) }}
         />
       )}
       <BlockNoteView

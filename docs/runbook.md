@@ -448,13 +448,38 @@ says until the author accepts (brief §2.4).
   carry the author's not-yet-persisted edits; the client retries quietly
   after a few seconds. A workspace owner who resolved a suggestion on
   the page in the last 10 minutes passes, so owner overrides apply.
-- **Resolution**: authors accept or reject (popover on the caret, or the
-  review bar with _Accept all_ / _Reject all_ behind a count-naming
-  confirm); the suggester may withdraw. A workspace owner who is not the
-  author must type a reason, stored on the suggestion and in the audit
-  event as an override. The server records the outcome before the
-  document applies it. Audit pair: `suggestion_created` and
+- **Resolution**: authors accept or reject; the suggester may withdraw.
+  The review bar lists every open suggestion (kind, excerpt — old → new
+  for a modification — suggester, when, notes, actions); clicking a row
+  selects it in the page, _Next_ / _Previous_ walk them in document
+  order, and a compact chip on the suggestion under the caret offers the
+  same actions. _Accept all_ / _Reject all_ sit behind a count-naming
+  confirm. A workspace owner who is not the author must type a reason,
+  stored on the suggestion and in the audit event as an override. A
+  collapsed _Resolved (n)_ section shows the last ten decisions here.
+  Audit pair: `suggestion_created` and
   `suggestion_accepted|rejected|withdrawn` on `page_suggestions`.
+- **Record, then converge** (migration 0030): the document's marks decide
+  what is shown; the `page_suggestions` row is the audit record. A
+  resolution records first (that is where permission lives), then brings
+  the document into line with the status the record _reports_: accepted
+  applies the marks, any other final status reverts them. The RPC is
+  idempotent — resolving a row that is already accepted / rejected /
+  withdrawn returns that status without raising, without a second audit
+  event and without a second notification — so a repeat click, or a
+  click on a suggestion someone else has since withdrawn, silently
+  removes the lingering marks and the prompt goes; nothing is shown but
+  the row leaving the list. `resolveSuggestion`, `registerSuggestions`
+  and `markSuggestionsStale` return `{ ok, … }` / `{ ok: false, error }`
+  rather than throwing, because production Next.js masks a thrown
+  server-action message behind a generic digest (React #441); a refusal
+  ("context changed", "only the page author…") reaches the reviewer in
+  the server's own words. On load and after every remote change the
+  editor reconciles: any span in the document whose recorded status is
+  final is converged (once per id and status, a few retries while block
+  marks are still being restored from their mirrored attribute), which
+  heals a page left split-brain by an earlier failure without anyone
+  clicking.
 - **Retention**: resolved-suggestion detail (excerpt, reason) is deleted
   by the nightly purge after 90 days; audit events stay.
 - **Synced blocks** follow their source page: a block sourced from an

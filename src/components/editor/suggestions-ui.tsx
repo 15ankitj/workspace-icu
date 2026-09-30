@@ -4,15 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BlockNoteEditor } from "@blocknote/core";
 import { selectSuggestion } from "@handlewithcare/prosemirror-suggest-changes";
-import { Check, ListChecks, MessageSquare, Undo2, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ListChecks,
+  MessageSquare,
+  Undo2,
+  X,
+} from "lucide-react";
 import { addComment } from "@/app/actions/comments";
 import { resolveSuggestion } from "@/app/actions/suggestions";
 import {
-  resolveAllInDocument,
-  resolveInDocument,
+  applyOutcome,
   spanLabel,
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import {
@@ -24,7 +34,17 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
-import { excerptOf, isOwnSuggestion, suggesterName } from "@/lib/suggestions";
+import {
+  excerptOf,
+  isOwnSuggestion,
+  kindTitle,
+  statusLabel,
+  suggesterName,
+  type ResolveResult,
+  type SuggestionOutcome,
+  type SuggestionStatus,
+} from "@/lib/suggestions";
+import { formatRelative } from "@/lib/time";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyEditor = BlockNoteEditor<any, any, any>;
@@ -49,8 +69,6 @@ export interface SuggestionActor {
   members: { id: string; displayName: string }[];
 }
 
-type Outcome = "accepted" | "rejected" | "withdrawn";
-
 /** A suggestion whose context an author's edit removed (§2.4). */
 export interface StaleSuggestion {
   id: string;
@@ -58,63 +76,144 @@ export interface StaleSuggestion {
   excerpt: string;
 }
 
-function kindLabel(span: SuggestionSpan) {
-  return spanLabel(span);
+/** What the index holds about an open suggestion: who and when, no content. */
+export interface SuggestionMeta {
+  suggesterId: string;
+  createdAt: string;
+}
+
+/** A resolved suggestion, for the read-only "Resolved" section. */
+export interface ResolvedSuggestion {
+  id: string;
+  kind: string;
+  excerpt: string;
+  status: Exclude<SuggestionStatus, "open">;
+  suggesterId: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  ownerOverride: boolean;
+}
+
+/** Hooks for the host of a resolution (the page editor). */
+export interface ResolveCallbacks {
+  /** The click landed: hide any prompt for this suggestion now. */
+  onResolving?: (id: string) => void;
+  /** The record holds `status` (which on a repeat is the earlier outcome). */
+  onResolved?: (
+    id: string,
+    status: SuggestionStatus,
+    detail: { outcome: SuggestionOutcome; ownerOverride: boolean },
+  ) => void;
+  /** The document has been converged to the recorded status. */
+  onApplied?: (id: string) => void;
+}
+
+export interface ResolveFailure {
+  id: string;
+  error: string;
+}
+
+/** The chip's target: a span and where to draw next to it. */
+export interface ActiveSuggestion {
+  span: SuggestionSpan;
+  position: { left: number; top: number };
 }
 
 /**
- * Resolution shared by the popover and the bar (Appendix A §2.3). The
- * server records the outcome first — that is where permission lives —
- * then the document applies it, which every open client sees through
- * Yjs. A workspace owner who is not the author is asked for a reason.
+ * The suggestion under the caret, cleared the moment its span leaves the
+ * document — so a chip can never outlive the suggestion it offers, no
+ * matter whether the caret moved.
  */
-function useResolve(
+export function useActiveSuggestion(spans: SuggestionSpan[]) {
+  const [active, setActive] = useState<ActiveSuggestion | null>(null);
+  // Derived, not synchronised: the moment the span is gone from the
+  // document the chip is gone, in the same render, whatever the caret did.
+  const present =
+    active && spans.some((s) => s.id === active.span.id) ? active : null;
+  return [present, setActive] as const;
+}
+
+function isRedirect(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    (error as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+  );
+}
+
+/**
+ * Resolution shared by the chip, the review list and the stale section
+ * (Appendix A §2.3): record first — that is where permission lives — then
+ * converge the document to the status the record reports, whatever
+ * outcome was asked for. A repeat therefore silently removes lingering
+ * marks and the prompt goes; a refusal is shown in the server's own
+ * words and the item stays. A workspace owner who is not the author is
+ * asked for a reason.
+ */
+export function useResolve(
   editor: AnyEditor,
   pageId: string,
   actor: SuggestionActor,
-  onResolved?: (id: string) => void,
+  callbacks: ResolveCallbacks = {},
 ) {
   const [askReason, setAskReason] = useState<{
     ids: string[];
     outcome: "accepted" | "rejected";
   } | null>(null);
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<{
+    ids: Set<string>;
+    outcome: SuggestionOutcome;
+  } | null>(null);
 
-  const run = async (ids: string[], outcome: Outcome, why?: string) => {
-    setBusy(true);
-    let done = 0;
+  const run = async (
+    ids: string[],
+    outcome: SuggestionOutcome,
+    why?: string,
+  ): Promise<ResolveFailure[]> => {
+    setBusy({ ids: new Set(ids), outcome });
+    const failures: ResolveFailure[] = [];
+    const ownerOverride = why !== undefined;
     for (const id of ids) {
+      callbacks.onResolving?.(id);
+      let result: ResolveResult;
       try {
-        await resolveSuggestion(pageId, id, outcome, why);
-        onResolved?.(id);
-        const ok = resolveInDocument(
-          editor,
-          id,
-          outcome === "accepted" ? "accept" : "revert",
-        );
-        if (!ok) {
-          toast({
-            title: "Recorded, but the text has moved",
-            description:
-              "The suggestion was resolved in the record; its context changed, so check the page.",
-          });
-        }
-        done += 1;
+        result = await resolveSuggestion(pageId, id, outcome, why);
       } catch (error) {
-        toast({
-          title: "Could not resolve suggestion",
-          description: error instanceof Error ? error.message : "Try again.",
-          variant: "destructive",
-        });
-        break;
+        if (isRedirect(error)) throw error;
+        result = {
+          ok: false,
+          error: error instanceof Error ? error.message : "Please try again.",
+        };
       }
+      if (!result.ok) {
+        failures.push({ id, error: result.error });
+        continue;
+      }
+      callbacks.onResolved?.(id, result.status, { outcome, ownerOverride });
+      applyOutcome(editor, id, result.status);
+      callbacks.onApplied?.(id);
     }
-    setBusy(false);
-    return done;
+    setBusy(null);
+    if (failures.length > 0) {
+      const messages = [...new Set(failures.map((f) => f.error))].join("; ");
+      toast({
+        variant: "destructive",
+        title:
+          ids.length === 1
+            ? "Could not resolve suggestion"
+            : `${failures.length} of ${ids.length} could not be resolved`,
+        description: messages,
+      });
+    } else if (ids.length > 1) {
+      toast({ title: `${ids.length} suggestions ${outcome}` });
+    }
+    return failures;
   };
 
-  const resolve = (ids: string[], outcome: Outcome) => {
+  const resolve = (ids: string[], outcome: SuggestionOutcome) => {
+    if (ids.length === 0) return;
     if (outcome !== "withdrawn" && !actor.isAuthor && actor.isOwner) {
       setReason("");
       setAskReason({ ids, outcome });
@@ -145,7 +244,7 @@ function useResolve(
           <Button
             type="button"
             variant="outline"
-            disabled={busy}
+            disabled={busy !== null}
             onClick={() => setAskReason(null)}
           >
             Cancel
@@ -155,7 +254,7 @@ function useResolve(
             variant={
               askReason.outcome === "accepted" ? "default" : "destructive"
             }
-            disabled={busy || reason.trim().length < 3}
+            disabled={busy !== null || reason.trim().length < 3}
             onClick={async () => {
               const { ids, outcome } = askReason;
               await run(ids, outcome, reason.trim());
@@ -171,18 +270,121 @@ function useResolve(
     </Dialog>
   );
 
-  return { resolve, busy, reasonDialog };
+  /** The label a button shows for `id` while its outcome is in flight. */
+  const pendingLabel = (id: string, outcome: SuggestionOutcome) =>
+    busy?.ids.has(id) && busy.outcome === outcome
+      ? {
+          accepted: "Accepting…",
+          rejected: "Rejecting…",
+          withdrawn: "Withdrawing…",
+        }[outcome]
+      : null;
+
+  return { resolve, busy: busy !== null, pendingLabel, reasonDialog };
 }
 
-/** Floating actions for the suggestion under the caret. */
-export function SuggestionPopover({
+/** Select a suggestion in the editor and bring it into view. */
+export function locateSuggestion(editor: AnyEditor, id: string) {
+  const view = editor.prosemirrorView;
+  if (view.isDestroyed) return;
+  selectSuggestion(id)(view.state, view.dispatch);
+  view.dispatch(view.state.tr.scrollIntoView());
+  view.focus();
+}
+
+function describe(span: SuggestionSpan, max = 60): React.ReactNode {
+  if (span.change) {
+    return (
+      <>
+        <span className="line-through decoration-muted-foreground/60">
+          {excerptOf(span.change.previous, max) || <em>empty</em>}
+        </span>
+        {" → "}
+        {excerptOf(span.change.next, max) || <em>empty</em>}
+      </>
+    );
+  }
+  return excerptOf(span.text, max) || <em>formatting</em>;
+}
+
+/** Accept / Reject for those who may, Withdraw for the suggester. */
+function SuggestionActions({
+  id,
+  mine,
+  canResolve,
+  busy,
+  pendingLabel,
+  onResolve,
+  compact = false,
+}: {
+  id: string;
+  mine: boolean;
+  canResolve: boolean;
+  busy: boolean;
+  pendingLabel: (id: string, outcome: SuggestionOutcome) => string | null;
+  onResolve: (id: string, outcome: SuggestionOutcome) => void;
+  compact?: boolean;
+}) {
+  const cls = compact ? "h-6 px-1.5" : "h-7 px-2";
+  const icon = compact ? "size-3.5" : "size-3.5";
+  return (
+    <>
+      {canResolve && (
+        <>
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cls}
+            disabled={busy}
+            onClick={() => onResolve(id, "accepted")}
+            title="Accept this suggestion"
+          >
+            <Check className={icon} aria-hidden />{" "}
+            {pendingLabel(id, "accepted") ?? "Accept"}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className={cls}
+            disabled={busy}
+            onClick={() => onResolve(id, "rejected")}
+            title="Reject this suggestion"
+          >
+            <X className={icon} aria-hidden />{" "}
+            {pendingLabel(id, "rejected") ?? "Reject"}
+          </Button>
+        </>
+      )}
+      {mine && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className={cls}
+          disabled={busy}
+          onClick={() => onResolve(id, "withdrawn")}
+          title="Withdraw your suggestion"
+        >
+          <Undo2 className={icon} aria-hidden />{" "}
+          {pendingLabel(id, "withdrawn") ?? "Withdraw"}
+        </Button>
+      )}
+    </>
+  );
+}
+
+/**
+ * The compact chip anchored to the suggestion under the caret. Its host
+ * keeps it with {@link useActiveSuggestion}, so it is gone the moment
+ * the suggestion is; it never waits for the caret to move.
+ */
+export function SuggestionChip({
   editor,
   pageId,
   actor,
   span,
   position,
   noteCount = 0,
-  onResolved,
+  callbacks,
 }: {
   editor: AnyEditor;
   pageId: string;
@@ -191,13 +393,13 @@ export function SuggestionPopover({
   /** Container-relative pixel position of the span's start. */
   position: { left: number; top: number };
   noteCount?: number;
-  onResolved?: (id: string) => void;
+  callbacks?: ResolveCallbacks;
 }) {
-  const { resolve, busy, reasonDialog } = useResolve(
+  const { resolve, busy, pendingLabel, reasonDialog } = useResolve(
     editor,
     pageId,
     actor,
-    onResolved,
+    callbacks,
   );
   const name = suggesterName(span.id, actor.members);
   const mine = isOwnSuggestion(span.id, actor.userId);
@@ -206,56 +408,39 @@ export function SuggestionPopover({
     <>
       <div
         contentEditable={false}
+        data-suggestion-chip={span.id}
         className="absolute z-20 flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs shadow-md"
         style={{ left: position.left, top: position.top }}
       >
         <span className="text-muted-foreground">
-          {kindLabel(span)} · {mine ? "you" : (name ?? "a colleague")}
+          {spanLabel(span)} · {mine ? "you" : (name ?? "a colleague")}
           {noteCount ? ` · ${noteCount} note${noteCount === 1 ? "" : "s"}` : ""}
         </span>
-        {canResolve && (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-1.5"
-              disabled={busy}
-              onClick={() => resolve([span.id], "accepted")}
-              title="Accept this suggestion"
-            >
-              <Check className="size-3.5" aria-hidden /> Accept
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-1.5"
-              disabled={busy}
-              onClick={() => resolve([span.id], "rejected")}
-              title="Reject this suggestion"
-            >
-              <X className="size-3.5" aria-hidden /> Reject
-            </Button>
-          </>
-        )}
-        {mine && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 px-1.5"
-            disabled={busy}
-            onClick={() => resolve([span.id], "withdrawn")}
-            title="Withdraw your suggestion"
-          >
-            <Undo2 className="size-3.5" aria-hidden /> Withdraw
-          </Button>
-        )}
+        <SuggestionActions
+          id={span.id}
+          mine={mine}
+          canResolve={canResolve}
+          busy={busy}
+          pendingLabel={pendingLabel}
+          onResolve={(id, outcome) => resolve([id], outcome)}
+          compact
+        />
       </div>
       {reasonDialog}
     </>
   );
 }
 
-/** The page's open suggestions: count, review list, accept/reject all. */
+/** @deprecated Renamed {@link SuggestionChip}. */
+export const SuggestionPopover = SuggestionChip;
+
+/**
+ * The page's suggestions: a header with the count, Next / Previous and
+ * Accept all / Reject all; the review list, one row per open suggestion;
+ * the context-changed section; and a collapsed record of what was last
+ * resolved here. The rows come from the document's marks (`spans`); the
+ * index (`meta`, `resolved`) only adds who, when and what happened.
+ */
 export function SuggestionsBar({
   editor,
   workspaceId,
@@ -264,8 +449,10 @@ export function SuggestionsBar({
   spans,
   threads,
   stale = [],
-  onResolved,
-  onStaleResolved,
+  meta = {},
+  resolved = [],
+  activeId = null,
+  callbacks,
 }: {
   editor: AnyEditor;
   workspaceId: string;
@@ -274,69 +461,44 @@ export function SuggestionsBar({
   spans: SuggestionSpan[];
   threads: SuggestionThreads;
   stale?: StaleSuggestion[];
-  onResolved?: (id: string) => void;
-  onStaleResolved?: (id: string) => void;
+  /** Index rows for open suggestions, by id. */
+  meta?: Record<string, SuggestionMeta>;
+  /** The last few resolved suggestions on this page, newest first. */
+  resolved?: ResolvedSuggestion[];
+  /** The suggestion under the caret, for "k of n" and Next / Previous. */
+  activeId?: string | null;
+  callbacks?: ResolveCallbacks;
 }) {
   const [open, setOpen] = useState(false);
+  const [showResolved, setShowResolved] = useState(false);
   const [openThread, setOpenThread] = useState<string | null>(null);
-  const [staleBusy, setStaleBusy] = useState<string | null>(null);
-  const { resolve, busy, reasonDialog } = useResolve(
+  const { resolve, busy, pendingLabel, reasonDialog } = useResolve(
     editor,
     pageId,
     actor,
-    onResolved,
+    callbacks,
   );
-  if (spans.length === 0 && stale.length === 0) return null;
+  if (spans.length === 0 && stale.length === 0 && resolved.length === 0) {
+    return null;
+  }
   const canResolve = actor.isAuthor || actor.isOwner;
   const count = spans.length;
-
-  const resolveAll = async (outcome: "accepted" | "rejected") => {
-    if (!actor.isAuthor && actor.isOwner) {
-      resolve(
-        spans.map((s) => s.id),
-        outcome,
-      );
-      return;
-    }
-    // Authors: one round trip per suggestion for the audit pair, then
-    // one document change for all.
-    for (const span of spans) {
-      try {
-        await resolveSuggestion(pageId, span.id, outcome);
-        onResolved?.(span.id);
-      } catch (error) {
-        toast({
-          title: "Could not resolve every suggestion",
-          description: error instanceof Error ? error.message : "Try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-    resolveAllInDocument(editor, outcome === "accepted" ? "accept" : "revert");
-    toast({
-      title: `${count} suggestion${count === 1 ? "" : "s"} ${outcome}`,
-    });
+  const index = activeId ? spans.findIndex((s) => s.id === activeId) : -1;
+  const step = (delta: 1 | -1) => {
+    if (count === 0) return;
+    const next =
+      index < 0
+        ? delta === 1
+          ? 0
+          : count - 1
+        : (index + delta + count) % count;
+    locateSuggestion(editor, spans[next].id);
   };
-
-  const resolveStale = async (
-    item: StaleSuggestion,
-    outcome: "withdrawn" | "rejected",
-  ) => {
-    setStaleBusy(item.id);
-    try {
-      await resolveSuggestion(pageId, item.id, outcome);
-      onStaleResolved?.(item.id);
-    } catch (error) {
-      toast({
-        title: "Could not resolve suggestion",
-        description: error instanceof Error ? error.message : "Try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setStaleBusy(null);
-    }
-  };
+  const nameOf = (userId: string) =>
+    userId === actor.userId
+      ? "you"
+      : (actor.members.find((m) => m.id === userId)?.displayName ??
+        "a colleague");
 
   return (
     <div className="mb-3 rounded-md border bg-card text-sm">
@@ -354,14 +516,11 @@ export function SuggestionsBar({
           <ul className="mt-1 space-y-1">
             {stale.map((item) => {
               const mine = item.suggesterId === actor.userId;
-              const name =
-                actor.members.find((m) => m.id === item.suggesterId)
-                  ?.displayName ?? "a colleague";
               return (
                 <li key={item.id} className="flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 truncate">
                     <span className="mr-2 text-xs text-muted-foreground">
-                      {mine ? "you" : name}
+                      {nameOf(item.suggesterId)}
                     </span>
                     {item.excerpt || <em>formatting</em>}
                   </span>
@@ -370,10 +529,10 @@ export function SuggestionsBar({
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
-                      disabled={staleBusy === item.id}
-                      onClick={() => resolveStale(item, "withdrawn")}
+                      disabled={busy}
+                      onClick={() => resolve([item.id], "withdrawn")}
                     >
-                      Withdraw
+                      {pendingLabel(item.id, "withdrawn") ?? "Withdraw"}
                     </Button>
                   )}
                   {canResolve && (
@@ -381,10 +540,10 @@ export function SuggestionsBar({
                       size="sm"
                       variant="ghost"
                       className="h-7 px-2"
-                      disabled={staleBusy === item.id}
-                      onClick={() => resolveStale(item, "rejected")}
+                      disabled={busy}
+                      onClick={() => resolve([item.id], "rejected")}
                     >
-                      Dismiss
+                      {pendingLabel(item.id, "rejected") ?? "Dismiss"}
                     </Button>
                   )}
                 </li>
@@ -393,109 +552,135 @@ export function SuggestionsBar({
           </ul>
         </div>
       )}
-      {count > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2">
-          <ListChecks className="size-4 text-muted-foreground" aria-hidden />
-          <span>
-            {count} open suggestion{count === 1 ? "" : "s"}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7"
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? "Hide" : "Review"}
-          </Button>
-          {canResolve && (
-            <span className="ml-auto flex gap-1">
-              <ConfirmButton
-                size="sm"
-                variant="secondary"
-                className="h-7"
-                title={`Accept all ${count} suggestion${count === 1 ? "" : "s"}?`}
-                description="Every proposed insertion is kept and every proposed deletion is applied. This is recorded per suggestion."
-                confirmLabel={`Accept ${count}`}
-                onConfirm={() => void resolveAll("accepted")}
-                disabled={busy}
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+        <ListChecks className="size-4 text-muted-foreground" aria-hidden />
+        <span>
+          {count === 0
+            ? "No open suggestions"
+            : `${count} open suggestion${count === 1 ? "" : "s"}`}
+        </span>
+        {count > 0 && (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7"
+              aria-expanded={open}
+              onClick={() => setOpen((v) => !v)}
+            >
+              {open ? "Hide" : "Review"}
+            </Button>
+            <span className="flex items-center gap-0.5">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7"
+                aria-label="Previous suggestion"
+                title="Previous suggestion"
+                onClick={() => step(-1)}
               >
-                Accept all
-              </ConfirmButton>
-              <ConfirmButton
-                size="sm"
-                variant="outline"
-                className="h-7"
-                title={`Reject all ${count} suggestion${count === 1 ? "" : "s"}?`}
-                description="Every proposed change is discarded and the page returns to its current text. This is recorded per suggestion."
-                confirmLabel={`Reject ${count}`}
-                onConfirm={() => void resolveAll("rejected")}
-                disabled={busy}
+                <ChevronLeft className="size-4" aria-hidden />
+              </Button>
+              <span className="min-w-8 text-center text-xs tabular-nums text-muted-foreground">
+                {index >= 0 ? `${index + 1} of ${count}` : `— of ${count}`}
+              </span>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7"
+                aria-label="Next suggestion"
+                title="Next suggestion"
+                onClick={() => step(1)}
               >
-                Reject all
-              </ConfirmButton>
+                <ChevronRight className="size-4" aria-hidden />
+              </Button>
             </span>
-          )}
-        </div>
-      )}
+          </>
+        )}
+        {canResolve && count > 0 && (
+          <span className="ml-auto flex gap-1">
+            <ConfirmButton
+              size="sm"
+              variant="secondary"
+              className="h-7"
+              title={`Accept all ${count} suggestion${count === 1 ? "" : "s"}?`}
+              description="Every proposed insertion is kept and every proposed deletion is applied. This is recorded per suggestion."
+              confirmLabel={`Accept ${count}`}
+              onConfirm={() =>
+                resolve(
+                  spans.map((s) => s.id),
+                  "accepted",
+                )
+              }
+              disabled={busy}
+            >
+              Accept all
+            </ConfirmButton>
+            <ConfirmButton
+              size="sm"
+              variant="outline"
+              className="h-7"
+              title={`Reject all ${count} suggestion${count === 1 ? "" : "s"}?`}
+              description="Every proposed change is discarded and the page returns to its current text. This is recorded per suggestion."
+              confirmLabel={`Reject ${count}`}
+              onConfirm={() =>
+                resolve(
+                  spans.map((s) => s.id),
+                  "rejected",
+                )
+              }
+              disabled={busy}
+            >
+              Reject all
+            </ConfirmButton>
+          </span>
+        )}
+      </div>
       {open && count > 0 && (
-        <ul className="divide-y border-t">
+        <ul className="divide-y border-t" data-suggestion-list>
           {spans.map((span) => {
             const mine = isOwnSuggestion(span.id, actor.userId);
-            const name = suggesterName(span.id, actor.members);
+            const row = meta[span.id];
+            const name = row
+              ? nameOf(row.suggesterId)
+              : mine
+                ? "you"
+                : (suggesterName(span.id, actor.members) ?? "a colleague");
             const notes = threads[span.id] ?? [];
             return (
-              <li key={span.id} className="px-3 py-1.5">
+              <li
+                key={span.id}
+                data-suggestion-row={span.id}
+                className={
+                  span.id === activeId
+                    ? "bg-muted/40 px-3 py-1.5"
+                    : "px-3 py-1.5"
+                }
+              >
                 <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="shrink-0">
+                    {spanLabel(span)}
+                  </Badge>
                   <button
                     type="button"
                     className="min-w-0 flex-1 truncate text-left hover:underline"
                     title="Show in the page"
-                    onClick={() => {
-                      const view = editor.prosemirrorView;
-                      selectSuggestion(span.id)(view.state, view.dispatch);
-                      view.focus();
-                    }}
+                    onClick={() => locateSuggestion(editor, span.id)}
                   >
-                    <span className="mr-2 text-xs text-muted-foreground">
-                      {kindLabel(span)} ·{" "}
-                      {mine ? "you" : (name ?? "a colleague")}
-                    </span>
-                    {excerptOf(span.text) || <em>formatting</em>}
+                    {describe(span)}
                   </button>
-                  {canResolve && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        disabled={busy}
-                        onClick={() => resolve([span.id], "accepted")}
-                      >
-                        Accept
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        disabled={busy}
-                        onClick={() => resolve([span.id], "rejected")}
-                      >
-                        Reject
-                      </Button>
-                    </>
-                  )}
-                  {mine && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 px-2"
-                      disabled={busy}
-                      onClick={() => resolve([span.id], "withdrawn")}
-                    >
-                      Withdraw
-                    </Button>
-                  )}
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {name}
+                    {row ? ` · ${formatRelative(row.createdAt)}` : ""}
+                  </span>
+                  <SuggestionActions
+                    id={span.id}
+                    mine={mine}
+                    canResolve={canResolve}
+                    busy={busy}
+                    pendingLabel={pendingLabel}
+                    onResolve={(id, outcome) => resolve([id], outcome)}
+                  />
                   <Button
                     size="sm"
                     variant="ghost"
@@ -534,6 +719,48 @@ export function SuggestionsBar({
             );
           })}
         </ul>
+      )}
+      {resolved.length > 0 && (
+        <div className="border-t px-3 py-1.5">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            aria-expanded={showResolved}
+            onClick={() => setShowResolved((v) => !v)}
+          >
+            {showResolved ? (
+              <ChevronUp className="size-3.5" aria-hidden />
+            ) : (
+              <ChevronDown className="size-3.5" aria-hidden />
+            )}
+            Resolved ({resolved.length})
+          </button>
+          {showResolved && (
+            <ul className="mt-1 space-y-1" data-suggestion-resolved>
+              {resolved.slice(0, 10).map((item) => (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap items-center gap-2 text-xs"
+                >
+                  <Badge variant="outline" className="shrink-0">
+                    {kindTitle(item.kind)}
+                  </Badge>
+                  <span className="min-w-0 flex-1 truncate">
+                    {item.excerpt || <em>formatting</em>}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {statusLabel(item.status)}
+                    {item.resolvedBy ? ` by ${nameOf(item.resolvedBy)}` : ""}
+                    {item.ownerOverride ? " (owner override)" : ""}
+                    {item.resolvedAt
+                      ? ` · ${formatRelative(item.resolvedAt)}`
+                      : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {reasonDialog}
     </div>

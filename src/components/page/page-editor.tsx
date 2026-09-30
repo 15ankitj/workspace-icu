@@ -37,6 +37,7 @@ import { seedFromStoredBlocks } from "@/components/editor/seed";
 import { reportSeedFailure } from "@/components/editor/seed-failure";
 import {
   SuggestionsExtension,
+  applyOutcome,
   cleanDocument,
   coordsOf,
   installSuggestDispatch,
@@ -46,10 +47,14 @@ import {
   type SuggestionSpan,
 } from "@/components/editor/suggestions";
 import {
-  SuggestionPopover,
+  SuggestionChip,
   SuggestionsBar,
+  useActiveSuggestion,
+  type ResolveCallbacks,
+  type ResolvedSuggestion,
   type StaleSuggestion,
   type SuggestionActor,
+  type SuggestionMeta,
   type SuggestionThreads,
 } from "@/components/editor/suggestions-ui";
 import {
@@ -57,7 +62,13 @@ import {
   registerSuggestions,
 } from "@/app/actions/suggestions";
 import { usePageMode } from "@/components/page/page-mode";
-import { excerptOf, isOwnSuggestion, staleCandidates } from "@/lib/suggestions";
+import {
+  excerptOf,
+  isFinalStatus,
+  isOwnSuggestion,
+  staleCandidates,
+  type SuggestionStatus,
+} from "@/lib/suggestions";
 import {
   SourceRemovalDialog,
   type SourceRemovalTarget,
@@ -94,6 +105,10 @@ const REGISTER_DEBOUNCE_MS = 2000;
 const STALE_GRACE_MS = 1500;
 /** A cut placement may be about to be pasted back; wait before asking. */
 const REMOVAL_GRACE_MS = 1200;
+/** Converging a span the record already holds as final may fail while
+ *  its block marks are still to be restored from the mirrored attribute;
+ *  later changes get a few more tries, never a loop. */
+const HEAL_ATTEMPTS = 5;
 
 /** A synced block whose source is this page but which no longer has a
  *  placement here (its source placement was removed without a decision). */
@@ -137,6 +152,9 @@ export function PageEditor({
   suggestionThreads = {},
   openSuggestionIds = [],
   staleSuggestions = [],
+  suggestionStatuses = {},
+  suggestionMeta = {},
+  resolvedSuggestions = [],
 }: {
   pageId: string;
   workspaceId: string;
@@ -159,6 +177,13 @@ export function PageEditor({
   openSuggestionIds?: string[];
   /** Suggestions whose context changed, awaiting withdrawal or dismissal. */
   staleSuggestions?: StaleSuggestion[];
+  /** Every indexed suggestion's status (ids and statuses only), so the
+   *  document can be reconciled with the record (§2.3). */
+  suggestionStatuses?: Record<string, SuggestionStatus>;
+  /** Who made each open suggestion and when, for the review list. */
+  suggestionMeta?: Record<string, SuggestionMeta>;
+  /** The last few resolved suggestions here, newest first. */
+  resolvedSuggestions?: ResolvedSuggestion[];
 }) {
   const actor = useMemo<SuggestionActor>(
     () =>
@@ -185,10 +210,21 @@ export function PageEditor({
     modeRef.current = mode;
   }, [mode]);
   const [spans, setSpans] = useState<SuggestionSpan[]>([]);
-  const [active, setActive] = useState<{
-    span: SuggestionSpan;
-    position: { left: number; top: number };
-  } | null>(null);
+  const spansRef = useRef<SuggestionSpan[]>([]);
+  // The chip follows the document: gone the moment its span is.
+  const [active, setActive] = useActiveSuggestion(spans);
+  // What the record says about each suggestion; resolutions made here
+  // update it, and a load or refresh brings the rest.
+  const statusesRef = useRef<Record<string, SuggestionStatus>>({
+    ...suggestionStatuses,
+  });
+  useEffect(() => {
+    Object.assign(statusesRef.current, suggestionStatuses);
+  }, [suggestionStatuses]);
+  const healAttempts = useRef(new Map<string, number>());
+  const refreshSpans = useRef<(() => void) | null>(null);
+  const [resolved, setResolved] =
+    useState<ResolvedSuggestion[]>(resolvedSuggestions);
   const containerRef = useRef<HTMLDivElement>(null);
   const knownSuggestions = useRef<Set<string> | null>(null);
   const registerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,6 +237,10 @@ export function PageEditor({
   const previousIds = useRef<Set<string> | null>(null);
   const staleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [stale, setStale] = useState<StaleSuggestion[]>(staleSuggestions);
+  const staleRef = useRef(stale);
+  useEffect(() => {
+    staleRef.current = stale;
+  }, [stale]);
 
   // Source placements on this page (Appendix A §1.3 rule 6): removing one
   // is not like removing any other block, so the editor asks what should
@@ -361,8 +401,39 @@ export function PageEditor({
         return;
       }
       setSpans(current);
+      spansRef.current = current;
       setPending(current.length);
       const currentIds = current.map((s) => s.id);
+      // Reconcile (§2.3): a suggestion the record already holds as final
+      // has no business being open in the document — it can be, after a
+      // resolution whose document step failed, or on a client that never
+      // saw the resolution. Converge quietly, once per (id, status), with
+      // a few retries for marks still to be restored from their mirrored
+      // attribute. Only where this user may edit (the effect's guard).
+      const toHeal = current.filter((s) => {
+        const status = statusesRef.current[s.id];
+        return (
+          isFinalStatus(status) &&
+          (healAttempts.current.get(`${s.id}:${status}`) ?? 0) < HEAL_ATTEMPTS
+        );
+      });
+      if (toHeal.length > 0) {
+        queueMicrotask(() => {
+          for (const span of toHeal) {
+            const status = statusesRef.current[span.id];
+            if (!isFinalStatus(status)) continue;
+            const key = `${span.id}:${status}`;
+            healAttempts.current.set(
+              key,
+              (healAttempts.current.get(key) ?? 0) + 1,
+            );
+            openIds.current.delete(span.id);
+            if (applyOutcome(editor, span.id, status)) {
+              healAttempts.current.set(key, HEAL_ATTEMPTS);
+            }
+          }
+        });
+      }
       // Context changed (§2.4): marks this user's own edit removed, for
       // suggestions the server still holds open. Checked again after a
       // grace period so a cut about to be pasted back is not reported.
@@ -384,7 +455,15 @@ export function PageEditor({
             if (gone.length === 0) return;
             for (const id of gone) openIds.current.delete(id);
             markSuggestionsStale(pageId, gone)
-              .then((n) => {
+              .then((result) => {
+                if (!result.ok) {
+                  console.error(
+                    "Failed to mark suggestions stale:",
+                    result.error,
+                  );
+                  return;
+                }
+                const n = result.count;
                 if (n > 0) {
                   toast({
                     title: `${n} suggestion${n === 1 ? "" : "s"} no longer appl${n === 1 ? "ies" : "y"}`,
@@ -430,12 +509,19 @@ export function PageEditor({
           openIds.current.add(item.id);
         }
         if (items.length > 0) {
-          registerSuggestions(pageId, items).catch((error) =>
-            console.error("Failed to record suggestions:", error),
-          );
+          registerSuggestions(pageId, items)
+            .then((result) => {
+              if (!result.ok) {
+                console.error("Failed to record suggestions:", result.error);
+              }
+            })
+            .catch((error) =>
+              console.error("Failed to record suggestions:", error),
+            );
         }
       }, REGISTER_DEBOUNCE_MS);
     };
+    refreshSpans.current = () => trackSuggestions(false);
     trackSuggestions();
 
     const unsubscribe = editor.onChange((_, { getChanges }) => {
@@ -474,6 +560,7 @@ export function PageEditor({
 
     return () => {
       unsubscribe?.();
+      refreshSpans.current = null;
       document.removeEventListener("visibilitychange", onHide);
       if (saveTimer.current) clearTimeout(saveTimer.current);
       if (removalCheck.current) clearTimeout(removalCheck.current);
@@ -554,7 +641,48 @@ export function PageEditor({
       });
     }, true);
     return () => unsubscribe?.();
-  }, [editor, spans]);
+  }, [editor, spans, setActive]);
+
+  // What a resolution does here besides the document (§2.3): the chip goes
+  // at the click; the record's status is remembered so a later pass does
+  // not try to heal a suggestion this user just resolved; a stale item
+  // leaves its section; and the outcome joins the "Resolved" record.
+  const resolveCallbacks = useMemo<ResolveCallbacks>(
+    () => ({
+      onResolving: () => setActive(null),
+      onResolved: (id, status, detail) => {
+        openIds.current.delete(id);
+        statusesRef.current[id] = status;
+        if (staleRef.current.some((item) => item.id === id)) {
+          setStale((list) => list.filter((item) => item.id !== id));
+          router.refresh();
+        }
+        // A repeat reports the earlier outcome; the record already has it.
+        if (status === "open" || status !== detail.outcome) return;
+        setResolved((list) => {
+          if (list.some((item) => item.id === id)) return list;
+          const span = spansRef.current.find((s) => s.id === id);
+          const staleItem = staleRef.current.find((s) => s.id === id);
+          return [
+            {
+              id,
+              kind: span?.kind ?? "edit",
+              excerpt: excerptOf(span?.text ?? staleItem?.excerpt ?? ""),
+              status,
+              suggesterId:
+                suggestionMeta[id]?.suggesterId ?? staleItem?.suggesterId ?? "",
+              resolvedAt: new Date().toISOString(),
+              resolvedBy: actor.userId,
+              ownerOverride: detail.ownerOverride,
+            },
+            ...list,
+          ].slice(0, 10);
+        });
+      },
+      onApplied: () => refreshSpans.current?.(),
+    }),
+    [router, actor.userId, suggestionMeta, setActive],
+  );
 
   /** Re-insert a placement at the end of the page ("Put it back"). */
   const putBack = (id: string) => {
@@ -674,11 +802,10 @@ export function PageEditor({
             spans={spans}
             threads={suggestionThreads}
             stale={stale}
-            onResolved={(id) => openIds.current.delete(id)}
-            onStaleResolved={(id) => {
-              setStale((list) => list.filter((item) => item.id !== id));
-              router.refresh();
-            }}
+            meta={suggestionMeta}
+            resolved={resolved}
+            activeId={active?.span.id ?? null}
+            callbacks={resolveCallbacks}
           />
         )}
         <div
@@ -686,7 +813,7 @@ export function PageEditor({
           className={cn("relative", smallText && "text-sm")}
         >
           {active && editable && (
-            <SuggestionPopover
+            <SuggestionChip
               key={active.span.id}
               editor={editor}
               pageId={pageId}
@@ -694,7 +821,7 @@ export function PageEditor({
               span={active.span}
               position={active.position}
               noteCount={suggestionThreads[active.span.id]?.length ?? 0}
-              onResolved={(id) => openIds.current.delete(id)}
+              callbacks={resolveCallbacks}
             />
           )}
           <BlockNoteView

@@ -35,9 +35,11 @@ import {
   SUGGESTION_ATTR,
 } from "@/lib/suggestion-markup";
 import {
+  documentOutcomeFor,
   makeSuggestionId,
   suggestionLabel,
   type SuggestionKind,
+  type SuggestionStatus,
 } from "@/lib/suggestions";
 
 /**
@@ -398,6 +400,16 @@ export interface SuggestionSpan {
   to: number;
   /** Inserted or deleted text, for the excerpt. */
   text: string;
+  /** For a modification of an attribute: what changed, old → new. */
+  change?: { attr: string; previous: string; next: string };
+}
+
+function scalar(value: unknown): string | null {
+  return typeof value === "string" || typeof value === "number"
+    ? String(value)
+    : value === null || value === undefined
+      ? ""
+      : null;
 }
 
 const ZERO_WIDTH = /\u200b/g;
@@ -453,6 +465,17 @@ export function listSuggestions(doc: PMNode): SuggestionSpan[] {
       if (!isSuggestionKind(kind)) continue;
       seen.add(`${kind}:${String(mark.attrs["id"])}`);
       note(mark.attrs["id"], kind, node, pos);
+      if (
+        kind === "modification" &&
+        typeof mark.attrs["attrName"] === "string"
+      ) {
+        const span = byId.get(String(mark.attrs["id"]));
+        const previous = scalar(mark.attrs["previousValue"]);
+        const next = scalar(mark.attrs["newValue"]);
+        if (span && !span.change && previous !== null && next !== null) {
+          span.change = { attr: mark.attrs["attrName"], previous, next };
+        }
+      }
     }
     // A block straight from Yjs carries its suggestion in the mirrored
     // attribute until the marks are restored; count it either way.
@@ -508,6 +531,38 @@ export function resolveInDocument(
     outcome === "accept" ? applySuggestion(id) : revertSuggestion(id);
   const ok = command(view.state, view.dispatch);
   if (wasSuggesting) enableSuggestChanges(view.state, view.dispatch);
+  return ok;
+}
+
+/**
+ * Bring the document into line with a recorded status (Appendix A §2.3):
+ * `accepted` applies the suggestion, every other final status reverts
+ * it, `open` does nothing. Safe to repeat: `false` means there were no
+ * marks to change — the document already matched, or the marks have not
+ * been restored from their mirrored attribute yet — and is not an error.
+ */
+export function applyOutcome(
+  editor: AnyEditor,
+  id: string,
+  status: SuggestionStatus,
+): boolean {
+  const outcome = documentOutcomeFor(status);
+  if (!outcome) return false;
+  let ok = false;
+  try {
+    ok = resolveInDocument(editor, id, outcome);
+  } catch (error) {
+    console.debug(
+      `Suggestion ${id}: could not ${outcome} in the document`,
+      error,
+    );
+    return false;
+  }
+  if (!ok) {
+    console.debug(
+      `Suggestion ${id}: no marks to ${outcome}; the document already reads as ${status}`,
+    );
+  }
   return ok;
 }
 
