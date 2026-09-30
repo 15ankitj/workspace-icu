@@ -717,7 +717,8 @@ export type Database = {
           p_outcome: string;
           p_reason?: string;
         };
-        Returns: undefined;
+        /** The suggestion's status after the call (migration 0030). */
+        Returns: string;
       };
       set_page_authorship: {
         Args: {

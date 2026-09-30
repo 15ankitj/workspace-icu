@@ -67,7 +67,7 @@ export default async function PageView({
     ,
     { data: sourceRows },
     { data: embedRows },
-    { data: openSuggestionRows },
+    { data: suggestionRows },
     { data: forwardRelationRows },
     { data: reverseRelationRows },
     { data: relationTotals },
@@ -165,13 +165,17 @@ export default async function PageView({
       .from("synced_embeds")
       .select("synced_block_id")
       .eq("host_page_id", pageId),
-    // Open suggestions, so their rationale threads sit with them in the
-    // editor and the rest stay with the page's comments (Appendix A §2.3).
+    // Every suggestion indexed on this page (Appendix A §2.3): the open
+    // ones carry their rationale threads and the review list's who/when;
+    // the resolved ones let the editor reconcile its document with the
+    // record on load and show what was last decided here.
     supabase
       .from("page_suggestions")
-      .select("id, suggester_id, excerpt, status")
+      .select(
+        "id, suggester_id, kind, excerpt, status, created_at, resolved_at, resolved_by, owner_override",
+      )
       .eq("page_id", pageId)
-      .in("status", ["open", "stale"]),
+      .order("created_at", { ascending: true }),
     // Relations (Appendix B): the links this page's relation rows hold,
     // and the links other pages hold to it. RLS shows a link only when
     // both pages are visible; a trashed page is, so its chip can say so.
@@ -249,17 +253,50 @@ export default async function PageView({
     createdAt: c.created_at,
     suggestionId: c.suggestion_id,
   }));
+  const allSuggestions = suggestionRows ?? [];
   const openSuggestionIds = new Set(
-    (openSuggestionRows ?? [])
-      .filter((row) => row.status === "open")
-      .map((row) => row.id),
+    allSuggestions.filter((row) => row.status === "open").map((row) => row.id),
   );
-  const staleSuggestions = (openSuggestionRows ?? [])
+  const staleSuggestions = allSuggestions
     .filter((row) => row.status === "stale")
     .map((row) => ({
       id: row.id,
       suggesterId: row.suggester_id,
       excerpt: row.excerpt,
+    }));
+  const suggestionStatuses = Object.fromEntries(
+    allSuggestions.map((row) => [row.id, row.status]),
+  );
+  const suggestionMeta = Object.fromEntries(
+    allSuggestions
+      .filter((row) => row.status === "open")
+      .map((row) => [
+        row.id,
+        { suggesterId: row.suggester_id, createdAt: row.created_at },
+      ]),
+  );
+  const resolvedSuggestions = allSuggestions
+    .filter(
+      (
+        row,
+      ): row is typeof row & {
+        status: "accepted" | "rejected" | "withdrawn";
+      } =>
+        row.status === "accepted" ||
+        row.status === "rejected" ||
+        row.status === "withdrawn",
+    )
+    .sort((a, b) => (b.resolved_at ?? "").localeCompare(a.resolved_at ?? ""))
+    .slice(0, 10)
+    .map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      excerpt: row.excerpt,
+      status: row.status,
+      suggesterId: row.suggester_id,
+      resolvedAt: row.resolved_at,
+      resolvedBy: row.resolved_by,
+      ownerOverride: row.owner_override,
     }));
   const suggestionThreads: Record<string, typeof allComments> = {};
   const comments: typeof allComments = [];
@@ -629,6 +666,9 @@ export default async function PageView({
             suggestionThreads={suggestionThreads}
             openSuggestionIds={[...openSuggestionIds]}
             staleSuggestions={staleSuggestions}
+            suggestionStatuses={suggestionStatuses}
+            suggestionMeta={suggestionMeta}
+            resolvedSuggestions={resolvedSuggestions}
           />
 
           <BacklinksPanel workspaceId={workspaceId} backlinks={backlinks} />

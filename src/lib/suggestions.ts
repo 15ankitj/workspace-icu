@@ -7,7 +7,76 @@
 
 export type SuggestionKind = "insertion" | "deletion" | "modification";
 
-export type SuggestionStatus = "open" | "accepted" | "rejected" | "withdrawn";
+export type SuggestionStatus =
+  "open" | "accepted" | "rejected" | "withdrawn" | "stale";
+
+/** What a resolver may ask for; `stale` is only ever set by the server. */
+export type SuggestionOutcome = "accepted" | "rejected" | "withdrawn";
+
+/**
+ * Server actions return these rather than throwing: in production Next.js
+ * masks a thrown server-action error behind a generic digest, so an
+ * expected failure ("only the page author can resolve suggestions") would
+ * reach the browser unreadable.
+ */
+export type ActionFailure = { ok: false; error: string };
+export type ResolveResult =
+  { ok: true; status: SuggestionStatus } | ActionFailure;
+export type CountResult = { ok: true; count: number } | ActionFailure;
+
+/** A status the record will not leave again. */
+export function isFinalStatus(
+  status: SuggestionStatus | null | undefined,
+): status is Exclude<SuggestionStatus, "open"> {
+  return (
+    status === "accepted" ||
+    status === "rejected" ||
+    status === "withdrawn" ||
+    status === "stale"
+  );
+}
+
+/**
+ * What the document must do to match a recorded status (Appendix A
+ * §2.3): an accepted suggestion keeps its change; every other final
+ * status removes it; an open one is left alone.
+ */
+export function documentOutcomeFor(
+  status: SuggestionStatus | null | undefined,
+): "accept" | "revert" | null {
+  if (status === "accepted") return "accept";
+  if (isFinalStatus(status)) return "revert";
+  return null;
+}
+
+export function statusLabel(status: SuggestionStatus): string {
+  switch (status) {
+    case "accepted":
+      return "Accepted";
+    case "rejected":
+      return "Rejected";
+    case "withdrawn":
+      return "Withdrawn";
+    case "stale":
+      return "No longer applies";
+    default:
+      return "Open";
+  }
+}
+
+/** The indexed `kind` of a suggestion as a title ("Insertion"). */
+export function kindTitle(kind: string): string {
+  switch (kind) {
+    case "insertion":
+      return "Insertion";
+    case "deletion":
+      return "Deletion";
+    case "modification":
+      return "Modification";
+    default:
+      return "Edit";
+  }
+}
 
 /** `<user id>:<random>` — the user id is the first 8 hex chars of the uuid. */
 const ID_PATTERN = /^([0-9a-f]{8}):([0-9a-z]{4,20})$/i;
