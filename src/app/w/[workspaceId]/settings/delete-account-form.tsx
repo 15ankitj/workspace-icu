@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useActionState, useId, useState } from "react";
 import { deleteMyAccount } from "@/app/actions/account";
 import { ConfirmButton } from "@/components/ui/confirm-button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +15,12 @@ const PHRASE = "delete my account";
  */
 export function DeleteAccountForm() {
   const [value, setValue] = useState("");
+  const [state, formAction] = useActionState(deleteMyAccount, null);
   const id = useId();
   const matches = value.trim().toLowerCase() === PHRASE;
 
   return (
-    <form action={deleteMyAccount} className="space-y-3">
+    <form action={formAction} className="space-y-3">
       <Field
         label={
           <>
@@ -48,6 +49,11 @@ export function DeleteAccountForm() {
       >
         Delete my account
       </ConfirmButton>
+      {state && !state.ok && (
+        <p role="alert" className="text-sm text-destructive">
+          {state.error}
+        </p>
+      )}
     </form>
   );
 }

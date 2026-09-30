@@ -11,6 +11,7 @@ import {
   SectionHeading,
 } from "@/components/ui/page-shell";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ActionForm } from "@/components/ui/action-form";
 
 export const dynamic = "force-dynamic";
 
@@ -105,7 +106,7 @@ export default async function GalleryPage({
                         </span>
                       )}
                     </span>
-                    <form action={installPack}>
+                    <ActionForm action={installPack}>
                       <input type="hidden" name="name" value={p.name} />
                       <input
                         type="hidden"
@@ -119,7 +120,7 @@ export default async function GalleryPage({
                       >
                         {p.installed ? `Update to v${p.version}` : "Install"}
                       </SubmitButton>
-                    </form>
+                    </ActionForm>
                   </li>
                 ))}
             </ul>
