@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { safeNextPath } from "@/lib/safe-next";
+import { Wordmark } from "@/components/brand/logo";
 
 export const metadata: Metadata = {
   title: "Continue to WorkspaceICU",
@@ -37,9 +38,9 @@ export default async function ContinuePage({
       className="flex min-h-screen items-center justify-center p-6"
     >
       <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            WorkspaceICU
+        <div className="space-y-3 text-center">
+          <h1 className="flex justify-center">
+            <Wordmark className="h-9" />
           </h1>
           <p className="text-sm text-muted-foreground">
             A collaborative workspace for intensive care doctors
