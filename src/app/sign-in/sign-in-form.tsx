@@ -12,6 +12,7 @@ import { Field } from "@/components/ui/label";
 import { Notice } from "@/components/ui/notice";
 import { Separator } from "@/components/ui/separator";
 import { isSupported, signIn as signInWithPasskey } from "@/lib/passkeys";
+import { Wordmark } from "@/components/brand/logo";
 
 /**
  * Sign-in: a magic link and a one-time code arrive in the same email
@@ -137,9 +138,9 @@ export function SignInForm({
       className="flex min-h-screen items-center justify-center p-6"
     >
       <div className="w-full max-w-sm space-y-6">
-        <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            WorkspaceICU
+        <div className="space-y-3 text-center">
+          <h1 className="flex justify-center">
+            <Wordmark className="h-9" />
           </h1>
           <p className="text-sm text-muted-foreground">
             A collaborative workspace for intensive care doctors
