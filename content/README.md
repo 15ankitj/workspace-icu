@@ -32,6 +32,26 @@ templates using the small DSL in `blocks.ts`. Since version 4
   to-dos. The HiLLO page's sub-page list is the progress table; nothing is
   computed.
 
+- `cesr-hillo-guidance.ts` (v6) — St George's supervisor guidance for
+  each HiLLO: what assessors look for, the minimum evidence, common
+  pitfalls and which other HiLLOs the same evidence serves. It is
+  guidance, not curriculum wording, so it lives apart from
+  `cesr-curriculum.ts` and the source files, carries no per-HiLLO WBA
+  counts (the GMC minimums stay on the Evidence rules page), and
+  `hilloPage` renders it under "What assessors look for", between the
+  curriculum wording and the evidence sections, behind a green callout
+  that says what it is. A HiLLO with no entry fails the build.
+  `cesr-hillo-guidance.test.ts` checks the shape and that no string
+  reads like a WBA target or asks for an identifier.
+
+v6 also adds a top-level **Portfolio self-assessment** page between
+Start here and My plan: the baseline a candidate fills in with their
+supervisor at the first meeting — placements with duration, dates, level
+and the seven-year flag; exams and the Special Skills Year; an SLE tally;
+cross-cutting tick-lists; supporting documents; a gap analysis whose
+agreed actions are copied into My plan. It asks for no GMC number, date
+of birth or patient detail.
+
 No patient details appear anywhere; everything the candidate supplies is
 a `fill()` placeholder. A future SSG revision is a change to the data
 files, not the layout.

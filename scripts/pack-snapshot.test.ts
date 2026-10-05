@@ -271,7 +271,7 @@ describe("packToSnapshot", () => {
     const journey = built[0];
     expect(journey.name).toBe("CESR Journey");
     expect(journey.snapshot.format).toBe(4);
-    expect(journey.snapshot.pages).toHaveLength(118);
+    expect(journey.snapshot.pages).toHaveLength(119);
     expect(journey.snapshot.synced).toHaveLength(14);
     expect(journey.snapshot.relations).toEqual([]);
     for (const template of built) {
