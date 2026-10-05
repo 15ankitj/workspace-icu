@@ -62,9 +62,10 @@ of birth or patient detail.
   returns the 64 pages under Placements (the Anaesthesia rotation
   overview, Before the IAC, After the IAC, the HiLLO 10 bundle, and one
   page per milestone under its phase page, Both under Before) and the
-  pack `relations`. Each milestone page carries `phase`, `strand`,
-  `evidence_expected` and `status` selects (Status uses the KC pages'
-  `STATUS_VALUES`, nothing else), an `evidence` relation (reverse
+  pack `relations`. Each milestone page carries `status`, `phase`, `strand` and
+  `evidence_expected` selects (Status first, so the phase page's
+  sub-page list shows it; it uses the KC pages' `STATUS_VALUES`,
+  nothing else), an `evidence` relation (reverse
   "Rotation evidence for", so an Evidence item shows its KCs and its
   milestones as separate groups) and a `serves` relation (reverse
   "Rotation milestones", which is what the KC page shows). The pack seeds

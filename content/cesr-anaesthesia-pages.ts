@@ -48,10 +48,10 @@ export const BUNDLE_TITLE = "HiLLO 10 bundle";
 
 /** Property ids on every milestone page, in order — stable across versions. */
 export const MILESTONE_PROPERTY_IDS = [
+  "status",
   "phase",
   "strand",
   "evidence_expected",
-  "status",
   "evidence",
   "serves",
 ] as const;
@@ -65,13 +65,17 @@ export const STRAND_ICONS: Record<MilestoneStrand, string> = {
   CPD: "🎓",
 };
 
-/** The six rows of a milestone page (spec: Status seeded like a KC page). */
+/**
+ * The six rows of a milestone page. Status comes first because the
+ * sub-page list shows a child's first select with a value, so the phase
+ * page's list reads as a status board; Status is seeded like a KC page.
+ */
 export function milestoneProperties(m: RotationMilestone) {
   return [
+    prop.select("status", "Status", STATUS_VALUES[0]),
     prop.select("phase", "Phase", m.phase),
     prop.select("strand", "Strand", m.strand),
     prop.select("evidence_expected", "Evidence expected", m.evidence),
-    prop.select("status", "Status", STATUS_VALUES[0]),
     prop.relation("evidence", "Evidence", "Rotation evidence for"),
     prop.relation("serves", "Serves", "Rotation milestones"),
   ];

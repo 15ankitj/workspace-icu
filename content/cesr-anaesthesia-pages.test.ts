@@ -94,7 +94,7 @@ describe("anaesthesiaRotationTree", () => {
     expect(new Set(tree.pages.map((p) => p.id)).size).toBe(64);
   });
 
-  it("gives every milestone the six properties in order, Status seeded like a KC", () => {
+  it("gives every milestone the six properties in order, Status first and seeded like a KC", () => {
     for (const m of ANAESTHESIA_MILESTONES) {
       const page = byTitle.get(m.title)!;
       expect(page, m.id).toBeDefined();
@@ -112,21 +112,22 @@ describe("anaesthesiaRotationTree", () => {
         "relation",
         "relation",
       ]);
+      // Status first: the sub-page list shows a child's first select.
       expect(page.properties?.[0]).toMatchObject({
+        label: "Status",
+        value: STATUS_VALUES[0],
+      });
+      expect(page.properties?.[1]).toMatchObject({
         label: "Phase",
         value: m.phase,
       });
-      expect(page.properties?.[1]).toMatchObject({
+      expect(page.properties?.[2]).toMatchObject({
         label: "Strand",
         value: m.strand,
       });
-      expect(page.properties?.[2]).toMatchObject({
+      expect(page.properties?.[3]).toMatchObject({
         label: "Evidence expected",
         value: m.evidence,
-      });
-      expect(page.properties?.[3]).toMatchObject({
-        label: "Status",
-        value: STATUS_VALUES[0],
       });
       expect(page.properties?.[4]).toMatchObject({
         label: "Evidence",
