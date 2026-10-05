@@ -271,9 +271,19 @@ describe("packToSnapshot", () => {
     const journey = built[0];
     expect(journey.name).toBe("CESR Journey");
     expect(journey.snapshot.format).toBe(4);
-    expect(journey.snapshot.pages).toHaveLength(119);
+    expect(journey.snapshot.pages).toHaveLength(183);
     expect(journey.snapshot.synced).toHaveLength(14);
-    expect(journey.snapshot.relations).toEqual([]);
+    // v7: the Anaesthesia rotation's Serves links resolve to keys inside
+    // the template, every source a milestone, every target a KC 10.x page.
+    const titleOf = new Map(
+      journey.snapshot.pages.map((p) => [p.key, p.title]),
+    );
+    expect(journey.snapshot.relations?.length).toBeGreaterThan(0);
+    for (const link of journey.snapshot.relations ?? []) {
+      expect(titleOf.has(link.source_key)).toBe(true);
+      expect(titleOf.get(link.target_key)).toMatch(/^KC 10\./);
+      expect(link.property_id).toBe("serves");
+    }
     for (const template of built) {
       expect(template.snapshot.notes).toEqual([]);
     }

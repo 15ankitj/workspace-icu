@@ -113,6 +113,10 @@ CESR Journey
 │   └── 📋 Evidence rules that apply everywhere
 ├── 🤝 Supervision meetings            (hub; meeting pages created here from gallery templates)
 ├── 🏥 Placements
+│   ├── 🩺 Anaesthesia rotation         (v7: HiLLO 10 tracker; 64 pages)
+│   │   ├── 1️⃣ Before the IAC            (27 milestone pages: phase Before the IAC or Both)
+│   │   ├── 2️⃣ After the IAC             (33 milestone pages: phase After the IAC)
+│   │   └── 📦 HiLLO 10 bundle
 │   ├── 🧸 PICU guidance
 │   └── 🧠 Neuro ICU guidance
 ├── 💭 Reflections                     (authored)
@@ -120,7 +124,7 @@ CESR Journey
 └── 🔗 Resources
 ```
 
-92 KC pages + 14 HiLLO pages + 11 others = **117 pages** in the workspace template (118 as built, since the Evidence rules page is a page too; 119 from v6 with the Portfolio self-assessment page). That is large but correct: the KC pages are the product. Keep the sidebar sane by giving KC pages short titles (`KC 12.8 — Raised intracranial pressure`) and putting the verbatim wording in the page body and `description`.
+92 KC pages + 14 HiLLO pages + 11 others = **117 pages** in the workspace template (118 as built, since the Evidence rules page is a page too; 119 from v6 with the Portfolio self-assessment page; 183 from v7 with the 64-page Anaesthesia rotation). That is large but correct: the KC pages are the product. Keep the sidebar sane by giving KC pages short titles (`KC 12.8 — Raised intracranial pressure`) and putting the verbatim wording in the page body and `description`.
 
 The **Evidence index** page from v3 is **deleted**: the Evidence hub's sub-page list _is_ the index, with type/date/consultant visible per row and sortable, and the evidence page's reverse relation shows which KCs it serves.
 
@@ -206,6 +210,10 @@ Rewrite for v4. Must state, in this order: what the workspace is (one line); the
 
 Top-level, between Start here and My plan; title "Portfolio self-assessment", icon 🧭; linked first from Start here's page links, from the Start here rhythm ("At the start: complete the Portfolio self-assessment with your supervisor, then copy its gap analysis into My plan") and from My plan directly under the Milestones list. A baseline, not evidence; every cell the candidate supplies is a `fill()`; no GMC number, date of birth or patient detail. Blocks, in order: how-to callout; `noPhi()`; `## About you` (Item / Your answer table: post, specialty, years of ICM WTE, portfolio supervisor, educational supervisor / CESR lead, target date); `## Placements` (intro on the 1–4 level scale and the seven-year rule; table Placement / Where / Duration / Dates / Within the last 7 years? / Self-rated level / Evidence held, six fixed rows: General ICM (minimum 2¼ years), Anaesthesia, Medicine, Neurosciences ICM, Cardiothoracic ICM, Paediatric ICM; then a Special Skills Year line); `## Examinations and qualifications` (`###` Specialist ICM examination, `###` Other examinations and degrees, as to-dos); `## Structured learning events` (intro quoting the GMC 20 / 12 minimums; table Type / Count / Of which HiLLO 10 / Notes for Mini-CEX, CBD, DOPS, ACAT, MSF, Total; to-dos for the three structured reports, reflective pieces and referral letters); `## Cross-cutting evidence` (five `###` tick-lists: Quality improvement, Teaching and training, Research and evidence, Leadership and management, Courses and CPD); `## Supporting documents` (to-dos with a fill each); `## Gap analysis` (`###` Supervisor's view paragraph, `###` Agreed priority actions ×3, "Copy the agreed actions into My plan and the next supervision meeting note."); divider; page links to Evidence rules, My plan, HiLLOs.
 
+### 4.5b Anaesthesia rotation (v7)
+
+Under Placements, linked first from the hub. Data in `content/cesr-anaesthesia-rotation.ts` (60 milestones: id, title, phase, strand, evidence expected, optional note, the KC 10.x ids served); layout in `content/cesr-anaesthesia-pages.ts`. Pages: **Anaesthesia rotation** (🩺: how-to, no-PHI, How the year runs, If you already hold an IAC, Your logbook, Milestone status, links); **Before the IAC** (1️⃣) and **After the IAC** (2️⃣): strand lists of page links (Both milestones appear in both, "(continues)" after the IAC), a logbook summary table of `fill()` cells, then The IAC to-dos or the Supervisor reports to-dos; one **milestone page** per item under its phase page (Both under Before), icon by strand, description `Evidence expected: …`, properties `phase`, `strand`, `evidence_expected`, `status` (the KC pages' `STATUS_VALUES`, seeded Not started), `evidence` (relation, reverse "Rotation evidence for") and `serves` (relation, reverse "Rotation milestones"), body: how-to, the note as a quote, Notes, back link; **HiLLO 10 bundle** (📦) checklist. The pack's `relations` hold one Serves link per (milestone, KC), so each KC 10.x page lists its milestones under "Rotation milestones"; a milestone that serves a KC with no page is a build error. No Signed off or Supervisor property on a milestone; no numeric targets beyond the GMC ones on the HiLLO 10 page; no trainee field as a property. The HiLLO 10 page links to the rotation directly after its Required evidence callout, and the KC 10.x how-tos gain one sentence pointing at the milestones.
+
 ### 4.6 My plan, Placements, Reflections, Application narrative, Resources
 
 Carry forward from v3 with these changes only:
@@ -237,6 +245,8 @@ Carry forward from v3 with these changes only:
 - Install/update from the gallery's Platform packs section as the owner (existing `installPack` action). Then the owner instantiates once into a scratch workspace and checks §7.
 
 - **v6:** `version: 6`, changelog: "New Portfolio self-assessment page (between Start here and My plan); every HiLLO page gains a 'What assessors look for' section — supervisor guidance on minimum evidence, pitfalls and cross-HiLLO overlap. Existing workspaces receive the new page and the guidance on HiLLO pages they have not edited." Page keys are preserved by the build (the self-assessment page is the only new key), so "Add the new pages" adds that page alone; HiLLO pages a candidate has edited are left as they are.
+
+- **v7:** `version: 7`, changelog: "Anaesthesia rotation under Placements: before- and after-IAC milestone pages for HiLLO 10, each linked to the KC pages it serves (the KC 10.x pages now list their rotation milestones), plus a HiLLO 10 bundle checklist. Existing workspaces receive the new pages; KC pages they have not edited gain the link." All previous page keys are preserved; the 64 rotation pages are the only new keys.
 
 ## 7. Acceptance criteria
 
