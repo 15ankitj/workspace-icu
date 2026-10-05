@@ -52,6 +52,29 @@ cross-cutting tick-lists; supporting documents; a gap analysis whose
 agreed actions are copied into My plan. It asks for no GMC number, date
 of birth or patient detail.
 
+- `cesr-anaesthesia-rotation.ts` (v7) — the St George's HiLLO 10
+  tracker as data: 60 milestones, each with a stable slug id, a phase
+  (Before the IAC, After the IAC, Both), a strand (Logbook, Practical
+  skills, SLEs, Rota, CPD), the evidence expected, an optional one-line
+  note, and the KC 10.x ids it serves. Guidance, not curriculum wording;
+  no numeric targets beyond the GMC ones already on the HiLLO 10 page.
+  `cesr-anaesthesia-pages.ts` is its layout: `anaesthesiaRotationTree`
+  returns the 64 pages under Placements (the Anaesthesia rotation
+  overview, Before the IAC, After the IAC, the HiLLO 10 bundle, and one
+  page per milestone under its phase page, Both under Before) and the
+  pack `relations`. Each milestone page carries `status`, `phase`, `strand` and
+  `evidence_expected` selects (Status first, so the phase page's
+  sub-page list shows it; it uses the KC pages' `STATUS_VALUES`,
+  nothing else), an `evidence` relation (reverse
+  "Rotation evidence for", so an Evidence item shows its KCs and its
+  milestones as separate groups) and a `serves` relation (reverse
+  "Rotation milestones", which is what the KC page shows). The pack seeds
+  one Serves link per (milestone, KC); seeded links only resolve within
+  one install, which is why the tree lives inside the CESR Journey
+  template rather than as a separate gallery template. A milestone that
+  serves a KC with no page fails the build. Sign-off stays on the KC
+  page: milestones have no Signed off or Supervisor property.
+
 No patient details appear anywhere; everything the candidate supplies is
 a `fill()` placeholder. A future SSG revision is a change to the data
 files, not the layout.

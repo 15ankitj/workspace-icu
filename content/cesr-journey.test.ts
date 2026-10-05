@@ -97,10 +97,10 @@ describe("CESR Journey v4 workspace template", () => {
   const byKey = new Map(snapshot.pages.map((page) => [page.key, page]));
   const titleOf = (key: string | null) => (key ? byKey.get(key)?.title : null);
 
-  it("is version 6 (self-assessment page and assessor guidance) with no Evidence index", () => {
-    expect(journey.version).toBe(6);
+  it("is version 7 (Anaesthesia rotation) with no Evidence index", () => {
+    expect(journey.version).toBe(7);
     expect(journey.changelog).toBe(
-      "New Portfolio self-assessment page (between Start here and My plan); every HiLLO page gains a 'What assessors look for' section — supervisor guidance on minimum evidence, pitfalls and cross-HiLLO overlap. Existing workspaces receive the new page and the guidance on HiLLO pages they have not edited.",
+      "Anaesthesia rotation under Placements: before- and after-IAC milestone pages for HiLLO 10, each linked to the KC pages it serves (the KC 10.x pages now list their rotation milestones), plus a HiLLO 10 bundle checklist. Existing workspaces receive the new pages; KC pages they have not edited gain the link.",
     );
     expect(journey.pages.map((p) => p.title)).not.toContain("Evidence index");
     expect(
@@ -131,21 +131,28 @@ describe("CESR Journey v4 workspace template", () => {
     expect(text).not.toContain("Private (page menu)");
   });
 
-  it("builds to format 4 with exactly 119 pages: 92 KCs under 14 HiLLOs, plus 13 others", () => {
+  it("builds to format 4 with exactly 183 pages: 92 KCs under 14 HiLLOs, plus 13 others and the 64-page rotation", () => {
     expect(snapshot.format).toBe(4);
     expect(snapshot.notes).toEqual([]);
-    expect(snapshot.relations).toEqual([]);
+    // v7: the rotation's Serves links, every one inside the template.
+    const keys = new Set(snapshot.pages.map((p) => p.key));
+    expect(snapshot.relations?.length).toBeGreaterThan(0);
+    for (const link of snapshot.relations ?? []) {
+      expect(keys.has(link.source_key)).toBe(true);
+      expect(keys.has(link.target_key)).toBe(true);
+    }
     // Spec §3 says 117, but its own tree lists 12 pages besides the HiLLOs
     // and KCs (Start here, My plan, HiLLOs, Evidence, Evidence rules,
     // Supervision meetings, Placements, PICU, Neuro ICU, Reflections,
     // Application narrative, Resources); v6 adds Portfolio
-    // self-assessment: 92 + 14 + 13 = 119.
-    expect(snapshot.pages).toHaveLength(119);
+    // self-assessment: 92 + 14 + 13 = 119; v7 adds the 64-page
+    // Anaesthesia rotation under Placements: 183.
+    expect(snapshot.pages).toHaveLength(183);
+    // "HiLLO 10 bundle" is a rotation page, not a HiLLO page.
+    const curriculumPage = /^(KC \d+\.\d+|HiLLO \d+) — /;
     expect(
-      snapshot.pages.filter(
-        (p) => !p.title.startsWith("KC ") && !p.title.startsWith("HiLLO "),
-      ),
-    ).toHaveLength(13);
+      snapshot.pages.filter((p) => !curriculumPage.test(p.title)),
+    ).toHaveLength(13 + 64);
     const hillos = snapshot.pages.filter(
       (p) => titleOf(p.parent_key) === "HiLLOs",
     );
@@ -352,7 +359,7 @@ describe("CESR Journey v4 workspace template", () => {
 
   it("carries no placeholder for curriculum wording", () => {
     for (const page of snapshot.pages) {
-      if (page.title.startsWith("KC ") || page.title.startsWith("HiLLO ")) {
+      if (/^(KC \d+\.\d+|HiLLO \d+) — /.test(page.title)) {
         expect(page.description).not.toContain("«");
         const quote = page.blocks.find((b) => b.type === "quote")!;
         expect(JSON.stringify(quote)).not.toContain("«");

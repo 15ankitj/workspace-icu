@@ -24,6 +24,11 @@ import {
   todos,
   toggle,
 } from "./blocks";
+import {
+  anaesthesiaRotationTree,
+  ROTATION_TITLE,
+} from "./cesr-anaesthesia-pages";
+import { ANAESTHESIA_MILESTONES } from "./cesr-anaesthesia-rotation";
 import { CESR_CURRICULUM } from "./cesr-curriculum";
 import { EVIDENCE_RULES } from "./cesr-evidence-rules";
 import {
@@ -35,10 +40,12 @@ import {
 } from "./cesr-hillo-pages";
 
 /**
- * CESR Journey — the first content pack (brief §11), version 6: the v4
+ * CESR Journey — the first content pack (brief §11), version 7: the v4
  * layout (docs/cesr-journey-v4-spec.md) with a corrected Start here (v5),
  * a Portfolio self-assessment page and St George's supervisor guidance
- * on every HiLLO page (v6, content/cesr-hillo-guidance.ts). One
+ * on every HiLLO page (v6, content/cesr-hillo-guidance.ts), and the
+ * Anaesthesia rotation under Placements whose milestones relate to the
+ * KC 10.x pages they serve (v7, content/cesr-anaesthesia-rotation.ts). One
  * page per Key Capability with the verbatim curriculum wording from
  * content/cesr-curriculum.ts, Status / Signed off / Supervisor properties
  * and an Evidence relation; evidence items are pages linked from the KCs;
@@ -193,6 +200,10 @@ export function cesrJourney(): PackTemplate {
     placements: randomUUID(),
     picu: randomUUID(),
     neuro: randomUUID(),
+    rotation: randomUUID(),
+    rotationBefore: randomUUID(),
+    rotationAfter: randomUUID(),
+    rotationBundle: randomUUID(),
     reflections: randomUUID(),
     narrative: randomUUID(),
     evidence: randomUUID(),
@@ -202,6 +213,9 @@ export function cesrJourney(): PackTemplate {
   const hilloIds = CESR_CURRICULUM.map(() => randomUUID());
   const kcIds = CESR_CURRICULUM.map((hillo) =>
     hillo.kcs.map(() => randomUUID()),
+  );
+  const milestoneIds = Object.fromEntries(
+    ANAESTHESIA_MILESTONES.map((m) => [m.id, randomUUID()]),
   );
 
   const start: PackPage = {
@@ -557,11 +571,51 @@ export function cesrJourney(): PackTemplate {
     ],
   };
 
+  const ANAESTHESIA = 10;
+  const anaesthesiaIndex = CESR_CURRICULUM.findIndex(
+    (hillo) => hillo.n === ANAESTHESIA,
+  );
+  const rotationLink: EditorBlock[] = [
+    p(
+      "The Anaesthesia rotation under Placements plans this year phase by phase; every milestone there lists the KC it serves, and the KC pages list their milestones.",
+    ),
+    pageLink(ids.rotation, ROTATION_TITLE, "🩺"),
+  ];
+
   const hillos: PackPage[] = CESR_CURRICULUM.flatMap((hillo, index) =>
     hilloTree(
       hillo,
       { page: hilloIds[index], hub: ids.hillos, kcPages: kcIds[index] },
       synced(SUMMARIES[index].id),
+      hillo.n === ANAESTHESIA
+        ? {
+            page: { rotationLink },
+            kc: {
+              howToExtra:
+                "Rotation milestones (below the properties) are the plan for this KC; Evidence is still what proves it.",
+            },
+          }
+        : {},
+    ),
+  );
+
+  const rotation = anaesthesiaRotationTree(
+    {
+      rotation: ids.rotation,
+      before: ids.rotationBefore,
+      after: ids.rotationAfter,
+      bundle: ids.rotationBundle,
+      milestones: milestoneIds,
+      placements: ids.placements,
+      hillo10: hilloIds[anaesthesiaIndex],
+      evidenceRules: ids.evidenceRules,
+      meetings: ids.meetings,
+    },
+    Object.fromEntries(
+      CESR_CURRICULUM[anaesthesiaIndex].kcs.map((kc, index) => [
+        kc.id,
+        kcIds[anaesthesiaIndex][index],
+      ]),
     ),
   );
 
@@ -618,8 +672,9 @@ export function cesrJourney(): PackTemplate {
     icon: "🏥",
     blocks: [
       howTo(
-        "one sub-page per unit with the local guidance a CESR candidate needs: what the placement offers, which HiLLOs it evidences well, who to ask. Seed these from your existing documents with Import (sidebar), then tidy.",
+        "one sub-page per unit with the local guidance a CESR candidate needs: what the placement offers, which HiLLOs it evidences well, who to ask. The Anaesthesia rotation is the worked example of a placement tree: phase pages, milestone pages with Status and evidence, each linked to the KC pages it serves. Seed the others from your existing documents with Import (sidebar), then tidy.",
       ),
+      pageLink(ids.rotation, ROTATION_TITLE, "🩺"),
       pageLink(ids.picu, "PICU guidance", "🧸"),
       pageLink(ids.neuro, "Neuro ICU guidance", "🧠"),
     ],
@@ -867,13 +922,13 @@ export function cesrJourney(): PackTemplate {
     purpose:
       "A complete working file for a CESR / Portfolio Pathway application in ICM",
     description:
-      "Start here, a Portfolio self-assessment baseline, My plan, one page per HiLLO (with supervisor guidance on what assessors look for) and one sub-page per Key Capability carrying the verbatim curriculum wording, Status / Signed off / Supervisor properties and an Evidence relation; an Evidence hub whose item pages are linked from the KCs; supervision meeting hub, placement guidance, reflections, application narrative and curated resources. Pair it with the Evidence item, Supervision meeting, Reflection, Evidence cover sheet and PDP page templates.",
+      "Start here, a Portfolio self-assessment baseline, My plan, one page per HiLLO (with supervisor guidance on what assessors look for) and one sub-page per Key Capability carrying the verbatim curriculum wording, Status / Signed off / Supervisor properties and an Evidence relation; an Evidence hub whose item pages are linked from the KCs; supervision meeting hub, placement guidance with the Anaesthesia rotation's milestone pages linked to the KC 10.x pages they serve, reflections, application narrative and curated resources. Pair it with the Evidence item, Supervision meeting, Reflection, Evidence cover sheet and PDP page templates.",
     category: "Training & Portfolio",
     audience: "ICM CESR / Portfolio Pathway candidates and their supervisors",
     kind: "workspace",
-    version: 6,
+    version: 7,
     changelog:
-      "New Portfolio self-assessment page (between Start here and My plan); every HiLLO page gains a 'What assessors look for' section — supervisor guidance on minimum evidence, pitfalls and cross-HiLLO overlap. Existing workspaces receive the new page and the guidance on HiLLO pages they have not edited.",
+      "Anaesthesia rotation under Placements: before- and after-IAC milestone pages for HiLLO 10, each linked to the KC pages it serves (the KC 10.x pages now list their rotation milestones), plus a HiLLO 10 bundle checklist. Existing workspaces receive the new pages; KC pages they have not edited gain the link.",
     pages: [
       start,
       selfAssessment,
@@ -886,11 +941,13 @@ export function cesrJourney(): PackTemplate {
       placements,
       placementPage(ids.picu, "PICU guidance", "🧸"),
       placementPage(ids.neuro, "Neuro ICU guidance", "🧠"),
+      ...rotation.pages,
       reflections,
       narrative,
       resources,
     ],
     synced: summarySynced(hilloIds),
+    relations: [...rotation.relations],
   };
 }
 

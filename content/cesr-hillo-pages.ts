@@ -136,10 +136,17 @@ export function assessorSection(hillo: CurriculumHillo): EditorBlock[] {
  * menu in three strands, a slot for the candidate's own routes, notes,
  * and a link back to the HiLLO page.
  */
+/** Optional extras a caller adds to a KC page (v7: the HiLLO 10 KCs). */
+export interface KcPageOptions {
+  /** One sentence appended to the how-to callout. */
+  howToExtra?: string;
+}
+
 export function kcPage(
   hillo: CurriculumHillo,
   kc: CurriculumKC,
   ids: { page: string; hilloPage: string },
+  options: KcPageOptions = {},
 ): PackPage {
   return {
     id: ids.page,
@@ -160,6 +167,7 @@ export function kcPage(
           t(
             "); your supervisor sets Signed off and puts their name in Supervisor.",
           ),
+          ...(options.howToExtra ? [t(` ${options.howToExtra}`)] : []),
         ],
         "blue",
       ),
@@ -196,10 +204,17 @@ function checklist(section: CurriculumSection): EditorBlock[] {
  * as placed on this page — the synced-block source placement in the
  * pack (see `supervisorSummaryBlocks` for its seed content).
  */
+/** Optional extras a caller adds to a HiLLO page (v7: HiLLO 10's rotation). */
+export interface HilloPageOptions {
+  /** Blocks placed directly after the Required evidence callout. */
+  rotationLink?: EditorBlock[];
+}
+
 export function hilloPage(
   hillo: CurriculumHillo,
   ids: { page: string; hub: string },
   summary: EditorBlock,
+  options: HilloPageOptions = {},
 ): PackPage {
   return {
     id: ids.page,
@@ -252,6 +267,7 @@ export function hilloPage(
             ),
           ]
         : []),
+      ...(options.rotationLink ?? []),
       ...(hillo.maintenance
         ? [
             h2("Maintenance route (>7 years)"),
@@ -294,6 +310,7 @@ export function hilloTree(
   hillo: CurriculumHillo,
   ids: { page: string; hub: string; kcPages: string[] },
   summary: EditorBlock,
+  options: { page?: HilloPageOptions; kc?: KcPageOptions } = {},
 ): PackPage[] {
   if (ids.kcPages.length !== hillo.kcs.length) {
     throw new Error(
@@ -301,9 +318,14 @@ export function hilloTree(
     );
   }
   return [
-    hilloPage(hillo, { page: ids.page, hub: ids.hub }, summary),
+    hilloPage(hillo, { page: ids.page, hub: ids.hub }, summary, options.page),
     ...hillo.kcs.map((kc, index) =>
-      kcPage(hillo, kc, { page: ids.kcPages[index], hilloPage: ids.page }),
+      kcPage(
+        hillo,
+        kc,
+        { page: ids.kcPages[index], hilloPage: ids.page },
+        options.kc,
+      ),
     ),
   ];
 }
