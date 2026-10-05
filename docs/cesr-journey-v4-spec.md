@@ -13,13 +13,13 @@ v3 was written for an app that had only pages and to-do blocks, so it simulated 
 
 The app now has page properties (five types plus **relation**), a sub-page list that renders a child page's properties as a row, backlinks, synced blocks and authored content. v4 is designed around those, with one rule: **every fact is entered once, where it belongs, and everything else is a view of it.**
 
-What this pack is *not*: it does not compute anything. Status is a select the human sets. Sufficiency is a judgement the supervisor records. That is the deliberate boundary from Appendix B; the pack must not try to fake rollups with tables.
+What this pack is _not_: it does not compute anything. Status is a select the human sets. Sufficiency is a judgement the supervisor records. That is the deliberate boundary from Appendix B; the pack must not try to fake rollups with tables.
 
 ## 1. The three primitives the pack is built on
 
-1. **A KC is a page.** Each of the 92 Key Capabilities is a sub-page of its HiLLO page, carrying the verbatim curriculum wording, three properties (Status, Signed off, Supervisor) and one relation ("Evidence"). Its body is the *evidence menu*: the planning checklist of what could count.
-2. **An evidence item is a page.** Each piece of evidence is a page under Evidence, carrying type, date, supervising consultant and storage mode as properties. It is linked *from* KC pages via the relation, so its own page shows "Evidence for: KC 12.7, KC 12.8" under the reverse label — the triangulation map for free.
-3. **The HiLLO page's sub-page list is the progress table.** Because each KC is a child page with properties, the HiLLO page automatically shows *KC · Status · Signed off · Supervisor · N evidence* with the app's existing All / Mine / Recent filters. Nothing is typed into a table. The synced progress block from v3 is **retired**; what remains synced is the small per-HiLLO "supervisor summary" block (see §4.3), which is prose a human writes and which meetings need to see.
+1. **A KC is a page.** Each of the 92 Key Capabilities is a sub-page of its HiLLO page, carrying the verbatim curriculum wording, three properties (Status, Signed off, Supervisor) and one relation ("Evidence"). Its body is the _evidence menu_: the planning checklist of what could count.
+2. **An evidence item is a page.** Each piece of evidence is a page under Evidence, carrying type, date, supervising consultant and storage mode as properties. It is linked _from_ KC pages via the relation, so its own page shows "Evidence for: KC 12.7, KC 12.8" under the reverse label — the triangulation map for free.
+3. **The HiLLO page's sub-page list is the progress table.** Because each KC is a child page with properties, the HiLLO page automatically shows _KC · Status · Signed off · Supervisor · N evidence_ with the app's existing All / Mine / Recent filters. Nothing is typed into a table. The synced progress block from v3 is **retired**; what remains synced is the small per-HiLLO "supervisor summary" block (see §4.3), which is prose a human writes and which meetings need to see.
 
 ## 2. DSL extension (prerequisite — its own PR)
 
@@ -47,13 +47,13 @@ export interface PackPage {
 /** NEW: a relation link between two pack pages, by authoring ids. */
 export interface PackRelation {
   sourcePageId: string;
-  propertyId: string;   // the relation row's id on the source page
+  propertyId: string; // the relation row's id on the source page
   targetPageId: string;
 }
 
 export interface PackTemplate {
   // …existing…
-  relations?: PackRelation[];   // NEW
+  relations?: PackRelation[]; // NEW
 }
 ```
 
@@ -75,6 +75,7 @@ Property ids are **stable strings, not UUIDs** (`status`, `signed_off`, `supervi
 ### 2.2 Build script
 
 `scripts/build-cesr-pack.ts`:
+
 - Pass each page's `properties` through to `SourcePage` (as `{ hidden: [], rows }`), and `description`. `buildSnapshot` already runs `propertiesForTemplate` on them.
 - Map `template.relations` to `SourceRelation[]` with authoring ids rewritten through `idOf()`, and pass them as `options.relations` to `buildSnapshot`. Position: declaration order, using `firstPosition()` / `positionAfter()` per (source, property).
 - Relations whose either page is not in the template are a build **error** (not a note): a pack must never ship a dangling link.
@@ -88,6 +89,7 @@ Unit tests in `scripts/` or `src/lib`: a two-page pack with one relation builds 
 ```
 CESR Journey
 ├── 👋 Start here
+├── 🧭 Portfolio self-assessment      (v6: baseline filled in with the supervisor at the first meeting)
 ├── 🗺️ My plan
 ├── 🎯 HiLLOs                         (hub: 14 page links + supervisor summaries, read-only embeds)
 │   ├── 🏛️ HiLLO 1 — NHS systems, law and ethics
@@ -118,9 +120,9 @@ CESR Journey
 └── 🔗 Resources
 ```
 
-92 KC pages + 14 HiLLO pages + 11 others = **117 pages** in the workspace template. That is large but correct: the KC pages are the product. Keep the sidebar sane by giving KC pages short titles (`KC 12.8 — Raised intracranial pressure`) and putting the verbatim wording in the page body and `description`.
+92 KC pages + 14 HiLLO pages + 11 others = **117 pages** in the workspace template (118 as built, since the Evidence rules page is a page too; 119 from v6 with the Portfolio self-assessment page). That is large but correct: the KC pages are the product. Keep the sidebar sane by giving KC pages short titles (`KC 12.8 — Raised intracranial pressure`) and putting the verbatim wording in the page body and `description`.
 
-The **Evidence index** page from v3 is **deleted**: the Evidence hub's sub-page list *is* the index, with type/date/consultant visible per row and sortable, and the evidence page's reverse relation shows which KCs it serves.
+The **Evidence index** page from v3 is **deleted**: the Evidence hub's sub-page list _is_ the index, with type/date/consultant visible per row and sortable, and the evidence page's reverse relation shows which KCs it serves.
 
 ## 4. Page anatomy
 
@@ -129,19 +131,21 @@ The **Evidence index** page from v3 is **deleted**: the Evidence hub's sub-page 
 **Title:** `KC 12.8 — <short title>`. Short titles from the September pack (e.g. "Raised intracranial pressure"); verbatim SSG wording goes in `description` (≤500 chars; where the SSG wording is longer, the first sentence in `description` and the full text as the first paragraph).
 
 **Properties (in this order):**
-| id | type | label | seeded value |
-|---|---|---|---|
-| `status` | select | Status | `Not started` (options by convention: Not started · Collecting · Ready for review · Signed off) |
-| `signed_off` | date | Signed off | — |
-| `supervisor` | people | Supervisor | — |
-| `evidence` | relation | Evidence | reverse label **Evidence for** |
 
-`select` has no option list in the app (it is free text validated to 60 chars); the four values are a *convention* stated on Start here and in the KC page's how-to. Keep the four exactly as spelled so the sub-page list groups sensibly.
+| id           | type     | label      | seeded value                                                                                    |
+| ------------ | -------- | ---------- | ----------------------------------------------------------------------------------------------- |
+| `status`     | select   | Status     | `Not started` (options by convention: Not started · Collecting · Ready for review · Signed off) |
+| `signed_off` | date     | Signed off | —                                                                                               |
+| `supervisor` | people   | Supervisor | —                                                                                               |
+| `evidence`   | relation | Evidence   | reverse label **Evidence for**                                                                  |
+
+`select` has no option list in the app (it is free text validated to 60 chars); the four values are a _convention_ stated on Start here and in the KC page's how-to. Keep the four exactly as spelled so the sub-page list groups sensibly.
 
 **Body:**
-1. Callout (blue) *How to use this KC*: "Mark items below as you plan them; an item is *done* when you link the evidence page in the Evidence property above — ticks alone never change the status. Set Status yourself; your supervisor sets Signed off and puts their name in Supervisor."
+
+1. Callout (blue) _How to use this KC_: "Mark items below as you plan them; an item is _done_ when you link the evidence page in the Evidence property above — ticks alone never change the status. Set Status yourself; your supervisor sets Signed off and puts their name in Supervisor."
 2. Quote block: verbatim SSG wording in full.
-3. `## What could count` — the evidence menu, three strands as `###` headings each followed by `checkListItem` blocks: **Work-based assessments (aim N)**, **Clinical and experiential evidence**, **CPD and courses**. Content: the per-KC items from the September pack (`/outputs/cesr/hillo-NN.md`), lightly edited for verbatim KC numbering. The planned / n-a lifecycle is a *convention* here (the block only has `checked`): the how-to says "strike through (Cmd/Ctrl-Shift-S) anything that doesn't apply; bold what you're pursuing this placement."
+3. `## What could count` — the evidence menu, three strands as `###` headings each followed by `checkListItem` blocks: **Work-based assessments (aim N)**, **Clinical and experiential evidence**, **CPD and courses**. Content: the per-KC items from the September pack (`/outputs/cesr/hillo-NN.md`), lightly edited for verbatim KC numbering. The planned / n-a lifecycle is a _convention_ here (the block only has `checked`): the how-to says "strike through (Cmd/Ctrl-Shift-S) anything that doesn't apply; bold what you're pursuing this placement."
 4. `### Your own routes` — one empty `checkListItem` with `fill("add an evidence route the menu doesn't list")`.
 5. `## Notes and gap plan` — one paragraph `fill(…)`.
 6. Divider, then `pageLink` back to the HiLLO page.
@@ -155,8 +159,10 @@ The **Evidence index** page from v3 is **deleted**: the Evidence hub's sub-page 
 **Properties:** none seeded (the HiLLO's progress is its children).
 
 **Body:**
+
 1. How-to callout: "Your KCs are the sub-pages below; the list shows each one's status, sign-off and evidence count from its own page. Work in the KC pages. The summary block is your supervisor's, and appears in meeting notes."
-2. `## What the curriculum asks for` — verbatim HiLLO statement (quote block), then the *At a glance* bullets from the September pack (level, placement, currency, cross-referencing).
+2. `## What the curriculum asks for` — verbatim HiLLO statement (quote block), then the _At a glance_ bullets from the September pack (level, placement, currency, cross-referencing).
+   2a. `## What assessors look for` (v6) — St George's supervisor guidance from `content/cesr-hillo-guidance.ts`, looked up by HiLLO number (a missing entry fails the build): a **green** 🩺 callout opening "Supervisor guidance, not curriculum wording." and pointing at the Evidence rules page for the GMC minimums; a paragraph (what assessors want to see); `### Minimum evidence` as `checkListItem`s; `### Common pitfalls` and `### The same evidence also serves` as bullets. No per-HiLLO WBA counts. It sits here so the curriculum wording stays first and the Required evidence callout keeps its position.
 3. `## HiLLO-level evidence` — `checkListItem`s for the placement-wide items (logbook, rota, supervisor report, CPD, reflections, letters) — these have no single KC and so live here.
 4. `## Required evidence` (HiLLOs 10, 11, 13, 14 only) — the SSG's hard requirements as `checkListItem`s (300-case logbook, 12 anaesthesia SLEs, APLS/EPALS, safeguarding, etc.) in a **red** callout.
 5. `## Maintenance route (>7 years)` (HiLLOs 10–14) — `checkListItem`s.
@@ -168,8 +174,9 @@ The sub-page list (KCs) renders below the body automatically — that is the pro
 ### 4.3 Synced blocks
 
 Fourteen `PackSynced` entries, keys `cesr-hillo-{1..14}-summary`, source = the HiLLO page. Placed:
+
 - **HiLLOs hub:** read-only, under each HiLLO's page link.
-- **Mid-placement, End-of-placement and Pre-submission meeting templates:** read-write, in the *HiLLO review* section, replacing the v3 progress tables. Keys change, so the meeting templates bump to a new version with a changelog noting the rename.
+- **Mid-placement, End-of-placement and Pre-submission meeting templates:** read-write, in the _HiLLO review_ section, replacing the v3 progress tables. Keys change, so the meeting templates bump to a new version with a changelog noting the rename.
 
 The v3 `cesr-hillo-N-progress` blocks are **not** carried forward. Since no instantiations exist, nothing is orphaned.
 
@@ -179,27 +186,32 @@ The v3 `cesr-hillo-N-progress` blocks are **not** carried forward. Since no inst
 
 **Evidence item** — a new **page template** in the gallery (`kind: "page"`, category Training & Portfolio, name "Evidence item"), not a page in the workspace template:
 
-| id | type | label | seeded |
-|---|---|---|---|
-| `type` | select | Type | `fill` — convention: CBD · DOPS · Mini-CEX · ACAT · MSF · Reflection · Certificate · Logbook · Letter · Audit/QI · Teaching · Other |
-| `date` | date | Date | — |
-| `consultant` | text | Supervising consultant | — |
-| `stored_as` | select | Stored as | convention: Described · Linked · Attached |
-| `link` | link | Link | — |
+| id           | type   | label                  | seeded                                                                                                                              |
+| ------------ | ------ | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `type`       | select | Type                   | `fill` — convention: CBD · DOPS · Mini-CEX · ACAT · MSF · Reflection · Certificate · Logbook · Letter · Audit/QI · Teaching · Other |
+| `date`       | date   | Date                   | —                                                                                                                                   |
+| `consultant` | text   | Supervising consultant | —                                                                                                                                   |
+| `stored_as`  | select | Stored as              | convention: Described · Linked · Attached                                                                                           |
+| `link`       | link   | Link                   | —                                                                                                                                   |
 
-Body: how-to; `noPhi()`; `## What it is` (`fill`); `## Which capabilities it evidences` — *"Link this page from the Evidence property of each KC it supports; the list appears here under Evidence for."*; `## Anonymisation check` — three `checkListItem`s (names/addresses/contacts removed; NHS and other numbers removed; colleagues' GMC numbers removed).
+Body: how-to; `noPhi()`; `## What it is` (`fill`); `## Which capabilities it evidences` — _"Link this page from the Evidence property of each KC it supports; the list appears here under Evidence for."_; `## Anonymisation check` — three `checkListItem`s (names/addresses/contacts removed; NHS and other numbers removed; colleagues' GMC numbers removed).
 
 Design note: the relation is declared on the **KC** (forward) and the evidence page gets the reverse side automatically. The evidence page carries no relation row of its own; Appendix B §4.4 reverse rows stay deferred.
 
 ### 4.5 Start here
 
-Rewrite for v4. Must state, in this order: what the workspace is (one line); the two contracts — *your voice is protected* (Reflections and Application narrative open supervisors in Suggest) and *drafts are private until you share them*; the **Status convention** (four values, spelled out) and who sets what (candidate: Status; supervisor: Signed off + Supervisor); the evidence loop in three sentences (create an Evidence item → link it from the KC → the KC's count and the item's "Evidence for" update); the suggested rhythm to-dos; page links.
+Rewrite for v4. Must state, in this order: what the workspace is (one line); the two contracts — _your voice is protected_ (Reflections and Application narrative open supervisors in Suggest) and _drafts are private until you share them_; the **Status convention** (four values, spelled out) and who sets what (candidate: Status; supervisor: Signed off + Supervisor); the evidence loop in three sentences (create an Evidence item → link it from the KC → the KC's count and the item's "Evidence for" update); the suggested rhythm to-dos; page links.
+
+### 4.5a Portfolio self-assessment (v6)
+
+Top-level, between Start here and My plan; title "Portfolio self-assessment", icon 🧭; linked first from Start here's page links, from the Start here rhythm ("At the start: complete the Portfolio self-assessment with your supervisor, then copy its gap analysis into My plan") and from My plan directly under the Milestones list. A baseline, not evidence; every cell the candidate supplies is a `fill()`; no GMC number, date of birth or patient detail. Blocks, in order: how-to callout; `noPhi()`; `## About you` (Item / Your answer table: post, specialty, years of ICM WTE, portfolio supervisor, educational supervisor / CESR lead, target date); `## Placements` (intro on the 1–4 level scale and the seven-year rule; table Placement / Where / Duration / Dates / Within the last 7 years? / Self-rated level / Evidence held, six fixed rows: General ICM (minimum 2¼ years), Anaesthesia, Medicine, Neurosciences ICM, Cardiothoracic ICM, Paediatric ICM; then a Special Skills Year line); `## Examinations and qualifications` (`###` Specialist ICM examination, `###` Other examinations and degrees, as to-dos); `## Structured learning events` (intro quoting the GMC 20 / 12 minimums; table Type / Count / Of which HiLLO 10 / Notes for Mini-CEX, CBD, DOPS, ACAT, MSF, Total; to-dos for the three structured reports, reflective pieces and referral letters); `## Cross-cutting evidence` (five `###` tick-lists: Quality improvement, Teaching and training, Research and evidence, Leadership and management, Courses and CPD); `## Supporting documents` (to-dos with a fill each); `## Gap analysis` (`###` Supervisor's view paragraph, `###` Agreed priority actions ×3, "Copy the agreed actions into My plan and the next supervision meeting note."); divider; page links to Evidence rules, My plan, HiLLOs.
 
 ### 4.6 My plan, Placements, Reflections, Application narrative, Resources
 
 Carry forward from v3 with these changes only:
+
 - **My plan:** the Milestones checklist replaces "Evidence mapped to every HiLLO, with no red gaps" with "Every KC at Ready for review or Signed off (check each HiLLO page's sub-page list)".
-- **Reflections** (authored): the Reflection log table is **deleted**; reflections are sub-pages made from the Reflection page template, and the sub-page list is the log. Reflection page template gains properties `date` (date) and `kc_note` (text, label "Evidences (KC numbers)") and its changelog notes that a reflection is linked *from* KC pages like any evidence item.
+- **Reflections** (authored): the Reflection log table is **deleted**; reflections are sub-pages made from the Reflection page template, and the sub-page list is the log. Reflection page template gains properties `date` (date) and `kc_note` (text, label "Evidences (KC numbers)") and its changelog notes that a reflection is linked _from_ KC pages like any evidence item.
 - **Application narrative** (authored): unchanged except references to "Evidence index numbers" become "evidence page titles".
 - **Placements, Resources:** unchanged.
 
@@ -219,10 +231,12 @@ Carry forward from v3 with these changes only:
 ## 6. Versioning and install
 
 - `cesrJourney()` → `version: 4`, changelog: "One page per Key Capability with verbatim curriculum wording, Status/Signed off/Supervisor properties and an Evidence relation; evidence items are pages linked from KCs; the HiLLO page's sub-page list replaces the hand-typed progress table; supervisor summary blocks replace the synced progress tables in meetings. Evidence index page removed."
-- Page keys: the build script matches by "template / parent title / title". HiLLO titles change (v3: `HiLLO 12`; v4: `HiLLO 12 — Neurosciences…`), so keys will *not* match — acceptable because there are no instantiations. Do not add key-mapping hacks.
+- Page keys: the build script matches by "template / parent title / title". HiLLO titles change (v3: `HiLLO 12`; v4: `HiLLO 12 — Neurosciences…`), so keys will _not_ match — acceptable because there are no instantiations. Do not add key-mapping hacks.
 - Supporting templates: Reflection → v3, the three meeting variants with embeds → next version each, new **Evidence item** v1. Evidence cover sheet and PDP unchanged.
 - Rebuild `content/cesr-journey.snapshots.json` via the documented temp-file route; commit both.
 - Install/update from the gallery's Platform packs section as the owner (existing `installPack` action). Then the owner instantiates once into a scratch workspace and checks §7.
+
+- **v6:** `version: 6`, changelog: "New Portfolio self-assessment page (between Start here and My plan); every HiLLO page gains a 'What assessors look for' section — supervisor guidance on minimum evidence, pitfalls and cross-HiLLO overlap. Existing workspaces receive the new page and the guidance on HiLLO pages they have not edited." Page keys are preserved by the build (the self-assessment page is the only new key), so "Add the new pages" adds that page alone; HiLLO pages a candidate has edited are left as they are.
 
 ## 7. Acceptance criteria
 

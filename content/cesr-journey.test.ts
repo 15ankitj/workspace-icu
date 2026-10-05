@@ -97,16 +97,17 @@ describe("CESR Journey v4 workspace template", () => {
   const byKey = new Map(snapshot.pages.map((page) => [page.key, page]));
   const titleOf = (key: string | null) => (key ? byKey.get(key)?.title : null);
 
-  it("is version 5 (Start here correction) with no Evidence index", () => {
-    expect(journey.version).toBe(5);
+  it("is version 6 (self-assessment page and assessor guidance) with no Evidence index", () => {
+    expect(journey.version).toBe(6);
     expect(journey.changelog).toBe(
-      "Start here: corrected where the Private option lives",
+      "New Portfolio self-assessment page (between Start here and My plan); every HiLLO page gains a 'What assessors look for' section — supervisor guidance on minimum evidence, pitfalls and cross-HiLLO overlap. Existing workspaces receive the new page and the guidance on HiLLO pages they have not edited.",
     );
     expect(journey.pages.map((p) => p.title)).not.toContain("Evidence index");
     expect(
       journey.pages.filter((p) => p.parentId === null).map((p) => p.title),
     ).toEqual([
       "Start here",
+      "Portfolio self-assessment",
       "My plan",
       "HiLLOs",
       "Evidence",
@@ -130,20 +131,21 @@ describe("CESR Journey v4 workspace template", () => {
     expect(text).not.toContain("Private (page menu)");
   });
 
-  it("builds to format 4 with exactly 118 pages: 92 KCs under 14 HiLLOs, plus 12 others", () => {
+  it("builds to format 4 with exactly 119 pages: 92 KCs under 14 HiLLOs, plus 13 others", () => {
     expect(snapshot.format).toBe(4);
     expect(snapshot.notes).toEqual([]);
     expect(snapshot.relations).toEqual([]);
     // Spec §3 says 117, but its own tree lists 12 pages besides the HiLLOs
     // and KCs (Start here, My plan, HiLLOs, Evidence, Evidence rules,
     // Supervision meetings, Placements, PICU, Neuro ICU, Reflections,
-    // Application narrative, Resources): 92 + 14 + 12 = 118.
-    expect(snapshot.pages).toHaveLength(118);
+    // Application narrative, Resources); v6 adds Portfolio
+    // self-assessment: 92 + 14 + 13 = 119.
+    expect(snapshot.pages).toHaveLength(119);
     expect(
       snapshot.pages.filter(
         (p) => !p.title.startsWith("KC ") && !p.title.startsWith("HiLLO "),
       ),
-    ).toHaveLength(12);
+    ).toHaveLength(13);
     const hillos = snapshot.pages.filter(
       (p) => titleOf(p.parent_key) === "HiLLOs",
     );
@@ -173,6 +175,163 @@ describe("CESR Journey v4 workspace template", () => {
         )?.key ?? null,
       ),
     ).toBe("Evidence");
+  });
+
+  it("lays out the Portfolio self-assessment page in the v6 order, all placeholders, no identifiers", () => {
+    const page = snapshot.pages.find(
+      (p) => p.title === "Portfolio self-assessment",
+    )!;
+    expect(page.parent_key).toBeNull();
+    expect(page.icon).toBe("🧭");
+    expect(page.authored_content ?? false).toBe(false);
+    const blocks = page.blocks;
+    const text = (block: (typeof blocks)[number]) =>
+      Array.isArray(block.content?.content)
+        ? (block.content.content as { text: string }[])
+            .map((r) => r.text)
+            .join("")
+        : "";
+    const headings = blocks
+      .filter((b) => b.type === "heading")
+      .map((b) => [b.content?.props?.level, text(b)]);
+    expect(headings).toEqual([
+      [2, "About you"],
+      [2, "Placements"],
+      [2, "Examinations and qualifications"],
+      [3, "Specialist ICM examination"],
+      [3, "Other examinations and degrees"],
+      [2, "Structured learning events"],
+      [2, "Cross-cutting evidence"],
+      [3, "Quality improvement"],
+      [3, "Teaching and training"],
+      [3, "Research and evidence"],
+      [3, "Leadership and management"],
+      [3, "Courses and CPD"],
+      [2, "Supporting documents"],
+      [2, "Gap analysis"],
+      [3, "Supervisor's view"],
+      [3, "Agreed priority actions"],
+    ]);
+    // How-to then no-PHI callouts first.
+    expect(blocks[0].type).toBe("callout");
+    expect(text(blocks[0])).toContain(
+      "complete this once with your supervisor",
+    );
+    expect(blocks[1].type).toBe("callout");
+    expect(text(blocks[1])).toContain(
+      "Never add patient-identifiable information",
+    );
+    // Three tables: About you (7 rows), Placements (header + 6), SLEs (header + 6).
+    const tables = blocks.filter((b) => b.type === "table");
+    const rows = (block: (typeof blocks)[number]) =>
+      (
+        block.content?.content as {
+          rows: { cells: { text: string }[][] }[];
+        }
+      ).rows;
+    expect(tables).toHaveLength(3);
+    expect(rows(tables[0])).toHaveLength(7);
+    expect(rows(tables[0])[0].cells.map((c) => c[0].text)).toEqual([
+      "Item",
+      "Your answer",
+    ]);
+    expect(rows(tables[1])[0].cells.map((c) => c[0].text)).toEqual([
+      "Placement",
+      "Where",
+      "Duration (months, WTE)",
+      "Dates",
+      "Within the last 7 years?",
+      "Self-rated level (1–4)",
+      "Evidence held",
+    ]);
+    expect(
+      rows(tables[1])
+        .slice(1)
+        .map((r) => r.cells[0][0].text),
+    ).toEqual([
+      "General ICM (minimum 2¼ years)",
+      "Anaesthesia",
+      "Medicine",
+      "Neurosciences ICM",
+      "Cardiothoracic ICM",
+      "Paediatric ICM",
+    ]);
+    expect(rows(tables[2])[0].cells.map((c) => c[0].text)).toEqual([
+      "Type",
+      "Count",
+      "Of which HiLLO 10 (anaesthesia)",
+      "Notes",
+    ]);
+    expect(
+      rows(tables[2])
+        .slice(1)
+        .map((r) => r.cells[0][0].text),
+    ).toEqual(["Mini-CEX", "CBD", "DOPS", "ACAT", "MSF", "Total"]);
+    // Every cell the candidate fills is a «placeholder».
+    for (const table of tables) {
+      for (const row of rows(table).slice(1)) {
+        for (const cell of row.cells.slice(1)) {
+          expect(cell[0].text).toMatch(/^«.*»$/);
+        }
+      }
+    }
+    // Ends with the divider and the three page links, in order.
+    const tail = blocks.slice(-4);
+    expect(tail.map((b) => b.type)).toEqual([
+      "divider",
+      "pageLink",
+      "pageLink",
+      "pageLink",
+    ]);
+    expect(tail.slice(1).map((b) => b.content?.props?.title)).toEqual([
+      "Evidence rules that apply everywhere",
+      "My plan",
+      "HiLLOs",
+    ]);
+    const whole = textOf(blocks);
+    expect(whole).toContain("Special Skills Year: ");
+    expect(whole).toContain("Copy the agreed actions into My plan");
+    expect(whole).not.toMatch(/GMC number/i);
+    expect(whole).not.toMatch(/date of birth/i);
+  });
+
+  it("links the self-assessment from Start here and from My plan's milestones, and never mentions a GMC number", () => {
+    const start = snapshot.pages.find((p) => p.title === "Start here")!;
+    const links = start.blocks
+      .filter((b) => b.type === "pageLink")
+      .map((b) => b.content?.props?.title);
+    expect(links[0]).toBe("Portfolio self-assessment");
+    expect(textOf(start.blocks)).toContain(
+      "At the start: complete the Portfolio self-assessment with your supervisor, then copy its gap analysis into My plan",
+    );
+    const plan = snapshot.pages.find((p) => p.title === "My plan")!;
+    const milestones = plan.blocks.findIndex(
+      (b) =>
+        b.type === "checkListItem" &&
+        JSON.stringify(b).includes(
+          "Complete a baseline self-assessment against all 14 HiLLOs",
+        ),
+    );
+    const afterMilestones = plan.blocks.findIndex(
+      (b, index) => index > milestones && b.type !== "checkListItem",
+    );
+    expect(plan.blocks[afterMilestones].type).toBe("pageLink");
+    expect(plan.blocks[afterMilestones].content?.props).toMatchObject({
+      title: "Portfolio self-assessment",
+    });
+    // No page asks for a GMC number. The one mention in the pack is the
+    // verbatim anonymisation rule on the Evidence rules page ("GMC numbers
+    // of colleagues … "), which tells candidates to remove them.
+    for (const page of snapshot.pages) {
+      const mentions = textOf(page.blocks).match(/GMC number[^"]*/gi) ?? [];
+      if (page.title === "Evidence rules that apply everywhere") {
+        expect(mentions).toEqual([
+          "GMC numbers of colleagues you have assessed, referenced, or complained about",
+        ]);
+      } else {
+        expect(mentions).toEqual([]);
+      }
+    }
   });
 
   it("has 14 supervisor summary synced sources on the HiLLO pages, placed read-only on the hub", () => {

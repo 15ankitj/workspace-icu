@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { EditorBlock } from "../src/lib/blocks";
 import { md, synced } from "./blocks";
 import { CESR_CURRICULUM } from "./cesr-curriculum";
+import { CESR_HILLO_GUIDANCE } from "./cesr-hillo-guidance";
 import {
+  GUIDANCE_CALLOUT_LEAD,
+  guidanceFor,
+  hilloPage,
   hilloTitle,
   hilloTree,
   KC_PROPERTY_IDS,
@@ -184,14 +188,22 @@ describe("hilloTree", () => {
     const headings = blocks.filter((b) => b.type === "heading").map(textOf);
     expect(headings).toEqual([
       "What the curriculum asks for",
+      "What assessors look for",
+      "Minimum evidence",
+      "Common pitfalls",
+      "The same evidence also serves",
       "HiLLO-level evidence",
       "Maintenance route (>7 years)",
       "Supervisor summary",
     ]);
     expect(blocks.find((b) => b.type === "quote")).toBeDefined();
-    expect(blocks.filter((b) => b.type === "bulletListItem")).toHaveLength(
-      CESR_CURRICULUM[11].atAGlance.length,
+    // The at-a-glance bullets sit between the quote and the guidance.
+    const guidanceAt = blocks.findIndex(
+      (b) => b.type === "heading" && textOf(b) === "What assessors look for",
     );
+    expect(
+      blocks.slice(0, guidanceAt).filter((b) => b.type === "bulletListItem"),
+    ).toHaveLength(CESR_CURRICULUM[11].atAGlance.length);
     expect(blocks.find((b) => b.type === "syncedBlock")).toBeDefined();
     expect(blocks.at(-1)!.props).toMatchObject({
       pageId: trees.hub,
@@ -225,6 +237,100 @@ describe("hilloTree", () => {
       );
       expect(headings.includes("HiLLO-level evidence")).toBe(hillo.n !== 10);
     }
+  });
+
+  it("puts 'What assessors look for' between the curriculum wording and the first evidence section on every HiLLO page", () => {
+    for (const hillo of CESR_CURRICULUM) {
+      const page = byTitle.get(hilloTitle(hillo))!;
+      const blocks = page.blocks.flat();
+      const h2s = blocks
+        .filter((b) => b.type === "heading" && b.props?.level === 2)
+        .map(textOf);
+      const at = (heading: string) => h2s.indexOf(heading);
+      expect(at("What assessors look for")).toBeGreaterThan(
+        at("What the curriculum asks for"),
+      );
+      // The section that follows: HiLLO-level evidence where the HiLLO
+      // has one (1–9, 11–14), else Required evidence (10); Supervisor
+      // summary is the fallback the layout never reaches today.
+      const next = [
+        "HiLLO-level evidence",
+        "Required evidence",
+        "Supervisor summary",
+      ]
+        .map(at)
+        .filter((index) => index >= 0)
+        .sort((a, b) => a - b)[0];
+      expect(at("What assessors look for")).toBe(
+        at("What the curriculum asks for") + 1,
+      );
+      expect(next).toBe(at("What assessors look for") + 1);
+      // HiLLO 10 has no HiLLO-level section, so there the guidance sits
+      // directly before the Required evidence callout.
+      if (hillo.n === 10) {
+        expect(at("Required evidence")).toBe(at("What assessors look for") + 1);
+      }
+    }
+  });
+
+  it("renders the guidance as a green callout, a paragraph, to-dos, and two bullet lists, from the data", () => {
+    for (const hillo of CESR_CURRICULUM) {
+      const page = byTitle.get(hilloTitle(hillo))!;
+      const blocks = page.blocks.flat();
+      const start = blocks.findIndex(
+        (b) => b.type === "heading" && textOf(b) === "What assessors look for",
+      );
+      const end = blocks.findIndex(
+        (b, index) =>
+          index > start && b.type === "heading" && b.props?.level === 2,
+      );
+      const section = blocks.slice(start + 1, end);
+      const guidance = guidanceFor(hillo.n);
+      expect(section.map((b) => b.type)).toEqual([
+        "callout",
+        "paragraph",
+        "heading",
+        ...guidance.minimum.map(() => "checkListItem"),
+        "heading",
+        ...guidance.pitfalls.map(() => "bulletListItem"),
+        "heading",
+        ...guidance.alsoServes.map(() => "bulletListItem"),
+      ]);
+      const [calloutBlock, lookFor] = section;
+      expect(calloutBlock.props).toMatchObject({
+        emoji: "🩺",
+        colour: "green",
+      });
+      expect(textOf(calloutBlock).startsWith(GUIDANCE_CALLOUT_LEAD)).toBe(true);
+      expect(textOf(calloutBlock)).toContain("Evidence rules page");
+      expect(textOf(lookFor)).toBe(guidance.lookFor);
+      const headings = section
+        .filter((b) => b.type === "heading")
+        .map((b) => [b.props?.level, textOf(b)]);
+      expect(headings).toEqual([
+        [3, "Minimum evidence"],
+        [3, "Common pitfalls"],
+        [3, "The same evidence also serves"],
+      ]);
+      expect(
+        section.filter((b) => b.type === "checkListItem").map(textOf),
+      ).toEqual(guidance.minimum);
+      expect(
+        section.filter((b) => b.type === "bulletListItem").map(textOf),
+      ).toEqual([...guidance.pitfalls, ...guidance.alsoServes]);
+      // No «placeholder» and no curriculum quote inside the guidance.
+      expect(section.map(textOf).join("")).not.toContain("«");
+    }
+  });
+
+  it("refuses to build a HiLLO page with no guidance", () => {
+    const orphan = { ...CESR_CURRICULUM[0], n: 99 };
+    expect(() =>
+      hilloPage(orphan, { page: "p", hub: "h" }, synced("s")),
+    ).toThrow(/HiLLO 99: no supervisor guidance/);
+    expect(CESR_HILLO_GUIDANCE.map((g) => g.n)).toEqual(
+      CESR_CURRICULUM.map((h) => h.n),
+    );
   });
 
   it("builds as a pack with no notes, 106 pages and every KC row intact", () => {

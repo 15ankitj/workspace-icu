@@ -22,6 +22,7 @@ import type {
   CurriculumSection,
   CurriculumStrand,
 } from "./cesr-curriculum";
+import { CESR_HILLO_GUIDANCE, type HilloGuidance } from "./cesr-hillo-guidance";
 import type { PackPage } from "./cesr-journey";
 
 /**
@@ -79,6 +80,56 @@ function strandHeading(strand: CurriculumStrand): string {
 }
 
 const statusList = STATUS_VALUES.join(" · ");
+
+const GUIDANCE_BY_HILLO = new Map(CESR_HILLO_GUIDANCE.map((g) => [g.n, g]));
+
+/**
+ * The supervisor guidance for a HiLLO (v6). A HiLLO with none is a build
+ * error, never a page that silently lacks the section.
+ */
+export function guidanceFor(n: number): HilloGuidance {
+  const guidance = GUIDANCE_BY_HILLO.get(n);
+  if (!guidance) {
+    throw new Error(
+      `HiLLO ${n}: no supervisor guidance in cesr-hillo-guidance.ts`,
+    );
+  }
+  return guidance;
+}
+
+/** Opening words of the guidance callout; the tests look for them. */
+export const GUIDANCE_CALLOUT_LEAD =
+  "Supervisor guidance, not curriculum wording.";
+
+/**
+ * "What assessors look for" (v6): St George's supervisor guidance, sited
+ * after the curriculum wording and before the evidence sections so the
+ * verbatim text stays first and the Required evidence callout keeps its
+ * place. Guidance, not curriculum: the callout says so.
+ */
+export function assessorSection(hillo: CurriculumHillo): EditorBlock[] {
+  const guidance = guidanceFor(hillo.n);
+  return [
+    h2("What assessors look for"),
+    callout(
+      "🩺",
+      [
+        b(`${GUIDANCE_CALLOUT_LEAD} `),
+        t(
+          "Written at St George's from supervising Portfolio Pathway candidates; the GMC minimums are on the Evidence rules page.",
+        ),
+      ],
+      "green",
+    ),
+    p(guidance.lookFor),
+    h3("Minimum evidence"),
+    ...guidance.minimum.map((item) => todo(item)),
+    h3("Common pitfalls"),
+    ...bullets(guidance.pitfalls),
+    h3("The same evidence also serves"),
+    ...bullets(guidance.alsoServes),
+  ];
+}
 
 /**
  * The KC page (spec §4.1): how-to, the verbatim wording, the evidence
@@ -170,6 +221,7 @@ export function hilloPage(
       h2("What the curriculum asks for"),
       quote(hillo.statement),
       ...bullets(hillo.atAGlance.map(md)),
+      ...assessorSection(hillo),
       ...(hillo.hilloLevel
         ? [
             h2("HiLLO-level evidence"),

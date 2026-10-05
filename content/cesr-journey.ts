@@ -35,8 +35,10 @@ import {
 } from "./cesr-hillo-pages";
 
 /**
- * CESR Journey — the first content pack (brief §11), version 5: the v4
- * layout (docs/cesr-journey-v4-spec.md) with a corrected Start here. One
+ * CESR Journey — the first content pack (brief §11), version 6: the v4
+ * layout (docs/cesr-journey-v4-spec.md) with a corrected Start here (v5),
+ * a Portfolio self-assessment page and St George's supervisor guidance
+ * on every HiLLO page (v6, content/cesr-hillo-guidance.ts). One
  * page per Key Capability with the verbatim curriculum wording from
  * content/cesr-curriculum.ts, Status / Signed off / Supervisor properties
  * and an Evidence relation; evidence items are pages linked from the KCs;
@@ -184,6 +186,7 @@ function howTo(text: string): EditorBlock {
 export function cesrJourney(): PackTemplate {
   const ids = {
     start: randomUUID(),
+    selfAssessment: randomUUID(),
     plan: randomUUID(),
     hillos: randomUUID(),
     meetings: randomUUID(),
@@ -251,17 +254,228 @@ export function cesrJourney(): PackTemplate {
       ),
       h2("Suggested rhythm"),
       todos([
+        "At the start: complete the Portfolio self-assessment with your supervisor, then copy its gap analysis into My plan",
         "Weekly: create an Evidence item for anything new and link it from the KC pages it supports",
         "Monthly: open each HiLLO page, read the sub-page list, and move any KC that is ready to Ready for review",
         "Each placement: initial, mid-placement and end-of-placement meetings, from the gallery templates",
         "Three months before submission: pre-submission meeting and readiness checklist",
       ]),
       divider(),
+      pageLink(ids.selfAssessment, "Portfolio self-assessment", "🧭"),
       pageLink(ids.plan, "My plan", "🗺️"),
       pageLink(ids.hillos, "HiLLOs", "🎯"),
       pageLink(ids.evidence, "Evidence", "📚"),
       pageLink(ids.meetings, "Supervision meetings", "🤝"),
       pageLink(ids.resources, "Resources", "🔗"),
+    ],
+  };
+
+  /** A table row whose first cell is fixed text and the rest placeholders. */
+  const fillRow = (first: string, hints: string[]) => [
+    first,
+    ...hints.map((hint) => [fill(hint)]),
+  ];
+
+  const selfAssessment: PackPage = {
+    id: ids.selfAssessment,
+    parentId: null,
+    title: "Portfolio self-assessment",
+    icon: "🧭",
+    blocks: [
+      howTo(
+        "complete this once with your supervisor at the first meeting, and update it at each end-of-placement meeting. It is a baseline, not evidence: the GMC rules it refers to are on the Evidence rules page, and the HiLLO pages carry the detail.",
+      ),
+      noPhi(),
+      h2("About you"),
+      table([
+        ["Item", "Your answer"],
+        fillRow("Current post and hospital", ["post and hospital"]),
+        fillRow("Primary specialty (if dual)", ["specialty"]),
+        fillRow("Years of ICM experience (whole-time equivalent)", ["years"]),
+        fillRow("Portfolio supervisor", ["name and role"]),
+        fillRow("Educational supervisor / CESR lead", ["name and role"]),
+        fillRow("Target submission date", ["month and year"]),
+      ]),
+      h2("Placements"),
+      p(
+        "One row per required placement. Level is your own rating against the curriculum (1 = observed, 2 = directly supervised, 3 = indirectly supervised, 4 = independent). A placement more than seven years ago needs the maintenance route on its HiLLO page.",
+      ),
+      table([
+        [
+          "Placement",
+          "Where",
+          "Duration (months, WTE)",
+          "Dates",
+          "Within the last 7 years?",
+          "Self-rated level (1–4)",
+          "Evidence held",
+        ],
+        ...[
+          "General ICM (minimum 2¼ years)",
+          "Anaesthesia",
+          "Medicine",
+          "Neurosciences ICM",
+          "Cardiothoracic ICM",
+          "Paediatric ICM",
+        ].map((placement) =>
+          fillRow(placement, [
+            "unit and hospital",
+            "months",
+            "from – to",
+            "yes / no",
+            "1–4",
+            "logbook, rota, supervisor report, SLEs…",
+          ]),
+        ),
+      ]),
+      p([
+        t("Special Skills Year: "),
+        fill(
+          "area declared, and how it is evidenced at a higher level than the HiLLO requires",
+        ),
+      ]),
+      h2("Examinations and qualifications"),
+      h3("Specialist ICM examination"),
+      ...todos([
+        "FFICM",
+        "EDIC (Parts I and II)",
+        "DICM",
+        "FCICM",
+        [t("Other recognised equivalent: "), fill("which, and when")],
+      ]),
+      h3("Other examinations and degrees"),
+      ...todos([
+        "FRCA",
+        "MRCP",
+        "FRCEM",
+        "GCP certificate",
+        [t("Higher degree (MSc, MD, PhD): "), fill("which, and in what")],
+        [t("Other: "), fill("qualification")],
+      ]),
+      h2("Structured learning events"),
+      p(
+        "Count only SLEs you can produce the form for. The GMC minimum is 20 in total, 12 of them anaesthesia-specific for HiLLO 10.",
+      ),
+      table([
+        ["Type", "Count", "Of which HiLLO 10 (anaesthesia)", "Notes"],
+        ...["Mini-CEX", "CBD", "DOPS", "ACAT", "MSF", "Total"].map((type) =>
+          fillRow(type, ["number", "number", "notes"]),
+        ),
+      ]),
+      ...todos([
+        [
+          t(
+            "Three structured reports obtainable (current Clinical Director plus two ICM colleagues from the last two years): ",
+          ),
+          fill("names"),
+        ],
+        [
+          t("Reflective pieces available: "),
+          fill("number — GMC asks for at least four"),
+        ],
+        [t("Referral letters available: "), fill("number — at least two")],
+      ]),
+      h2("Cross-cutting evidence"),
+      h3("Quality improvement"),
+      ...todos([
+        "QI project led (full PDSA cycle)",
+        "Clinical audit with closed loop",
+        "Service evaluation",
+        "Governance or M&M presentation",
+        "Guideline or protocol written",
+      ]),
+      h3("Teaching and training"),
+      ...todos([
+        "Regular bedside teaching",
+        "Formal teaching programme",
+        "Simulation faculty",
+        "Life support instructor (ALS, ATLS, APLS, CALS)",
+        "Clinical or educational supervisor role",
+        "Examiner or assessor role",
+        "Teaching qualification (Teach the Teachers, PGCert, MSc)",
+        "Learner feedback kept",
+      ]),
+      h3("Research and evidence"),
+      ...todos([
+        "GCP trained",
+        "Journal club presentations",
+        "Peer-reviewed publication",
+        "Conference presentation or poster",
+        "Trial involvement (PI, sub-investigator, recruiter)",
+        "Higher degree with a research component",
+      ]),
+      h3("Leadership and management"),
+      ...todos([
+        "Directorate or departmental meeting member",
+        "Rota coordination",
+        "Guideline development",
+        "M&M or governance lead",
+        "MDT lead or chair",
+        "Committee or working group role",
+        "Management qualification or course",
+      ]),
+      h3("Courses and CPD"),
+      ...todos([
+        "ALS",
+        "ATLS",
+        "APLS or EPALS",
+        "CALS",
+        "FUSIC / FICE",
+        "Echo accreditation (BSE or equivalent)",
+        "Transfer course",
+        "Difficult airway course",
+        "Human factors",
+        "Adult safeguarding Level 3",
+        "Child safeguarding Level 3",
+        "Information governance",
+        "Organ donation (NHSBT)",
+        "Major incident (MIMMS or equivalent)",
+        "Simulation instructor course",
+      ]),
+      h2("Supporting documents"),
+      ...todos([
+        [
+          t("Appraisals for the last three years: "),
+          fill("all three / partial / none"),
+        ],
+        [
+          t("MSFs from different placements: "),
+          fill("how many, and where from — three or more is the aim"),
+        ],
+        [
+          t("Patient feedback: "),
+          fill("formal questionnaire / informal / none"),
+        ],
+        [
+          t("Sample rotas and caseload statistics per placement: "),
+          fill("which placements"),
+        ],
+        [t("CV up to date: "), fill("date")],
+        [
+          t("Indemnity and GMC registration documents to hand: "),
+          fill("yes / no"),
+        ],
+      ]),
+      h2("Gap analysis"),
+      h3("Supervisor's view"),
+      p([
+        fill(
+          "overall readiness, the HiLLOs furthest from the standard, and what the next placement must deliver",
+        ),
+      ]),
+      h3("Agreed priority actions"),
+      ...todos([
+        [fill("action — who, by when")],
+        [fill("action — who, by when")],
+        [fill("action — who, by when")],
+      ]),
+      p(
+        "Copy the agreed actions into My plan and the next supervision meeting note.",
+      ),
+      divider(),
+      pageLink(ids.evidenceRules, "Evidence rules that apply everywhere", "📋"),
+      pageLink(ids.plan, "My plan", "🗺️"),
+      pageLink(ids.hillos, "HiLLOs", "🎯"),
     ],
   };
 
@@ -314,6 +528,7 @@ export function cesrJourney(): PackTemplate {
         "Pre-submission meeting and readiness checklist complete",
         "Submitted",
       ]),
+      pageLink(ids.selfAssessment, "Portfolio self-assessment", "🧭"),
       h2("Risks and mitigations"),
       table([
         ["Risk", "Mitigation"],
@@ -652,14 +867,16 @@ export function cesrJourney(): PackTemplate {
     purpose:
       "A complete working file for a CESR / Portfolio Pathway application in ICM",
     description:
-      "Start here, My plan, one page per HiLLO with one sub-page per Key Capability carrying the verbatim curriculum wording, Status / Signed off / Supervisor properties and an Evidence relation; an Evidence hub whose item pages are linked from the KCs; supervision meeting hub, placement guidance, reflections, application narrative and curated resources. Pair it with the Evidence item, Supervision meeting, Reflection, Evidence cover sheet and PDP page templates.",
+      "Start here, a Portfolio self-assessment baseline, My plan, one page per HiLLO (with supervisor guidance on what assessors look for) and one sub-page per Key Capability carrying the verbatim curriculum wording, Status / Signed off / Supervisor properties and an Evidence relation; an Evidence hub whose item pages are linked from the KCs; supervision meeting hub, placement guidance, reflections, application narrative and curated resources. Pair it with the Evidence item, Supervision meeting, Reflection, Evidence cover sheet and PDP page templates.",
     category: "Training & Portfolio",
     audience: "ICM CESR / Portfolio Pathway candidates and their supervisors",
     kind: "workspace",
-    version: 5,
-    changelog: "Start here: corrected where the Private option lives",
+    version: 6,
+    changelog:
+      "New Portfolio self-assessment page (between Start here and My plan); every HiLLO page gains a 'What assessors look for' section — supervisor guidance on minimum evidence, pitfalls and cross-HiLLO overlap. Existing workspaces receive the new page and the guidance on HiLLO pages they have not edited.",
     pages: [
       start,
+      selfAssessment,
       plan,
       hillosHub,
       ...hillos,
