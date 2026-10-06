@@ -141,21 +141,36 @@
    stay visible in the flow until the author resolves them. */
 ins.wi-suggest-ins {
   text-decoration: none;
-  background-color: color-mix(in oklab, var(--color-emerald-600, #059669) 14%, transparent);
-  box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--color-emerald-600, #059669) 55%, transparent);
+  background-color: color-mix(
+    in oklab,
+    var(--color-emerald-600, #059669) 14%,
+    transparent
+  );
+  box-shadow: inset 0 -2px 0
+    color-mix(in oklab, var(--color-emerald-600, #059669) 55%, transparent);
   border-radius: 2px;
 }
 del.wi-suggest-del {
   text-decoration: line-through;
-  text-decoration-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 70%, transparent);
-  background-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 10%, transparent);
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--color-rose-600, #e11d48) 70%,
+    transparent
+  );
+  background-color: color-mix(
+    in oklab,
+    var(--color-rose-600, #e11d48) 10%,
+    transparent
+  );
   border-radius: 2px;
 }
 .wi-suggest-mod {
-  box-shadow: inset 0 -2px 0 color-mix(in oklab, var(--color-amber-600, #d97706) 55%, transparent);
+  box-shadow: inset 0 -2px 0
+    color-mix(in oklab, var(--color-amber-600, #d97706) 55%, transparent);
 }
 .wi-suggest[data-active="true"] {
-  outline: 2px solid color-mix(in oklab, var(--color-ring, #999) 60%, transparent);
+  outline: 2px solid
+    color-mix(in oklab, var(--color-ring, #999) 60%, transparent);
   outline-offset: 1px;
 }
 
@@ -168,17 +183,32 @@ del.wi-suggest-del {
   -webkit-print-color-adjust: exact;
 }
 .wi-suggest-block-ins {
-  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-emerald-600, #059669) 60%, transparent);
-  background-color: color-mix(in oklab, var(--color-emerald-600, #059669) 8%, transparent);
+  box-shadow: inset 3px 0 0
+    color-mix(in oklab, var(--color-emerald-600, #059669) 60%, transparent);
+  background-color: color-mix(
+    in oklab,
+    var(--color-emerald-600, #059669) 8%,
+    transparent
+  );
 }
 .wi-suggest-block-del {
-  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-rose-600, #e11d48) 60%, transparent);
-  background-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 8%, transparent);
+  box-shadow: inset 3px 0 0
+    color-mix(in oklab, var(--color-rose-600, #e11d48) 60%, transparent);
+  background-color: color-mix(
+    in oklab,
+    var(--color-rose-600, #e11d48) 8%,
+    transparent
+  );
   text-decoration: line-through;
-  text-decoration-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 70%, transparent);
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--color-rose-600, #e11d48) 70%,
+    transparent
+  );
 }
 .wi-suggest-block-mod {
-  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-amber-600, #d97706) 60%, transparent);
+  box-shadow: inset 3px 0 0
+    color-mix(in oklab, var(--color-amber-600, #d97706) 60%, transparent);
 }
 .wi-suggest-block .wi-suggest-label {
   text-decoration: none;
@@ -192,14 +222,44 @@ del.wi-suggest-del {
 /* Block-level suggestions: the wrapper is display:contents, so the
    blocks inside carry the colour as a rule down their left edge. */
 ins.wi-suggest-ins[data-inline="false"] > * {
-  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-emerald-600, #059669) 60%, transparent);
-  background-color: color-mix(in oklab, var(--color-emerald-600, #059669) 8%, transparent);
+  box-shadow: inset 3px 0 0
+    color-mix(in oklab, var(--color-emerald-600, #059669) 60%, transparent);
+  background-color: color-mix(
+    in oklab,
+    var(--color-emerald-600, #059669) 8%,
+    transparent
+  );
   border-radius: 2px;
 }
 del.wi-suggest-del[data-inline="false"] > * {
-  box-shadow: inset 3px 0 0 color-mix(in oklab, var(--color-rose-600, #e11d48) 60%, transparent);
-  background-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 8%, transparent);
+  box-shadow: inset 3px 0 0
+    color-mix(in oklab, var(--color-rose-600, #e11d48) 60%, transparent);
+  background-color: color-mix(
+    in oklab,
+    var(--color-rose-600, #e11d48) 8%,
+    transparent
+  );
   text-decoration: line-through;
-  text-decoration-color: color-mix(in oklab, var(--color-rose-600, #e11d48) 70%, transparent);
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--color-rose-600, #e11d48) 70%,
+    transparent
+  );
   border-radius: 2px;
+}
+
+/* Ticked check-list items are planned or done, not struck out — the
+   pack how-tos reserve strike-through formatting for "doesn't apply".
+   Overrides BlockNote's default checked style; the tick stays, the text
+   is muted. Manual strike-through (the `s` mark) is unaffected: it is a
+   child element with its own line, which a parent's `none` does not
+   remove. The editor's stylesheet is imported by the lazily loaded
+   editor chunk, so it lands after this file; the `.bn-container` prefix
+   gives this rule one more class than BlockNote's, so it wins without
+   `!important`. */
+.bn-container
+  .bn-block-content[data-content-type="checkListItem"][data-checked="true"]
+  .bn-inline-content {
+  text-decoration: none;
+  color: var(--muted-foreground);
 }
