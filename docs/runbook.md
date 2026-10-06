@@ -170,6 +170,11 @@ Invitations are sent through Resend's REST API from server actions.
   collaboration flows are tested by hand on the preview deployment.
 - **Compliance drafts**: `docs/compliance/` (DPIA, privacy notice, breach
   procedure, processor DPA checklist) and the in-app `/privacy` page.
+- **Ticked check-list items** are muted, not struck through: an override
+  at the end of `src/app/globals.css` (and the same look in the static
+  renderer used for print and share) replaces BlockNote's default
+  line-through, because strike-through means "doesn't apply" in the CESR
+  pack's how-tos. A manual strike mark inside a ticked item keeps its line.
 
 ### Errors from server actions
 

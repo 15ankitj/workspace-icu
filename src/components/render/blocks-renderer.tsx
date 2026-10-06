@@ -176,21 +176,23 @@ function BlockBody({ block, ctx }: { block: EditorBlock; ctx: RenderContext }) {
         </>
       );
     }
-    case "checkListItem":
+    case "checkListItem": {
+      // Ticked means planned or done: muted, never struck through (the
+      // pack how-tos reserve strike-through for "doesn't apply"). Same
+      // look as the editor's override in globals.css.
+      const checked = Boolean(props.checked);
       return (
         <div className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            checked={Boolean(props.checked)}
-            readOnly
-            className="mt-1"
-          />
+          <input type="checkbox" checked={checked} readOnly className="mt-1" />
           <div className="flex-1">
-            <div>{inline}</div>
+            <div className={checked ? "text-muted-foreground" : undefined}>
+              {inline}
+            </div>
             {children}
           </div>
         </div>
       );
+    }
     case "quote":
       return (
         <blockquote className="border-l-2 pl-3 italic text-muted-foreground">
