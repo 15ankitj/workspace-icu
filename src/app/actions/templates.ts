@@ -353,18 +353,27 @@ export async function instantiateTemplate(input: {
     }
 
     // Synced blocks the workspace already holds under the template's stable
-    // keys resolve to those (Appendix A §1.3 rule 8).
+    // keys resolve to those (Appendix A §1.3 rule 8) — live ones only: a
+    // block whose source page is in the Trash gives its key up to the new
+    // copy (migration 0031), so a deleted copy never blocks a fresh install.
+    const livePageIds = new Set((siblings ?? []).map((p) => p.id));
     const syncedKeys = (snapshot.synced ?? []).map((entry) => entry.key);
     const existingSyncedByKey = new Map<string, string>();
     if (syncedKeys.length > 0) {
       const { data: existingSynced } = await supabase
         .from("synced_blocks")
-        .select("id, template_key")
+        .select("id, template_key, source_page_id")
         .eq("workspace_id", input.workspaceId)
         .in("template_key", syncedKeys)
         .is("deleted_at", null);
       for (const row of existingSynced ?? []) {
-        if (row.template_key) existingSyncedByKey.set(row.template_key, row.id);
+        if (
+          row.template_key &&
+          row.source_page_id &&
+          livePageIds.has(row.source_page_id)
+        ) {
+          existingSyncedByKey.set(row.template_key, row.id);
+        }
       }
     }
 
