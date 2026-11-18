@@ -2,7 +2,12 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { renameWorkspace } from "@/app/actions/workspaces";
+import {
+  leaveWorkspace,
+  renameWorkspace,
+  restoreWorkspace,
+  transferOwnership,
+} from "@/app/actions/workspaces";
 import {
   createInvite,
   removeMember,
@@ -26,6 +31,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DeleteAccountForm } from "./delete-account-form";
+import { DeleteWorkspaceForm } from "./delete-workspace-form";
 import { PasskeysBlock } from "./passkeys-block";
 import { flags } from "@/lib/flags";
 import { setEmailDigest } from "@/app/actions/suggestions";
@@ -40,6 +46,14 @@ async function appOrigin(): Promise<string> {
   const proto = h.get("x-forwarded-proto") ?? "https";
   return `${proto}://${host}`;
 }
+
+const TRASH_DAYS = 30;
+
+const dateFormat = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
 
 const rowClass =
   "flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm";
@@ -60,6 +74,7 @@ export default async function WorkspaceSettings({
     { data: membership },
     { data: invites },
     { data: me },
+    { data: deletedWorkspaces },
   ] = await Promise.all([
     supabase
       .from("workspaces")
@@ -91,6 +106,7 @@ export default async function WorkspaceSettings({
       .select("email_digest")
       .eq("id", user.id)
       .maybeSingle(),
+    supabase.rpc("list_deleted_workspaces"),
   ]);
   const emailDigest = me?.email_digest ?? true;
   if (!workspace || !membership) notFound();
@@ -101,6 +117,9 @@ export default async function WorkspaceSettings({
   }
 
   const isOwner = membership.role === "owner";
+  const otherMembers = (members ?? []).filter((m) => m.user_id !== user.id);
+  // If the list failed to load, do not offer what the database may refuse.
+  const alone = !membersError && otherMembers.length === 0;
   const origin = isOwner ? await appOrigin() : "";
   const emailConfigured = isEmailConfigured();
 
@@ -329,6 +348,99 @@ export default async function WorkspaceSettings({
 
       <Separator />
 
+      <section className="space-y-4">
+        <SectionHeading>Danger zone</SectionHeading>
+        {isOwner ? (
+          <>
+            {!workspace.is_personal && otherMembers.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm">
+                  <span className="font-medium">Transfer ownership</span>
+                  <span className="block text-muted-foreground">
+                    The new owner manages members and can delete the workspace.
+                    You stay on as an editor.
+                  </span>
+                </p>
+                <ActionForm
+                  action={transferOwnership}
+                  className="flex flex-wrap gap-2"
+                >
+                  <input
+                    type="hidden"
+                    name="workspaceId"
+                    value={workspace.id}
+                  />
+                  <NativeSelect
+                    name="userId"
+                    required
+                    defaultValue=""
+                    aria-label="New owner"
+                  >
+                    <option value="" disabled>
+                      Choose a member…
+                    </option>
+                    {otherMembers.map((member) => (
+                      <option key={member.user_id} value={member.user_id}>
+                        {member.users?.display_name ?? "Unknown"}
+                        {member.users?.email ? ` (${member.users.email})` : ""}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <ConfirmButton
+                    title="Transfer ownership of this workspace?"
+                    description="The person you chose becomes the owner straight away and you become an editor. Only they can hand it back."
+                    confirmLabel="Transfer ownership"
+                  >
+                    Transfer ownership
+                  </ConfirmButton>
+                </ActionForm>
+              </div>
+            )}
+            <div className="space-y-2">
+              <p className="text-sm">
+                <span className="font-medium">Delete this workspace</span>
+                <span className="block text-muted-foreground">
+                  {workspace.is_personal
+                    ? "Your personal workspace cannot be deleted on its own. It is removed when you delete your account."
+                    : alone
+                      ? `Every page and file in it is deleted. You can restore the workspace from here for ${TRASH_DAYS} days; after that it is removed permanently. Export first if you want a copy.`
+                      : "A workspace that still has other members cannot be deleted. Remove the other members first, or transfer ownership and leave."}
+                </span>
+              </p>
+              {!workspace.is_personal && alone && (
+                <DeleteWorkspaceForm
+                  workspaceId={workspace.id}
+                  workspaceName={workspace.name}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm">
+              <span className="font-medium">Leave this workspace</span>
+              <span className="block text-muted-foreground">
+                You lose access straight away. Pages and files you added stay in
+                the workspace and pass to its owner, including pages you marked
+                private — delete anything you do not want to hand over first.
+              </span>
+            </p>
+            <ActionForm action={leaveWorkspace}>
+              <input type="hidden" name="workspaceId" value={workspace.id} />
+              <ConfirmButton
+                title={`Leave ${workspace.name}?`}
+                description="You lose access straight away, and what you added passes to the workspace owner. To come back you will need a new invitation."
+                confirmLabel="Leave workspace"
+              >
+                Leave workspace
+              </ConfirmButton>
+            </ActionForm>
+          </div>
+        )}
+      </section>
+
+      <Separator />
+
       <section className="space-y-3">
         <SectionHeading>Your account</SectionHeading>
         <ActionForm
@@ -354,6 +466,48 @@ export default async function WorkspaceSettings({
           </SubmitButton>
         </ActionForm>
         <PasskeysBlock enabled={flags.passkeys} />
+        {(deletedWorkspaces ?? []).length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm">
+              <span className="font-medium">Deleted workspaces</span>
+              <span className="block text-muted-foreground">
+                Workspaces you deleted can be restored for {TRASH_DAYS} days.
+              </span>
+            </p>
+            <ul className="space-y-2">
+              {(deletedWorkspaces ?? []).map((deleted) => (
+                <li key={deleted.id} className={rowClass}>
+                  <span className="min-w-0">
+                    {deleted.name}
+                    <span className="ml-2 text-muted-foreground">
+                      Removed permanently on{" "}
+                      {dateFormat.format(
+                        new Date(
+                          new Date(deleted.deleted_at).getTime() +
+                            TRASH_DAYS * 86_400_000,
+                        ),
+                      )}
+                    </span>
+                  </span>
+                  <ActionForm action={restoreWorkspace}>
+                    <input
+                      type="hidden"
+                      name="workspaceId"
+                      value={deleted.id}
+                    />
+                    <SubmitButton
+                      size="sm"
+                      variant="secondary"
+                      pendingLabel="Restoring…"
+                    >
+                      Restore
+                    </SubmitButton>
+                  </ActionForm>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground">
           Deleting your account removes your personal workspace and every
           workspace where you are the only member, including their files.

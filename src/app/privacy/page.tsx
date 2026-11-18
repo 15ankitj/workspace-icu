@@ -84,9 +84,10 @@ export default function PrivacyPage() {
         <SectionHeading>How long we keep it</SectionHeading>
         <p className="text-sm">
           Your content stays until you delete it; deleted pages sit in the trash
-          for 30 days and are then removed permanently along with their files.
-          Page edit history is kept for 90 days. Audit records are kept for 12
-          months.
+          for 30 days and are then removed permanently along with their files. A
+          workspace its owner deletes can be restored for 30 days and is then
+          removed permanently with everything in it. Page edit history is kept
+          for 90 days. Audit records are kept for 12 months.
         </p>
       </section>
 
