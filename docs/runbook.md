@@ -455,6 +455,12 @@ read-only unless they can edit the source page.
   on the HiLLOs overview and read-write in the mid- and end-of-placement
   meeting notes). The gallery offers **Update to vN** to the platform
   owner when the bundled pack is newer than the installed one.
+- **Reinstalling** (migration 0031): a template key belongs to a live
+  synced block only. A tombstone gives its key up, and installing takes
+  the key from a block whose source page is in the Trash
+  (`claim_template_synced_key`), so a pack whose copy was deleted —
+  trashed or purged — installs again; a restored old copy keeps its
+  blocks, without the key.
 
 ## Suggestion mode (Appendix A, Part 2)
 

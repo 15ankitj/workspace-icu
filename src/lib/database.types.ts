@@ -622,6 +622,10 @@ export type Database = {
         Args: { p_pages: Json; p_synced?: Json; p_relations?: Json };
         Returns: undefined;
       };
+      claim_template_synced_key: {
+        Args: { p_workspace_id: string; p_key: string };
+        Returns: string | null;
+      };
       delete_relation_property: {
         Args: { p_page_id: string; p_property_id: string };
         Returns: number;
