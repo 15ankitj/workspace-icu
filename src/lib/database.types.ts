@@ -642,6 +642,31 @@ export type Database = {
         Args: { p_name: string };
         Returns: string;
       };
+      delete_workspace: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
+      restore_workspace: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
+      list_deleted_workspaces: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          name: string;
+          icon: string | null;
+          deleted_at: string;
+        }[];
+      };
+      transfer_workspace_ownership: {
+        Args: { p_id: string; p_to: string };
+        Returns: undefined;
+      };
+      leave_workspace: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
       consume_rate_limit: {
         Args: { p_action: string };
         Returns: boolean;

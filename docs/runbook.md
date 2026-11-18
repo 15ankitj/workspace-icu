@@ -127,6 +127,20 @@ Invitations are sent through Resend's REST API from server actions.
   Project settings → API keys) and `CRON_SECRET` (any long random string;
   Vercel sends it as the bearer token). Without them the job answers 503
   and nothing is purged.
+- **Workspace deletion** (migration 0032): workspace settings → "Danger
+  zone". Only the owner, only when nobody else is a member, never the
+  personal workspace (`delete_workspace`). It is a soft delete: the
+  workspace disappears at once — `is_workspace_member` and
+  `workspace_role_at_least` answer no for a trashed workspace, so every
+  policy closes with it — and the owner can restore it for 30 days from
+  "Your account" → "Deleted workspaces" in any other workspace's settings
+  (`restore_workspace`), after which the purge job removes it with its
+  files and collaboration rooms. An owner hands a shared workspace over
+  with `transfer_workspace_ownership` (they stay on as an editor); anyone
+  else leaves with `leave_workspace`, and what they added passes to the
+  owner. Users can no longer hard-delete a workspace, write its
+  `deleted_at`/`is_personal`, or create or change an owner membership
+  row through the API: the policies and column grants refuse.
 - **Account deletion**: workspace settings → "Your account". The user's
   own personal workspace and workspaces with no other member are erased
   (someone else's personal workspace they were invited into is treated

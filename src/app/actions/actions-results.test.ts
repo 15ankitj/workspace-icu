@@ -307,6 +307,33 @@ const cases: [string, () => Promise<unknown>, string | RegExp][] = [
     PERMISSION_ERROR,
   ],
   [
+    "workspaces.deleteWorkspace",
+    () =>
+      workspaces.deleteWorkspace(null, fd({ workspaceId: "w", confirm: "x" })),
+    PERMISSION_ERROR,
+  ],
+  [
+    "workspaces.restoreWorkspace",
+    () => workspaces.restoreWorkspace(null, fd({ workspaceId: "w" })),
+    PERMISSION_ERROR,
+  ],
+  [
+    "workspaces.transferOwnership",
+    () =>
+      workspaces.transferOwnership(null, fd({ workspaceId: "w", userId: "u" })),
+    PERMISSION_ERROR,
+  ],
+  [
+    "workspaces.transferOwnership (nobody chosen)",
+    () => workspaces.transferOwnership(null, fd({ workspaceId: "w" })),
+    "Choose the new owner.",
+  ],
+  [
+    "workspaces.leaveWorkspace",
+    () => workspaces.leaveWorkspace(null, fd({ workspaceId: "w" })),
+    PERMISSION_ERROR,
+  ],
+  [
     "shares.setPublicLink",
     () => shares.setPublicLink(PAGE, true),
     "Page not found.",

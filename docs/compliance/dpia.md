@@ -83,6 +83,7 @@ Checklist of DPAs to accept is in [processors.md](./processors.md).
 | Data                   | Retention                                              |
 | ---------------------- | ------------------------------------------------------ |
 | Pages, files           | Until deleted by a user; 30 days in trash; then purged |
+| Workspaces             | Until deleted by the owner; 30 days restorable; purged |
 | Page edit history      | 90 days rolling                                        |
 | Audit events           | 12 months (review), then prune                         |
 | Invitations            | 7 days unless accepted                                 |

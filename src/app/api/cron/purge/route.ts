@@ -135,11 +135,25 @@ export async function GET(request: Request) {
     await removeObjects(
       (files ?? []).map((f: { storage_path: string }) => f.storage_path),
     );
+    // Collaboration rooms go with it; the rows that name them are about
+    // to cascade away.
+    const [{ data: wsPages }, { data: wsSynced }] = await Promise.all([
+      admin.from("pages").select("id").eq("workspace_id", workspace.id),
+      admin.from("synced_blocks").select("id").eq("workspace_id", workspace.id),
+    ]);
     const { error } = await admin
       .from("workspaces")
       .delete()
       .eq("id", workspace.id);
-    if (!error) summary.workspaces += 1;
+    if (!error) {
+      summary.workspaces += 1;
+      for (const p of (wsPages ?? []) as { id: string }[]) {
+        await deleteLiveblocksRoom(roomIdForPage(p.id));
+      }
+      for (const s of (wsSynced ?? []) as { id: string }[]) {
+        await deleteLiveblocksRoom(roomIdForSyncedBlock(s.id));
+      }
+    }
   }
 
   // Resolved-suggestion detail (Appendix A §2.3): the audit pair stays,
